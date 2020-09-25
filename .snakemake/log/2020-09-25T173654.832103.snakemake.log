@@ -6360,3 +6360,494 @@ Finished job 258.
 [Fri Sep 25 17:42:22 2020]
 Finished job 293.
 282 of 547 steps (52%) done
+[Fri Sep 25 17:42:32 2020]
+Finished job 311.
+283 of 547 steps (52%) done
+[Fri Sep 25 17:42:32 2020]
+Finished job 391.
+284 of 547 steps (52%) done
+[Fri Sep 25 17:42:32 2020]
+Finished job 131.
+285 of 547 steps (52%) done
+[Fri Sep 25 17:42:32 2020]
+Finished job 537.
+286 of 547 steps (52%) done
+[Fri Sep 25 17:42:33 2020]
+Finished job 516.
+287 of 547 steps (52%) done
+[Fri Sep 25 17:42:33 2020]
+Finished job 483.
+288 of 547 steps (53%) done
+[Fri Sep 25 17:42:34 2020]
+Finished job 197.
+289 of 547 steps (53%) done
+[Fri Sep 25 17:42:34 2020]
+Finished job 56.
+290 of 547 steps (53%) done
+[Fri Sep 25 17:42:34 2020]
+Finished job 172.
+291 of 547 steps (53%) done
+[Fri Sep 25 17:42:34 2020]
+Finished job 80.
+292 of 547 steps (53%) done
+[Fri Sep 25 17:42:34 2020]
+Finished job 512.
+293 of 547 steps (54%) done
+[Fri Sep 25 17:42:34 2020]
+Error in rule get_coverage:
+    jobid: 265
+    output: bedCov/013_B.chr12.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+Error executing rule get_coverage on cluster (jobid: 265, external: 3708650, jobscript: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/tmp.kq66x469/snakejob.get_coverage.265.sh). For error details see the cluster log and the log files of the involved rule(s).
+Job failed, going on with independent jobs.
+[Fri Sep 25 17:42:34 2020]
+Finished job 349.
+294 of 547 steps (54%) done
+[Fri Sep 25 17:42:34 2020]
+Finished job 84.
+295 of 547 steps (54%) done
+[Fri Sep 25 17:42:35 2020]
+Finished job 176.
+296 of 547 steps (54%) done
+[Fri Sep 25 17:42:36 2020]
+Finished job 405.
+297 of 547 steps (54%) done
+[Fri Sep 25 17:42:36 2020]
+Finished job 18.
+298 of 547 steps (54%) done
+[Fri Sep 25 17:42:37 2020]
+Finished job 429.
+299 of 547 steps (55%) done
+[Fri Sep 25 17:42:37 2020]
+Finished job 291.
+300 of 547 steps (55%) done
+[Fri Sep 25 17:42:37 2020]
+Finished job 40.
+301 of 547 steps (55%) done
+[Fri Sep 25 17:42:37 2020]
+Finished job 106.
+302 of 547 steps (55%) done
+[Fri Sep 25 17:42:38 2020]
+Error in rule get_coverage:
+    jobid: 246
+    output: bedCov/012_B.chr16.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+Error executing rule get_coverage on cluster (jobid: 246, external: 3708700, jobscript: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/tmp.kq66x469/snakejob.get_coverage.246.sh). For error details see the cluster log and the log files of the involved rule(s).
+Job failed, going on with independent jobs.
+[Fri Sep 25 17:42:39 2020]
+Finished job 377.
+303 of 547 steps (55%) done
+[Fri Sep 25 17:42:39 2020]
+Finished job 410.
+304 of 547 steps (56%) done
+[Fri Sep 25 17:42:40 2020]
+Finished job 354.
+305 of 547 steps (56%) done
+[Fri Sep 25 17:42:40 2020]
+Finished job 472.
+306 of 547 steps (56%) done
+[Fri Sep 25 17:42:41 2020]
+Finished job 363.
+307 of 547 steps (56%) done
+[Fri Sep 25 17:42:42 2020]
+Finished job 413.
+308 of 547 steps (56%) done
+[Fri Sep 25 17:42:42 2020]
+Finished job 550.
+309 of 547 steps (56%) done
+[Fri Sep 25 17:42:43 2020]
+Finished job 250.
+310 of 547 steps (57%) done
+[Fri Sep 25 17:42:44 2020]
+Finished job 458.
+311 of 547 steps (57%) done
+[Fri Sep 25 17:42:55 2020]
+Finished job 324.
+312 of 547 steps (57%) done
+[Fri Sep 25 17:42:56 2020]
+Finished job 370.
+313 of 547 steps (57%) done
+[Fri Sep 25 17:42:56 2020]
+Finished job 96.
+314 of 547 steps (57%) done
+[Fri Sep 25 17:42:56 2020]
+Finished job 188.
+315 of 547 steps (58%) done
+[Fri Sep 25 17:42:56 2020]
+Finished job 306.
+316 of 547 steps (58%) done
+[Fri Sep 25 17:42:57 2020]
+Finished job 34.
+317 of 547 steps (58%) done
+[Fri Sep 25 17:43:08 2020]
+Finished job 217.
+318 of 547 steps (58%) done
+[Fri Sep 25 17:43:08 2020]
+Finished job 464.
+319 of 547 steps (58%) done
+[Fri Sep 25 17:43:08 2020]
+Finished job 167.
+320 of 547 steps (59%) done
+[Fri Sep 25 17:43:08 2020]
+Finished job 262.
+321 of 547 steps (59%) done
+[Fri Sep 25 17:43:08 2020]
+Finished job 161.
+322 of 547 steps (59%) done
+[Fri Sep 25 17:43:09 2020]
+Error in rule get_coverage:
+    jobid: 247
+    output: bedCov/012_B.chr17.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+Error executing rule get_coverage on cluster (jobid: 247, external: 3708621, jobscript: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/tmp.kq66x469/snakejob.get_coverage.247.sh). For error details see the cluster log and the log files of the involved rule(s).
+Job failed, going on with independent jobs.
+[Fri Sep 25 17:43:09 2020]
+Finished job 23.
+323 of 547 steps (59%) done
+[Fri Sep 25 17:43:09 2020]
+Finished job 318.
+324 of 547 steps (59%) done
+[Fri Sep 25 17:43:09 2020]
+Finished job 368.
+325 of 547 steps (59%) done
+[Fri Sep 25 17:43:10 2020]
+Finished job 171.
+326 of 547 steps (60%) done
+[Fri Sep 25 17:43:10 2020]
+Finished job 490.
+327 of 547 steps (60%) done
+[Fri Sep 25 17:43:10 2020]
+Finished job 517.
+328 of 547 steps (60%) done
+[Fri Sep 25 17:43:10 2020]
+Finished job 132.
+329 of 547 steps (60%) done
+[Fri Sep 25 17:43:11 2020]
+Finished job 147.
+330 of 547 steps (60%) done
+[Fri Sep 25 17:43:11 2020]
+Finished job 198.
+331 of 547 steps (61%) done
+[Fri Sep 25 17:43:11 2020]
+Finished job 357.
+332 of 547 steps (61%) done
+[Fri Sep 25 17:43:11 2020]
+Finished job 7.
+333 of 547 steps (61%) done
+[Fri Sep 25 17:43:12 2020]
+Finished job 592.
+334 of 547 steps (61%) done
+[Fri Sep 25 17:43:12 2020]
+Finished job 463.
+335 of 547 steps (61%) done
+[Fri Sep 25 17:43:12 2020]
+Finished job 312.
+336 of 547 steps (61%) done
+[Fri Sep 25 17:43:12 2020]
+Finished job 467.
+337 of 547 steps (62%) done
+[Fri Sep 25 17:43:13 2020]
+Finished job 487.
+338 of 547 steps (62%) done
+[Fri Sep 25 17:43:13 2020]
+Finished job 31.
+339 of 547 steps (62%) done
+[Fri Sep 25 17:43:14 2020]
+Finished job 123.
+340 of 547 steps (62%) done
+[Fri Sep 25 17:43:15 2020]
+Finished job 203.
+341 of 547 steps (62%) done
+[Fri Sep 25 17:43:15 2020]
+Finished job 408.
+342 of 547 steps (63%) done
+[Fri Sep 25 17:43:16 2020]
+Finished job 493.
+343 of 547 steps (63%) done
+[Fri Sep 25 17:43:16 2020]
+Finished job 87.
+344 of 547 steps (63%) done
+[Fri Sep 25 17:43:16 2020]
+Finished job 179.
+345 of 547 steps (63%) done
+[Fri Sep 25 17:43:17 2020]
+Finished job 518.
+346 of 547 steps (63%) done
+[Fri Sep 25 17:43:17 2020]
+Finished job 114.
+347 of 547 steps (63%) done
+[Fri Sep 25 17:43:17 2020]
+Finished job 573.
+348 of 547 steps (64%) done
+[Fri Sep 25 17:43:18 2020]
+Finished job 457.
+349 of 547 steps (64%) done
+[Fri Sep 25 17:43:18 2020]
+Finished job 589.
+350 of 547 steps (64%) done
+[Fri Sep 25 17:43:18 2020]
+Finished job 251.
+351 of 547 steps (64%) done
+[Fri Sep 25 17:43:19 2020]
+Finished job 572.
+352 of 547 steps (64%) done
+[Fri Sep 25 17:43:19 2020]
+Finished job 450.
+353 of 547 steps (65%) done
+[Fri Sep 25 17:43:20 2020]
+Finished job 524.
+354 of 547 steps (65%) done
+[Fri Sep 25 17:43:21 2020]
+Finished job 549.
+355 of 547 steps (65%) done
+[Fri Sep 25 17:43:28 2020]
+Finished job 24.
+356 of 547 steps (65%) done
+[Fri Sep 25 17:43:28 2020]
+Finished job 116.
+357 of 547 steps (65%) done
+[Fri Sep 25 17:43:28 2020]
+Finished job 48.
+358 of 547 steps (65%) done
+[Fri Sep 25 17:43:29 2020]
+Finished job 347.
+359 of 547 steps (66%) done
+[Fri Sep 25 17:43:40 2020]
+Finished job 260.
+360 of 547 steps (66%) done
+[Fri Sep 25 17:43:40 2020]
+Finished job 75.
+361 of 547 steps (66%) done
+[Fri Sep 25 17:43:40 2020]
+Finished job 393.
+362 of 547 steps (66%) done
+[Fri Sep 25 17:43:40 2020]
+Finished job 52.
+363 of 547 steps (66%) done
+[Fri Sep 25 17:43:40 2020]
+Finished job 218.
+364 of 547 steps (67%) done
+[Fri Sep 25 17:43:41 2020]
+Finished job 79.
+365 of 547 steps (67%) done
+[Fri Sep 25 17:43:41 2020]
+Finished job 213.
+366 of 547 steps (67%) done
+[Fri Sep 25 17:43:41 2020]
+Finished job 486.
+367 of 547 steps (67%) done
+[Fri Sep 25 17:43:41 2020]
+Finished job 371.
+368 of 547 steps (67%) done
+[Fri Sep 25 17:43:41 2020]
+Finished job 9.
+369 of 547 steps (67%) done
+[Fri Sep 25 17:43:42 2020]
+Finished job 276.
+370 of 547 steps (68%) done
+[Fri Sep 25 17:43:42 2020]
+Finished job 286.
+371 of 547 steps (68%) done
+[Fri Sep 25 17:43:42 2020]
+Finished job 424.
+372 of 547 steps (68%) done
+[Fri Sep 25 17:43:43 2020]
+Finished job 380.
+373 of 547 steps (68%) done
+[Fri Sep 25 17:43:43 2020]
+Finished job 583.
+374 of 547 steps (68%) done
+[Fri Sep 25 17:43:43 2020]
+Finished job 420.
+375 of 547 steps (69%) done
+[Fri Sep 25 17:43:44 2020]
+Finished job 396.
+376 of 547 steps (69%) done
+[Fri Sep 25 17:43:44 2020]
+Finished job 337.
+377 of 547 steps (69%) done
+[Fri Sep 25 17:43:44 2020]
+Finished job 348.
+378 of 547 steps (69%) done
+[Fri Sep 25 17:43:44 2020]
+Finished job 150.
+379 of 547 steps (69%) done
+[Fri Sep 25 17:43:44 2020]
+Finished job 111.
+380 of 547 steps (69%) done
+[Fri Sep 25 17:43:44 2020]
+Finished job 425.
+381 of 547 steps (70%) done
+[Fri Sep 25 17:43:45 2020]
+Finished job 506.
+382 of 547 steps (70%) done
+[Fri Sep 25 17:43:46 2020]
+Finished job 287.
+383 of 547 steps (70%) done
+[Fri Sep 25 17:43:47 2020]
+Finished job 315.
+384 of 547 steps (70%) done
+[Fri Sep 25 17:43:48 2020]
+Finished job 206.
+385 of 547 steps (70%) done
+[Fri Sep 25 17:43:48 2020]
+Finished job 580.
+386 of 547 steps (71%) done
+[Fri Sep 25 17:43:49 2020]
+Finished job 515.
+387 of 547 steps (71%) done
+[Fri Sep 25 17:43:49 2020]
+Finished job 489.
+388 of 547 steps (71%) done
+[Fri Sep 25 17:43:49 2020]
+Finished job 565.
+389 of 547 steps (71%) done
+[Fri Sep 25 17:43:50 2020]
+Finished job 594.
+390 of 547 steps (71%) done
+[Fri Sep 25 17:43:53 2020]
+Finished job 407.
+391 of 547 steps (71%) done
+[Fri Sep 25 17:43:53 2020]
+Finished job 571.
+392 of 547 steps (72%) done
+[Fri Sep 25 17:43:53 2020]
+Finished job 340.
+393 of 547 steps (72%) done
+[Fri Sep 25 17:43:56 2020]
+Finished job 596.
+394 of 547 steps (72%) done
+[Fri Sep 25 17:43:57 2020]
+Finished job 432.
+395 of 547 steps (72%) done
+[Fri Sep 25 17:43:58 2020]
+Finished job 302.
+396 of 547 steps (72%) done
+[Fri Sep 25 17:44:09 2020]
+Finished job 256.
+397 of 547 steps (73%) done
+[Fri Sep 25 17:44:09 2020]
+Finished job 57.
+398 of 547 steps (73%) done
+[Fri Sep 25 17:44:09 2020]
+Finished job 328.
+399 of 547 steps (73%) done
+[Fri Sep 25 17:44:09 2020]
+Finished job 257.
+400 of 547 steps (73%) done
+[Fri Sep 25 17:44:11 2020]
+Finished job 332.
+401 of 547 steps (73%) done
+[Fri Sep 25 17:44:11 2020]
+Finished job 12.
+402 of 547 steps (73%) done
+[Fri Sep 25 17:44:11 2020]
+Finished job 352.
+403 of 547 steps (74%) done
+[Fri Sep 25 17:44:11 2020]
+Finished job 129.
+404 of 547 steps (74%) done
+[Fri Sep 25 17:44:12 2020]
+Finished job 76.
+405 of 547 steps (74%) done
+[Fri Sep 25 17:44:13 2020]
+Finished job 109.
+406 of 547 steps (74%) done
+[Fri Sep 25 17:44:13 2020]
+Finished job 263.
+407 of 547 steps (74%) done
+[Fri Sep 25 17:44:13 2020]
+Finished job 418.
+408 of 547 steps (75%) done
+[Fri Sep 25 17:44:14 2020]
+Finished job 55.
+409 of 547 steps (75%) done
+[Fri Sep 25 17:44:14 2020]
+Finished job 100.
+410 of 547 steps (75%) done
+[Fri Sep 25 17:44:14 2020]
+Error in rule get_coverage:
+    jobid: 134
+    output: bedCov/006_B.chr19.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+Error executing rule get_coverage on cluster (jobid: 134, external: 3708785, jobscript: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/tmp.kq66x469/snakejob.get_coverage.134.sh). For error details see the cluster log and the log files of the involved rule(s).
+Job failed, going on with independent jobs.
+[Fri Sep 25 17:44:14 2020]
+Finished job 399.
+411 of 547 steps (75%) done
+[Fri Sep 25 17:44:15 2020]
+Finished job 509.
+412 of 547 steps (75%) done
+[Fri Sep 25 17:44:15 2020]
+Finished job 64.
+413 of 547 steps (76%) done
+[Fri Sep 25 17:44:15 2020]
+Finished job 542.
+414 of 547 steps (76%) done
+[Fri Sep 25 17:44:17 2020]
+Finished job 135.
+415 of 547 steps (76%) done
+[Fri Sep 25 17:44:18 2020]
+Finished job 456.
+416 of 547 steps (76%) done
+[Fri Sep 25 17:44:18 2020]
+Finished job 321.
+417 of 547 steps (76%) done
+[Fri Sep 25 17:44:18 2020]
+Finished job 374.
+418 of 547 steps (76%) done
+[Fri Sep 25 17:44:19 2020]
+Finished job 548.
+419 of 547 steps (77%) done
+[Fri Sep 25 17:44:20 2020]
+Finished job 360.
+420 of 547 steps (77%) done
+[Fri Sep 25 17:44:21 2020]
+Finished job 44.
+421 of 547 steps (77%) done
+[Fri Sep 25 17:44:21 2020]
+Finished job 383.
+422 of 547 steps (77%) done
+[Fri Sep 25 17:44:22 2020]
+Finished job 543.
+423 of 547 steps (77%) done
+[Fri Sep 25 17:44:22 2020]
+Finished job 294.
+424 of 547 steps (78%) done
+[Fri Sep 25 17:44:23 2020]
+Finished job 136.
+425 of 547 steps (78%) done
+[Fri Sep 25 17:44:23 2020]
+Finished job 2.
+426 of 547 steps (78%) done
+[Fri Sep 25 17:44:34 2020]
+Finished job 484.
+427 of 547 steps (78%) done
+[Fri Sep 25 17:44:34 2020]
+Finished job 141.
+428 of 547 steps (78%) done
+[Fri Sep 25 17:44:34 2020]
+Finished job 145.
+429 of 547 steps (78%) done
+[Fri Sep 25 17:44:34 2020]
+Finished job 333.
+430 of 547 steps (79%) done
+[Fri Sep 25 17:44:34 2020]
+Finished job 301.
+431 of 547 steps (79%) done
+[Fri Sep 25 17:44:35 2020]
+Finished job 170.
+432 of 547 steps (79%) done
+[Fri Sep 25 17:44:36 2020]
+Finished job 219.
+433 of 547 steps (79%) done
+[Fri Sep 25 17:44:36 2020]
+Finished job 201.
+434 of 547 steps (79%) done
+[Fri Sep 25 17:44:36 2020]
+Finished job 345.
+435 of 547 steps (80%) done
