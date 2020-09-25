@@ -1,0 +1,75 @@
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 20
+Rules claiming more threads will be scaled down.
+Job counts:
+	count	jobs
+	1	all
+	598	get_coverage
+	599
+
+[Fri Sep 25 16:51:32 2020]
+rule get_coverage:
+    output: bedCov/014_B.chr16.bedCov
+    jobid: 292
+    reason: Missing output files: bedCov/014_B.chr16.bedCov
+    wildcards: sample=014_B, chrom=chr16
+    threads: 6
+
+[Fri Sep 25 16:51:32 2020]
+rule get_coverage:
+    output: bedCov/031_B.chr16.bedCov
+    jobid: 407
+    reason: Missing output files: bedCov/031_B.chr16.bedCov
+    wildcards: sample=031_B, chrom=chr16
+    threads: 6
+
+[Fri Sep 25 16:51:32 2020]
+rule get_coverage:
+    output: bedCov/011_B.chr7.bedCov
+    jobid: 214
+    reason: Missing output files: bedCov/011_B.chr7.bedCov
+    wildcards: sample=011_B, chrom=chr7
+    threads: 6
+
+python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpb18fd_3u.coversnake.py
+python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmptonpl123.coversnake.py
+python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpnp_g_0_0.coversnake.py
+Activating conda environment: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+Activating conda environment: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+Activating conda environment: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+[Fri Sep 25 16:52:51 2020]
+Error in rule get_coverage:
+    jobid: 407
+    output: bedCov/031_B.chr16.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+RuleException:
+CalledProcessError in line 11 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+Command 'source /fast/users/szyskam_c/work/miniconda/bin/activate '/fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275'; set -euo pipefail;  python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmptonpl123.coversnake.py' returned non-zero exit status 1.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk", line 11, in __rule_get_coverage
+  File "/fast/users/szyskam_c/work/miniconda/envs/WES-env/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+Terminating processes on user request, this might take some time.
+[Fri Sep 25 16:53:04 2020]
+Error in rule get_coverage:
+    jobid: 214
+    output: bedCov/011_B.chr7.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+RuleException:
+CalledProcessError in line 11 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+Command 'source /fast/users/szyskam_c/work/miniconda/bin/activate '/fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275'; set -euo pipefail;  python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpnp_g_0_0.coversnake.py' died with <Signals.SIGINT: 2>.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk", line 11, in __rule_get_coverage
+  File "/fast/users/szyskam_c/work/miniconda/envs/WES-env/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+[Fri Sep 25 16:53:04 2020]
+Error in rule get_coverage:
+    jobid: 292
+    output: bedCov/014_B.chr16.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+RuleException:
+CalledProcessError in line 11 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+Command 'source /fast/users/szyskam_c/work/miniconda/bin/activate '/fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275'; set -euo pipefail;  python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpb18fd_3u.coversnake.py' died with <Signals.SIGINT: 2>.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk", line 11, in __rule_get_coverage
+  File "/fast/users/szyskam_c/work/miniconda/envs/WES-env/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+Complete log: /fast/home/users/szyskam_c/snakes/develop/myCNV/.snakemake/log/2020-09-25T165131.457507.snakemake.log

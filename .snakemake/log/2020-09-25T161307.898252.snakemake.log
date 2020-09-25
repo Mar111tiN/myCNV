@@ -1,0 +1,13 @@
+Building DAG of jobs...
+Creating conda environment /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/../env/myCNV-env.yml...
+Downloading and installing remote packages.
+CreateCondaEnvironmentException:
+Could not create conda environment from /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/../env/myCNV-env.yml:
+Collecting package metadata (repodata.json): ...working... done
+Solving environment: ...working... failed
+
+ResolvePackageNotFound: 
+  - appnope=0.1.0
+  - libgfortran=4.0.0
+
+

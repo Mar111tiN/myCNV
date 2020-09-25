@@ -1,0 +1,37 @@
+import pandas as pd
+
+def get_chrom_list(config):
+    '''
+    returns a list of all valid chromosomes determined by build version
+    '''
+
+    def get_chrom(c, use_chr=True):
+        if c > 21:
+            if c == 22:
+                chrom = "X"
+            if c == 23:
+                chrom = "Y"
+        else:
+            chrom = c + 1
+        return f"chr{chrom}" if use_chr else str(chrom)
+
+    # switch for use of "chr"-prefix
+    is_hg38 = True
+
+    chrom_list = [get_chrom(chrom, is_hg38) for chrom in range(23)]  ### for including Y use 24!!!
+    return chrom_list
+
+
+def get_pon_df(pon_list):
+    pon_df = pd.read_csv(pon_list, header=None, names=['path'])
+    pon_df['sample'] = pon_df['path'].str.split('/', expand=True).iloc[:,-1].str.replace('.bam','') 
+    return pon_df
+
+
+def get_bam_path(w):
+    '''
+    returns the path to the pon bam from the pon_df (global var) file using the pon_df
+    '''
+    sample = w.sample
+    bam_path = pon_df.query('sample == @sample')
+    return bam_path.loc[:,'path'].iloc[0]

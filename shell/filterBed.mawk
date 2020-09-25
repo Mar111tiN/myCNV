@@ -131,4 +131,4 @@ readData {  # switching to data
     }
 }'
 # cleanup
-rm stop.file;
+# cd rm stop.file;

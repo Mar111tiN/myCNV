@@ -1,0 +1,23 @@
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 20
+Rules claiming more threads will be scaled down.
+Job counts:
+	count	jobs
+	1	all
+	598	get_coverage
+	599
+
+[Fri Sep 25 16:22:09 2020]
+rule get_coverage:
+    output: bedCov/003_B.chr4.bedCov
+    jobid: 50
+    reason: Missing output files: bedCov/003_B.chr4.bedCov
+    wildcards: sample=003_B, chrom=chr4
+    threads: 6
+
+InputFunctionException in line 1 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+KeyError: -1
+Wildcards:
+sample=003_B
+chrom=chr4

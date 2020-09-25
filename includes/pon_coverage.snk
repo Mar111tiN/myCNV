@@ -1,0 +1,11 @@
+rule get_coverage:
+    output: 
+        bedCov = "bedCov/{sample}.{chrom}.bedCov"
+    threads:
+        config['get_coverage']['threads']
+    conda:
+        f"../env/myCNV-CentOS-env.yml"
+    params:
+        bam = get_bam_path
+    script:
+        "../code/coversnake.py"

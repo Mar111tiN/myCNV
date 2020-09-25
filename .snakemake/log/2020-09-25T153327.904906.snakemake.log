@@ -1,0 +1,3 @@
+KeyError in line 16 of /fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile:
+'path'
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile", line 16, in <module>

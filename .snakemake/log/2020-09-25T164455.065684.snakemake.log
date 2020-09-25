@@ -1,0 +1,76 @@
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 20
+Rules claiming more threads will be scaled down.
+Job counts:
+	count	jobs
+	1	all
+	598	get_coverage
+	599
+
+[Fri Sep 25 16:44:55 2020]
+rule get_coverage:
+    output: bedCov/001_B.chr22.bedCov
+    jobid: 22
+    reason: Missing output files: bedCov/001_B.chr22.bedCov
+    wildcards: sample=001_B, chrom=chr22
+    threads: 6
+
+[Fri Sep 25 16:44:56 2020]
+rule get_coverage:
+    output: bedCov/039_B.chr21.bedCov
+    jobid: 504
+    reason: Missing output files: bedCov/039_B.chr21.bedCov
+    wildcards: sample=039_B, chrom=chr21
+    threads: 6
+
+[Fri Sep 25 16:44:56 2020]
+rule get_coverage:
+    output: bedCov/029_B.chr14.bedCov
+    jobid: 382
+    reason: Missing output files: bedCov/029_B.chr14.bedCov
+    wildcards: sample=029_B, chrom=chr14
+    threads: 6
+
+python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpp4o7pe7b.coversnake.py
+python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpx9evqczb.coversnake.py
+python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpd4upq6hw.coversnake.py
+Activating conda environment: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+Activating conda environment: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+Activating conda environment: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+[Fri Sep 25 16:44:57 2020]
+Error in rule get_coverage:
+    jobid: 382
+    output: bedCov/029_B.chr14.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+RuleException:
+CalledProcessError in line 11 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+Command 'source /fast/users/szyskam_c/work/miniconda/bin/activate '/fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275'; set -euo pipefail;  python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpd4upq6hw.coversnake.py' returned non-zero exit status 1.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk", line 11, in __rule_get_coverage
+  File "/fast/users/szyskam_c/work/miniconda/envs/WES-env/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+[Fri Sep 25 16:44:57 2020]
+Error in rule get_coverage:
+    jobid: 22
+    output: bedCov/001_B.chr22.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+[Fri Sep 25 16:44:57 2020]
+Error in rule get_coverage:
+    jobid: 504
+    output: bedCov/039_B.chr21.bedCov
+    conda-env: /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275
+
+RuleException:
+CalledProcessError in line 11 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+Command 'source /fast/users/szyskam_c/work/miniconda/bin/activate '/fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275'; set -euo pipefail;  python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpp4o7pe7b.coversnake.py' returned non-zero exit status 1.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk", line 11, in __rule_get_coverage
+  File "/fast/users/szyskam_c/work/miniconda/envs/WES-env/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+RuleException:
+CalledProcessError in line 11 of /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk:
+Command 'source /fast/users/szyskam_c/work/miniconda/bin/activate '/fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/conda/f9fc5275'; set -euo pipefail;  python /fast/scratch/users/szyskam_c/develop/PONcoverage/.snakemake/scripts/tmpx9evqczb.coversnake.py' returned non-zero exit status 1.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/includes/pon_coverage.snk", line 11, in __rule_get_coverage
+  File "/fast/users/szyskam_c/work/miniconda/envs/WES-env/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+Shutting down, this might take some time.
+Exiting because a job execution failed. Look above for error message
+Complete log: /fast/home/users/szyskam_c/snakes/develop/myCNV/.snakemake/log/2020-09-25T164455.065684.snakemake.log

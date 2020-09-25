@@ -30,7 +30,7 @@ def get_coverage(bam_file, chrom='', config={}):
     bamCoverage = config['bamCoverage']
     rollingCoverage = config['rollingCoverage']
     filterBed = config['filterBed']
-
+    run("pwd", shell=True)
     view_cmd = f"samtools view {bam_file} {chrom}"
     cov_cmd = f"{bamCoverage} | {rollingCoverage} {config['rollingWindowSize']} | "
     # the 1 at the end is the option for the filterbed tool to output exonic coords

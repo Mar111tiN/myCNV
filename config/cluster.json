@@ -1,0 +1,14 @@
+{
+  "__default__": {
+    "t": "00:45",
+    "mem": "1000",
+    "nodes": 1,
+    "partition": "debug",
+    "threads": "{threads}",
+  },
+  "get_coverage": {
+    "t": "00:35",
+    "mem": 200,
+    "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
+  }
+}

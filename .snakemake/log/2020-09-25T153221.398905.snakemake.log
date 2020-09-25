@@ -1,0 +1,3 @@
+WorkflowError in line 5 of /fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile:
+Config file configs/config_devel.yaml not found.
+  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile", line 5, in <module>
