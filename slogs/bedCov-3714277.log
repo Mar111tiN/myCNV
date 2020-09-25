@@ -1,0 +1,639 @@
++ unset DRMAA_LIBRARY_PATH
++++ which conda
+++ /fast/users/szyskam_c/work/miniconda/condabin/conda shell.bash hook
++ eval 'export CONDA_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/python'\''
+
+# Copyright (C) 2012 Anaconda, Inc
+# SPDX-License-Identifier: BSD-3-Clause
+
+__add_sys_prefix_to_path() {
+    # In dev-mode CONDA_EXE is python.exe and on Windows
+    # it is in a different relative location to condabin.
+    if [ -n "${_CE_CONDA}" ] && [ -n "${WINDIR+x}" ]; then
+        SYSP=$(\dirname "${CONDA_EXE}")
+    else
+        SYSP=$(\dirname "${CONDA_EXE}")
+        SYSP=$(\dirname "${SYSP}")
+    fi
+
+    if [ -n "${WINDIR+x}" ]; then
+        PATH="${SYSP}/bin:${PATH}"
+        PATH="${SYSP}/Scripts:${PATH}"
+        PATH="${SYSP}/Library/bin:${PATH}"
+        PATH="${SYSP}/Library/usr/bin:${PATH}"
+        PATH="${SYSP}/Library/mingw-w64/bin:${PATH}"
+        PATH="${SYSP}:${PATH}"
+    else
+        PATH="${SYSP}/bin:${PATH}"
+    fi
+    \export PATH
+}
+
+__conda_hashr() {
+    if [ -n "${ZSH_VERSION:+x}" ]; then
+        \rehash
+    elif [ -n "${POSH_VERSION:+x}" ]; then
+        :  # pass
+    else
+        \hash -r
+    fi
+}
+
+__conda_activate() {
+    if [ -n "${CONDA_PS1_BACKUP:+x}" ]; then
+        # Handle transition from shell activated with conda <= 4.3 to a subsequent activation
+        # after conda updated to >= 4.4. See issue #6173.
+        PS1="$CONDA_PS1_BACKUP"
+        \unset CONDA_PS1_BACKUP
+    fi
+
+    \local cmd="$1"
+    shift
+    \local ask_conda
+    CONDA_INTERNAL_OLDPATH="${PATH}"
+    __add_sys_prefix_to_path
+    ask_conda="$(PS1="$PS1" "$CONDA_EXE" $_CE_M $_CE_CONDA shell.posix "$cmd" "$@")" || \return $?
+    rc=$?
+    PATH="${CONDA_INTERNAL_OLDPATH}"
+    \eval "$ask_conda"
+    if [ $rc != 0 ]; then
+        \export PATH
+    fi
+    __conda_hashr
+}
+
+__conda_reactivate() {
+    \local ask_conda
+    CONDA_INTERNAL_OLDPATH="${PATH}"
+    __add_sys_prefix_to_path
+    ask_conda="$(PS1="$PS1" "$CONDA_EXE" $_CE_M $_CE_CONDA shell.posix reactivate)" || \return $?
+    PATH="${CONDA_INTERNAL_OLDPATH}"
+    \eval "$ask_conda"
+    __conda_hashr
+}
+
+conda() {
+    if [ "$#" -lt 1 ]; then
+        "$CONDA_EXE" $_CE_M $_CE_CONDA
+    else
+        \local cmd="$1"
+        shift
+        case "$cmd" in
+            activate|deactivate)
+                __conda_activate "$cmd" "$@"
+                ;;
+            install|update|upgrade|remove|uninstall)
+                CONDA_INTERNAL_OLDPATH="${PATH}"
+                __add_sys_prefix_to_path
+                "$CONDA_EXE" $_CE_M $_CE_CONDA "$cmd" "$@"
+                \local t1=$?
+                PATH="${CONDA_INTERNAL_OLDPATH}"
+                if [ $t1 = 0 ]; then
+                    __conda_reactivate
+                else
+                    return $t1
+                fi
+                ;;
+            *)
+                CONDA_INTERNAL_OLDPATH="${PATH}"
+                __add_sys_prefix_to_path
+                "$CONDA_EXE" $_CE_M $_CE_CONDA "$cmd" "$@"
+                \local t1=$?
+                PATH="${CONDA_INTERNAL_OLDPATH}"
+                return $t1
+                ;;
+        esac
+    fi
+}
+
+if [ -z "${CONDA_SHLVL+x}" ]; then
+    \export CONDA_SHLVL=0
+    # In dev-mode CONDA_EXE is python.exe and on Windows
+    # it is in a different relative location to condabin.
+    if [ -n "${_CE_CONDA+x}" ] && [ -n "${WINDIR+x}" ]; then
+        PATH="$(\dirname "$CONDA_EXE")/condabin${PATH:+":${PATH}"}"
+    else
+        PATH="$(\dirname "$(\dirname "$CONDA_EXE")")/condabin${PATH:+":${PATH}"}"
+    fi
+    \export PATH
+
+    # We'\''re not allowing PS1 to be unbound. It must at least be set.
+    # However, we'\''re not exporting it, which can cause problems when starting a second shell
+    # via a first shell (i.e. starting zsh from bash).
+    if [ -z "${PS1+x}" ]; then
+        PS1=
+    fi
+fi
+
+conda activate base'
+++ export CONDA_EXE=/fast/users/szyskam_c/work/miniconda/bin/conda
+++ CONDA_EXE=/fast/users/szyskam_c/work/miniconda/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/fast/users/szyskam_c/work/miniconda/bin/python
+++ CONDA_PYTHON_EXE=/fast/users/szyskam_c/work/miniconda/bin/python
+++ '[' -z x ']'
+++ conda activate base
+++ '[' 2 -lt 1 ']'
+++ local cmd=activate
+++ shift
+++ case "$cmd" in
+++ __conda_activate activate base
+++ '[' -n '' ']'
+++ local cmd=activate
+++ shift
+++ local ask_conda
+++ CONDA_INTERNAL_OLDPATH=/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ __add_sys_prefix_to_path
+++ '[' -n '' ']'
++++ dirname /fast/users/szyskam_c/work/miniconda/bin/conda
+++ SYSP=/fast/users/szyskam_c/work/miniconda/bin
++++ dirname /fast/users/szyskam_c/work/miniconda/bin
+++ SYSP=/fast/users/szyskam_c/work/miniconda
+++ '[' -n '' ']'
+++ PATH=/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ export PATH
++++ PS1=
++++ /fast/users/szyskam_c/work/miniconda/bin/conda shell.posix activate base
+++ ask_conda='export PATH='\''/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin'\''
+unset CONDA_PREFIX_1
+PS1='\''(base) '\''
+export CONDA_PREFIX='\''/fast/users/szyskam_c/work/miniconda'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/python'\'''
+++ rc=0
+++ PATH=/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ eval 'export PATH='\''/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin'\''
+unset CONDA_PREFIX_1
+PS1='\''(base) '\''
+export CONDA_PREFIX='\''/fast/users/szyskam_c/work/miniconda'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/python'\'''
++++ export PATH=/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++++ PATH=/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++++ unset CONDA_PREFIX_1
++++ PS1='(base) '
++++ export CONDA_PREFIX=/fast/users/szyskam_c/work/miniconda
++++ CONDA_PREFIX=/fast/users/szyskam_c/work/miniconda
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/fast/users/szyskam_c/work/miniconda/bin/conda
++++ CONDA_EXE=/fast/users/szyskam_c/work/miniconda/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/fast/users/szyskam_c/work/miniconda/bin/python
++++ CONDA_PYTHON_EXE=/fast/users/szyskam_c/work/miniconda/bin/python
+++ '[' 0 '!=' 0 ']'
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate WES-env
++ '[' 2 -lt 1 ']'
++ local cmd=activate
++ shift
++ case "$cmd" in
++ __conda_activate activate WES-env
++ '[' -n '' ']'
++ local cmd=activate
++ shift
++ local ask_conda
++ CONDA_INTERNAL_OLDPATH=/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++ __add_sys_prefix_to_path
++ '[' -n '' ']'
+++ dirname /fast/users/szyskam_c/work/miniconda/bin/conda
++ SYSP=/fast/users/szyskam_c/work/miniconda/bin
+++ dirname /fast/users/szyskam_c/work/miniconda/bin
++ SYSP=/fast/users/szyskam_c/work/miniconda
++ '[' -n '' ']'
++ PATH=/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++ export PATH
+++ PS1='(base) '
+++ /fast/users/szyskam_c/work/miniconda/bin/conda shell.posix activate WES-env
++ ask_conda='PS1='\''(WES-env) '\''
+export PATH='\''/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin'\''
+export CONDA_PREFIX='\''/fast/users/szyskam_c/work/miniconda/envs/WES-env'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''WES-env'\''
+export CONDA_PROMPT_MODIFIER='\''(WES-env) '\''
+export CONDA_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/python'\''
+export CONDA_PREFIX_1='\''/fast/users/szyskam_c/work/miniconda'\'''
++ rc=0
++ PATH=/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++ eval 'PS1='\''(WES-env) '\''
+export PATH='\''/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin'\''
+export CONDA_PREFIX='\''/fast/users/szyskam_c/work/miniconda/envs/WES-env'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''WES-env'\''
+export CONDA_PROMPT_MODIFIER='\''(WES-env) '\''
+export CONDA_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/fast/users/szyskam_c/work/miniconda/bin/python'\''
+export CONDA_PREFIX_1='\''/fast/users/szyskam_c/work/miniconda'\'''
+++ PS1='(WES-env) '
+++ export PATH=/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ PATH=/fast/users/szyskam_c/work/miniconda/envs/WES-env/bin:/fast/users/szyskam_c/work/miniconda/condabin:/fast/users/szyskam_c/work/utils/myscripts/symlinx:/fast/users/szyskam_c/work/miniconda/bin:/fast/users/szyskam_c/.local/bin:/fast/users/szyskam_c/work/utils/cellranger-3.1.0:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ export CONDA_PREFIX=/fast/users/szyskam_c/work/miniconda/envs/WES-env
+++ CONDA_PREFIX=/fast/users/szyskam_c/work/miniconda/envs/WES-env
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=WES-env
+++ CONDA_DEFAULT_ENV=WES-env
+++ export 'CONDA_PROMPT_MODIFIER=(WES-env) '
+++ CONDA_PROMPT_MODIFIER='(WES-env) '
+++ export CONDA_EXE=/fast/users/szyskam_c/work/miniconda/bin/conda
+++ CONDA_EXE=/fast/users/szyskam_c/work/miniconda/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/fast/users/szyskam_c/work/miniconda/bin/python
+++ CONDA_PYTHON_EXE=/fast/users/szyskam_c/work/miniconda/bin/python
+++ export CONDA_PREFIX_1=/fast/users/szyskam_c/work/miniconda
+++ CONDA_PREFIX_1=/fast/users/szyskam_c/work/miniconda
++ '[' 0 '!=' 0 ']'
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ echo /fast/users/szyskam_c/work/miniconda/envs/WES-env activated
+/fast/users/szyskam_c/work/miniconda/envs/WES-env activated
++ DRMAA=' -p {cluster.partition} -t {cluster.t} --mem-per-cpu={cluster.mem} -J {cluster.name} --nodes={cluster.nodes} -n {cluster.threads}'
++ DRMAA=' -p {cluster.partition} -t {cluster.t} --mem-per-cpu={cluster.mem} -J {cluster.name} --nodes={cluster.nodes} -n {cluster.threads} -o /fast/users/szyskam_c/scratch/slogs/bedCov-3714277/{rule}-%j.log'
++ snakemake --unlock --rerun-incomplete
+Building DAG of jobs...
+Unlocking working directory.
+                                                 path sample
+0   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  001_B
+1   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  002_B
+2   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  003_B
+3   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  004_B
+4   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  005_B
+5   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  006_B
+6   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  008_B
+7   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  009_B
+8   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  010_B
+9   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  011_B
+10  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  012_B
+11  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  013_B
+12  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  014_B
+13  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  015_B
+14  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  016_B
+15  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  021_B
+16  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  029_B
+17  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  031_B
+18  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  033_B
+19  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  034_B
+20  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  036_B
+21  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  039_B
+22  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  040_B
+23  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  041_B
+24  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  042_B
+25  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  044_B
++ snakemake --use-conda --rerun-incomplete --cluster-config config/cluster.json --drmaa ' -p {cluster.partition} -t {cluster.t} --mem-per-cpu={cluster.mem} -J {cluster.name} --nodes={cluster.nodes} -n {cluster.threads} -o /fast/users/szyskam_c/scratch/slogs/bedCov-3714277/{rule}-%j.log' -prk -j 1000
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cluster nodes: 1000
+Job counts:
+	count	jobs
+	1	all
+	21	combine_chrom_coverage
+	22
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr17.bedCov, bedCov/002_B.chr17.bedCov, bedCov/003_B.chr17.bedCov, bedCov/004_B.chr17.bedCov, bedCov/005_B.chr17.bedCov, bedCov/006_B.chr17.bedCov, bedCov/008_B.chr17.bedCov, bedCov/009_B.chr17.bedCov, bedCov/010_B.chr17.bedCov, bedCov/011_B.chr17.bedCov, bedCov/012_B.chr17.bedCov, bedCov/013_B.chr17.bedCov, bedCov/014_B.chr17.bedCov, bedCov/015_B.chr17.bedCov, bedCov/016_B.chr17.bedCov, bedCov/021_B.chr17.bedCov, bedCov/029_B.chr17.bedCov, bedCov/031_B.chr17.bedCov, bedCov/033_B.chr17.bedCov, bedCov/034_B.chr17.bedCov, bedCov/036_B.chr17.bedCov, bedCov/039_B.chr17.bedCov, bedCov/040_B.chr17.bedCov, bedCov/041_B.chr17.bedCov, bedCov/042_B.chr17.bedCov, bedCov/044_B.chr17.bedCov
+    output: chromCov/chr17.bedCov
+    jobid: 17
+    reason: Missing output files: chromCov/chr17.bedCov
+    wildcards: chrom=chr17
+
+Submitted DRMAA job 17 with external jobid 3714282.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr18.bedCov, bedCov/002_B.chr18.bedCov, bedCov/003_B.chr18.bedCov, bedCov/004_B.chr18.bedCov, bedCov/005_B.chr18.bedCov, bedCov/006_B.chr18.bedCov, bedCov/008_B.chr18.bedCov, bedCov/009_B.chr18.bedCov, bedCov/010_B.chr18.bedCov, bedCov/011_B.chr18.bedCov, bedCov/012_B.chr18.bedCov, bedCov/013_B.chr18.bedCov, bedCov/014_B.chr18.bedCov, bedCov/015_B.chr18.bedCov, bedCov/016_B.chr18.bedCov, bedCov/021_B.chr18.bedCov, bedCov/029_B.chr18.bedCov, bedCov/031_B.chr18.bedCov, bedCov/033_B.chr18.bedCov, bedCov/034_B.chr18.bedCov, bedCov/036_B.chr18.bedCov, bedCov/039_B.chr18.bedCov, bedCov/040_B.chr18.bedCov, bedCov/041_B.chr18.bedCov, bedCov/042_B.chr18.bedCov, bedCov/044_B.chr18.bedCov
+    output: chromCov/chr18.bedCov
+    jobid: 18
+    reason: Missing output files: chromCov/chr18.bedCov
+    wildcards: chrom=chr18
+
+Submitted DRMAA job 18 with external jobid 3714283.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr3.bedCov, bedCov/002_B.chr3.bedCov, bedCov/003_B.chr3.bedCov, bedCov/004_B.chr3.bedCov, bedCov/005_B.chr3.bedCov, bedCov/006_B.chr3.bedCov, bedCov/008_B.chr3.bedCov, bedCov/009_B.chr3.bedCov, bedCov/010_B.chr3.bedCov, bedCov/011_B.chr3.bedCov, bedCov/012_B.chr3.bedCov, bedCov/013_B.chr3.bedCov, bedCov/014_B.chr3.bedCov, bedCov/015_B.chr3.bedCov, bedCov/016_B.chr3.bedCov, bedCov/021_B.chr3.bedCov, bedCov/029_B.chr3.bedCov, bedCov/031_B.chr3.bedCov, bedCov/033_B.chr3.bedCov, bedCov/034_B.chr3.bedCov, bedCov/036_B.chr3.bedCov, bedCov/039_B.chr3.bedCov, bedCov/040_B.chr3.bedCov, bedCov/041_B.chr3.bedCov, bedCov/042_B.chr3.bedCov, bedCov/044_B.chr3.bedCov
+    output: chromCov/chr3.bedCov
+    jobid: 3
+    reason: Missing output files: chromCov/chr3.bedCov
+    wildcards: chrom=chr3
+
+Submitted DRMAA job 3 with external jobid 3714284.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr22.bedCov, bedCov/002_B.chr22.bedCov, bedCov/003_B.chr22.bedCov, bedCov/004_B.chr22.bedCov, bedCov/005_B.chr22.bedCov, bedCov/006_B.chr22.bedCov, bedCov/008_B.chr22.bedCov, bedCov/009_B.chr22.bedCov, bedCov/010_B.chr22.bedCov, bedCov/011_B.chr22.bedCov, bedCov/012_B.chr22.bedCov, bedCov/013_B.chr22.bedCov, bedCov/014_B.chr22.bedCov, bedCov/015_B.chr22.bedCov, bedCov/016_B.chr22.bedCov, bedCov/021_B.chr22.bedCov, bedCov/029_B.chr22.bedCov, bedCov/031_B.chr22.bedCov, bedCov/033_B.chr22.bedCov, bedCov/034_B.chr22.bedCov, bedCov/036_B.chr22.bedCov, bedCov/039_B.chr22.bedCov, bedCov/040_B.chr22.bedCov, bedCov/041_B.chr22.bedCov, bedCov/042_B.chr22.bedCov, bedCov/044_B.chr22.bedCov
+    output: chromCov/chr22.bedCov
+    jobid: 22
+    reason: Missing output files: chromCov/chr22.bedCov
+    wildcards: chrom=chr22
+
+Submitted DRMAA job 22 with external jobid 3714285.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chrX.bedCov, bedCov/002_B.chrX.bedCov, bedCov/003_B.chrX.bedCov, bedCov/004_B.chrX.bedCov, bedCov/005_B.chrX.bedCov, bedCov/006_B.chrX.bedCov, bedCov/008_B.chrX.bedCov, bedCov/009_B.chrX.bedCov, bedCov/010_B.chrX.bedCov, bedCov/011_B.chrX.bedCov, bedCov/012_B.chrX.bedCov, bedCov/013_B.chrX.bedCov, bedCov/014_B.chrX.bedCov, bedCov/015_B.chrX.bedCov, bedCov/016_B.chrX.bedCov, bedCov/021_B.chrX.bedCov, bedCov/029_B.chrX.bedCov, bedCov/031_B.chrX.bedCov, bedCov/033_B.chrX.bedCov, bedCov/034_B.chrX.bedCov, bedCov/036_B.chrX.bedCov, bedCov/039_B.chrX.bedCov, bedCov/040_B.chrX.bedCov, bedCov/041_B.chrX.bedCov, bedCov/042_B.chrX.bedCov, bedCov/044_B.chrX.bedCov
+    output: chromCov/chrX.bedCov
+    jobid: 23
+    reason: Missing output files: chromCov/chrX.bedCov
+    wildcards: chrom=chrX
+
+Submitted DRMAA job 23 with external jobid 3714286.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr19.bedCov, bedCov/002_B.chr19.bedCov, bedCov/003_B.chr19.bedCov, bedCov/004_B.chr19.bedCov, bedCov/005_B.chr19.bedCov, bedCov/006_B.chr19.bedCov, bedCov/008_B.chr19.bedCov, bedCov/009_B.chr19.bedCov, bedCov/010_B.chr19.bedCov, bedCov/011_B.chr19.bedCov, bedCov/012_B.chr19.bedCov, bedCov/013_B.chr19.bedCov, bedCov/014_B.chr19.bedCov, bedCov/015_B.chr19.bedCov, bedCov/016_B.chr19.bedCov, bedCov/021_B.chr19.bedCov, bedCov/029_B.chr19.bedCov, bedCov/031_B.chr19.bedCov, bedCov/033_B.chr19.bedCov, bedCov/034_B.chr19.bedCov, bedCov/036_B.chr19.bedCov, bedCov/039_B.chr19.bedCov, bedCov/040_B.chr19.bedCov, bedCov/041_B.chr19.bedCov, bedCov/042_B.chr19.bedCov, bedCov/044_B.chr19.bedCov
+    output: chromCov/chr19.bedCov
+    jobid: 19
+    reason: Missing output files: chromCov/chr19.bedCov
+    wildcards: chrom=chr19
+
+Submitted DRMAA job 19 with external jobid 3714287.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr10.bedCov, bedCov/002_B.chr10.bedCov, bedCov/003_B.chr10.bedCov, bedCov/004_B.chr10.bedCov, bedCov/005_B.chr10.bedCov, bedCov/006_B.chr10.bedCov, bedCov/008_B.chr10.bedCov, bedCov/009_B.chr10.bedCov, bedCov/010_B.chr10.bedCov, bedCov/011_B.chr10.bedCov, bedCov/012_B.chr10.bedCov, bedCov/013_B.chr10.bedCov, bedCov/014_B.chr10.bedCov, bedCov/015_B.chr10.bedCov, bedCov/016_B.chr10.bedCov, bedCov/021_B.chr10.bedCov, bedCov/029_B.chr10.bedCov, bedCov/031_B.chr10.bedCov, bedCov/033_B.chr10.bedCov, bedCov/034_B.chr10.bedCov, bedCov/036_B.chr10.bedCov, bedCov/039_B.chr10.bedCov, bedCov/040_B.chr10.bedCov, bedCov/041_B.chr10.bedCov, bedCov/042_B.chr10.bedCov, bedCov/044_B.chr10.bedCov
+    output: chromCov/chr10.bedCov
+    jobid: 10
+    reason: Missing output files: chromCov/chr10.bedCov
+    wildcards: chrom=chr10
+
+Submitted DRMAA job 10 with external jobid 3714288.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr13.bedCov, bedCov/002_B.chr13.bedCov, bedCov/003_B.chr13.bedCov, bedCov/004_B.chr13.bedCov, bedCov/005_B.chr13.bedCov, bedCov/006_B.chr13.bedCov, bedCov/008_B.chr13.bedCov, bedCov/009_B.chr13.bedCov, bedCov/010_B.chr13.bedCov, bedCov/011_B.chr13.bedCov, bedCov/012_B.chr13.bedCov, bedCov/013_B.chr13.bedCov, bedCov/014_B.chr13.bedCov, bedCov/015_B.chr13.bedCov, bedCov/016_B.chr13.bedCov, bedCov/021_B.chr13.bedCov, bedCov/029_B.chr13.bedCov, bedCov/031_B.chr13.bedCov, bedCov/033_B.chr13.bedCov, bedCov/034_B.chr13.bedCov, bedCov/036_B.chr13.bedCov, bedCov/039_B.chr13.bedCov, bedCov/040_B.chr13.bedCov, bedCov/041_B.chr13.bedCov, bedCov/042_B.chr13.bedCov, bedCov/044_B.chr13.bedCov
+    output: chromCov/chr13.bedCov
+    jobid: 13
+    reason: Missing output files: chromCov/chr13.bedCov
+    wildcards: chrom=chr13
+
+Submitted DRMAA job 13 with external jobid 3714289.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr4.bedCov, bedCov/002_B.chr4.bedCov, bedCov/003_B.chr4.bedCov, bedCov/004_B.chr4.bedCov, bedCov/005_B.chr4.bedCov, bedCov/006_B.chr4.bedCov, bedCov/008_B.chr4.bedCov, bedCov/009_B.chr4.bedCov, bedCov/010_B.chr4.bedCov, bedCov/011_B.chr4.bedCov, bedCov/012_B.chr4.bedCov, bedCov/013_B.chr4.bedCov, bedCov/014_B.chr4.bedCov, bedCov/015_B.chr4.bedCov, bedCov/016_B.chr4.bedCov, bedCov/021_B.chr4.bedCov, bedCov/029_B.chr4.bedCov, bedCov/031_B.chr4.bedCov, bedCov/033_B.chr4.bedCov, bedCov/034_B.chr4.bedCov, bedCov/036_B.chr4.bedCov, bedCov/039_B.chr4.bedCov, bedCov/040_B.chr4.bedCov, bedCov/041_B.chr4.bedCov, bedCov/042_B.chr4.bedCov, bedCov/044_B.chr4.bedCov
+    output: chromCov/chr4.bedCov
+    jobid: 4
+    reason: Missing output files: chromCov/chr4.bedCov
+    wildcards: chrom=chr4
+
+Submitted DRMAA job 4 with external jobid 3714290.
+
+[Fri Sep 25 19:09:07 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr15.bedCov, bedCov/002_B.chr15.bedCov, bedCov/003_B.chr15.bedCov, bedCov/004_B.chr15.bedCov, bedCov/005_B.chr15.bedCov, bedCov/006_B.chr15.bedCov, bedCov/008_B.chr15.bedCov, bedCov/009_B.chr15.bedCov, bedCov/010_B.chr15.bedCov, bedCov/011_B.chr15.bedCov, bedCov/012_B.chr15.bedCov, bedCov/013_B.chr15.bedCov, bedCov/014_B.chr15.bedCov, bedCov/015_B.chr15.bedCov, bedCov/016_B.chr15.bedCov, bedCov/021_B.chr15.bedCov, bedCov/029_B.chr15.bedCov, bedCov/031_B.chr15.bedCov, bedCov/033_B.chr15.bedCov, bedCov/034_B.chr15.bedCov, bedCov/036_B.chr15.bedCov, bedCov/039_B.chr15.bedCov, bedCov/040_B.chr15.bedCov, bedCov/041_B.chr15.bedCov, bedCov/042_B.chr15.bedCov, bedCov/044_B.chr15.bedCov
+    output: chromCov/chr15.bedCov
+    jobid: 15
+    reason: Missing output files: chromCov/chr15.bedCov
+    wildcards: chrom=chr15
+
+Submitted DRMAA job 15 with external jobid 3714291.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr12.bedCov, bedCov/002_B.chr12.bedCov, bedCov/003_B.chr12.bedCov, bedCov/004_B.chr12.bedCov, bedCov/005_B.chr12.bedCov, bedCov/006_B.chr12.bedCov, bedCov/008_B.chr12.bedCov, bedCov/009_B.chr12.bedCov, bedCov/010_B.chr12.bedCov, bedCov/011_B.chr12.bedCov, bedCov/012_B.chr12.bedCov, bedCov/013_B.chr12.bedCov, bedCov/014_B.chr12.bedCov, bedCov/015_B.chr12.bedCov, bedCov/016_B.chr12.bedCov, bedCov/021_B.chr12.bedCov, bedCov/029_B.chr12.bedCov, bedCov/031_B.chr12.bedCov, bedCov/033_B.chr12.bedCov, bedCov/034_B.chr12.bedCov, bedCov/036_B.chr12.bedCov, bedCov/039_B.chr12.bedCov, bedCov/040_B.chr12.bedCov, bedCov/041_B.chr12.bedCov, bedCov/042_B.chr12.bedCov, bedCov/044_B.chr12.bedCov
+    output: chromCov/chr12.bedCov
+    jobid: 12
+    reason: Missing output files: chromCov/chr12.bedCov
+    wildcards: chrom=chr12
+
+Submitted DRMAA job 12 with external jobid 3714292.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr5.bedCov, bedCov/002_B.chr5.bedCov, bedCov/003_B.chr5.bedCov, bedCov/004_B.chr5.bedCov, bedCov/005_B.chr5.bedCov, bedCov/006_B.chr5.bedCov, bedCov/008_B.chr5.bedCov, bedCov/009_B.chr5.bedCov, bedCov/010_B.chr5.bedCov, bedCov/011_B.chr5.bedCov, bedCov/012_B.chr5.bedCov, bedCov/013_B.chr5.bedCov, bedCov/014_B.chr5.bedCov, bedCov/015_B.chr5.bedCov, bedCov/016_B.chr5.bedCov, bedCov/021_B.chr5.bedCov, bedCov/029_B.chr5.bedCov, bedCov/031_B.chr5.bedCov, bedCov/033_B.chr5.bedCov, bedCov/034_B.chr5.bedCov, bedCov/036_B.chr5.bedCov, bedCov/039_B.chr5.bedCov, bedCov/040_B.chr5.bedCov, bedCov/041_B.chr5.bedCov, bedCov/042_B.chr5.bedCov, bedCov/044_B.chr5.bedCov
+    output: chromCov/chr5.bedCov
+    jobid: 5
+    reason: Missing output files: chromCov/chr5.bedCov
+    wildcards: chrom=chr5
+
+Submitted DRMAA job 5 with external jobid 3714293.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr7.bedCov, bedCov/002_B.chr7.bedCov, bedCov/003_B.chr7.bedCov, bedCov/004_B.chr7.bedCov, bedCov/005_B.chr7.bedCov, bedCov/006_B.chr7.bedCov, bedCov/008_B.chr7.bedCov, bedCov/009_B.chr7.bedCov, bedCov/010_B.chr7.bedCov, bedCov/011_B.chr7.bedCov, bedCov/012_B.chr7.bedCov, bedCov/013_B.chr7.bedCov, bedCov/014_B.chr7.bedCov, bedCov/015_B.chr7.bedCov, bedCov/016_B.chr7.bedCov, bedCov/021_B.chr7.bedCov, bedCov/029_B.chr7.bedCov, bedCov/031_B.chr7.bedCov, bedCov/033_B.chr7.bedCov, bedCov/034_B.chr7.bedCov, bedCov/036_B.chr7.bedCov, bedCov/039_B.chr7.bedCov, bedCov/040_B.chr7.bedCov, bedCov/041_B.chr7.bedCov, bedCov/042_B.chr7.bedCov, bedCov/044_B.chr7.bedCov
+    output: chromCov/chr7.bedCov
+    jobid: 7
+    reason: Missing output files: chromCov/chr7.bedCov
+    wildcards: chrom=chr7
+
+Submitted DRMAA job 7 with external jobid 3714294.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr21.bedCov, bedCov/002_B.chr21.bedCov, bedCov/003_B.chr21.bedCov, bedCov/004_B.chr21.bedCov, bedCov/005_B.chr21.bedCov, bedCov/006_B.chr21.bedCov, bedCov/008_B.chr21.bedCov, bedCov/009_B.chr21.bedCov, bedCov/010_B.chr21.bedCov, bedCov/011_B.chr21.bedCov, bedCov/012_B.chr21.bedCov, bedCov/013_B.chr21.bedCov, bedCov/014_B.chr21.bedCov, bedCov/015_B.chr21.bedCov, bedCov/016_B.chr21.bedCov, bedCov/021_B.chr21.bedCov, bedCov/029_B.chr21.bedCov, bedCov/031_B.chr21.bedCov, bedCov/033_B.chr21.bedCov, bedCov/034_B.chr21.bedCov, bedCov/036_B.chr21.bedCov, bedCov/039_B.chr21.bedCov, bedCov/040_B.chr21.bedCov, bedCov/041_B.chr21.bedCov, bedCov/042_B.chr21.bedCov, bedCov/044_B.chr21.bedCov
+    output: chromCov/chr21.bedCov
+    jobid: 21
+    reason: Missing output files: chromCov/chr21.bedCov
+    wildcards: chrom=chr21
+
+Submitted DRMAA job 21 with external jobid 3714295.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr8.bedCov, bedCov/002_B.chr8.bedCov, bedCov/003_B.chr8.bedCov, bedCov/004_B.chr8.bedCov, bedCov/005_B.chr8.bedCov, bedCov/006_B.chr8.bedCov, bedCov/008_B.chr8.bedCov, bedCov/009_B.chr8.bedCov, bedCov/010_B.chr8.bedCov, bedCov/011_B.chr8.bedCov, bedCov/012_B.chr8.bedCov, bedCov/013_B.chr8.bedCov, bedCov/014_B.chr8.bedCov, bedCov/015_B.chr8.bedCov, bedCov/016_B.chr8.bedCov, bedCov/021_B.chr8.bedCov, bedCov/029_B.chr8.bedCov, bedCov/031_B.chr8.bedCov, bedCov/033_B.chr8.bedCov, bedCov/034_B.chr8.bedCov, bedCov/036_B.chr8.bedCov, bedCov/039_B.chr8.bedCov, bedCov/040_B.chr8.bedCov, bedCov/041_B.chr8.bedCov, bedCov/042_B.chr8.bedCov, bedCov/044_B.chr8.bedCov
+    output: chromCov/chr8.bedCov
+    jobid: 8
+    reason: Missing output files: chromCov/chr8.bedCov
+    wildcards: chrom=chr8
+
+Submitted DRMAA job 8 with external jobid 3714296.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr16.bedCov, bedCov/002_B.chr16.bedCov, bedCov/003_B.chr16.bedCov, bedCov/004_B.chr16.bedCov, bedCov/005_B.chr16.bedCov, bedCov/006_B.chr16.bedCov, bedCov/008_B.chr16.bedCov, bedCov/009_B.chr16.bedCov, bedCov/010_B.chr16.bedCov, bedCov/011_B.chr16.bedCov, bedCov/012_B.chr16.bedCov, bedCov/013_B.chr16.bedCov, bedCov/014_B.chr16.bedCov, bedCov/015_B.chr16.bedCov, bedCov/016_B.chr16.bedCov, bedCov/021_B.chr16.bedCov, bedCov/029_B.chr16.bedCov, bedCov/031_B.chr16.bedCov, bedCov/033_B.chr16.bedCov, bedCov/034_B.chr16.bedCov, bedCov/036_B.chr16.bedCov, bedCov/039_B.chr16.bedCov, bedCov/040_B.chr16.bedCov, bedCov/041_B.chr16.bedCov, bedCov/042_B.chr16.bedCov, bedCov/044_B.chr16.bedCov
+    output: chromCov/chr16.bedCov
+    jobid: 16
+    reason: Missing output files: chromCov/chr16.bedCov
+    wildcards: chrom=chr16
+
+Submitted DRMAA job 16 with external jobid 3714297.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr9.bedCov, bedCov/002_B.chr9.bedCov, bedCov/003_B.chr9.bedCov, bedCov/004_B.chr9.bedCov, bedCov/005_B.chr9.bedCov, bedCov/006_B.chr9.bedCov, bedCov/008_B.chr9.bedCov, bedCov/009_B.chr9.bedCov, bedCov/010_B.chr9.bedCov, bedCov/011_B.chr9.bedCov, bedCov/012_B.chr9.bedCov, bedCov/013_B.chr9.bedCov, bedCov/014_B.chr9.bedCov, bedCov/015_B.chr9.bedCov, bedCov/016_B.chr9.bedCov, bedCov/021_B.chr9.bedCov, bedCov/029_B.chr9.bedCov, bedCov/031_B.chr9.bedCov, bedCov/033_B.chr9.bedCov, bedCov/034_B.chr9.bedCov, bedCov/036_B.chr9.bedCov, bedCov/039_B.chr9.bedCov, bedCov/040_B.chr9.bedCov, bedCov/041_B.chr9.bedCov, bedCov/042_B.chr9.bedCov, bedCov/044_B.chr9.bedCov
+    output: chromCov/chr9.bedCov
+    jobid: 9
+    reason: Missing output files: chromCov/chr9.bedCov
+    wildcards: chrom=chr9
+
+Submitted DRMAA job 9 with external jobid 3714298.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr14.bedCov, bedCov/002_B.chr14.bedCov, bedCov/003_B.chr14.bedCov, bedCov/004_B.chr14.bedCov, bedCov/005_B.chr14.bedCov, bedCov/006_B.chr14.bedCov, bedCov/008_B.chr14.bedCov, bedCov/009_B.chr14.bedCov, bedCov/010_B.chr14.bedCov, bedCov/011_B.chr14.bedCov, bedCov/012_B.chr14.bedCov, bedCov/013_B.chr14.bedCov, bedCov/014_B.chr14.bedCov, bedCov/015_B.chr14.bedCov, bedCov/016_B.chr14.bedCov, bedCov/021_B.chr14.bedCov, bedCov/029_B.chr14.bedCov, bedCov/031_B.chr14.bedCov, bedCov/033_B.chr14.bedCov, bedCov/034_B.chr14.bedCov, bedCov/036_B.chr14.bedCov, bedCov/039_B.chr14.bedCov, bedCov/040_B.chr14.bedCov, bedCov/041_B.chr14.bedCov, bedCov/042_B.chr14.bedCov, bedCov/044_B.chr14.bedCov
+    output: chromCov/chr14.bedCov
+    jobid: 14
+    reason: Missing output files: chromCov/chr14.bedCov
+    wildcards: chrom=chr14
+
+Submitted DRMAA job 14 with external jobid 3714299.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr11.bedCov, bedCov/002_B.chr11.bedCov, bedCov/003_B.chr11.bedCov, bedCov/004_B.chr11.bedCov, bedCov/005_B.chr11.bedCov, bedCov/006_B.chr11.bedCov, bedCov/008_B.chr11.bedCov, bedCov/009_B.chr11.bedCov, bedCov/010_B.chr11.bedCov, bedCov/011_B.chr11.bedCov, bedCov/012_B.chr11.bedCov, bedCov/013_B.chr11.bedCov, bedCov/014_B.chr11.bedCov, bedCov/015_B.chr11.bedCov, bedCov/016_B.chr11.bedCov, bedCov/021_B.chr11.bedCov, bedCov/029_B.chr11.bedCov, bedCov/031_B.chr11.bedCov, bedCov/033_B.chr11.bedCov, bedCov/034_B.chr11.bedCov, bedCov/036_B.chr11.bedCov, bedCov/039_B.chr11.bedCov, bedCov/040_B.chr11.bedCov, bedCov/041_B.chr11.bedCov, bedCov/042_B.chr11.bedCov, bedCov/044_B.chr11.bedCov
+    output: chromCov/chr11.bedCov
+    jobid: 11
+    reason: Missing output files: chromCov/chr11.bedCov
+    wildcards: chrom=chr11
+
+Submitted DRMAA job 11 with external jobid 3714300.
+
+[Fri Sep 25 19:09:08 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr6.bedCov, bedCov/002_B.chr6.bedCov, bedCov/003_B.chr6.bedCov, bedCov/004_B.chr6.bedCov, bedCov/005_B.chr6.bedCov, bedCov/006_B.chr6.bedCov, bedCov/008_B.chr6.bedCov, bedCov/009_B.chr6.bedCov, bedCov/010_B.chr6.bedCov, bedCov/011_B.chr6.bedCov, bedCov/012_B.chr6.bedCov, bedCov/013_B.chr6.bedCov, bedCov/014_B.chr6.bedCov, bedCov/015_B.chr6.bedCov, bedCov/016_B.chr6.bedCov, bedCov/021_B.chr6.bedCov, bedCov/029_B.chr6.bedCov, bedCov/031_B.chr6.bedCov, bedCov/033_B.chr6.bedCov, bedCov/034_B.chr6.bedCov, bedCov/036_B.chr6.bedCov, bedCov/039_B.chr6.bedCov, bedCov/040_B.chr6.bedCov, bedCov/041_B.chr6.bedCov, bedCov/042_B.chr6.bedCov, bedCov/044_B.chr6.bedCov
+    output: chromCov/chr6.bedCov
+    jobid: 6
+    reason: Missing output files: chromCov/chr6.bedCov
+    wildcards: chrom=chr6
+
+Submitted DRMAA job 6 with external jobid 3714301.
+
+[Fri Sep 25 19:09:09 2020]
+rule combine_chrom_coverage:
+    input: bedCov/001_B.chr20.bedCov, bedCov/002_B.chr20.bedCov, bedCov/003_B.chr20.bedCov, bedCov/004_B.chr20.bedCov, bedCov/005_B.chr20.bedCov, bedCov/006_B.chr20.bedCov, bedCov/008_B.chr20.bedCov, bedCov/009_B.chr20.bedCov, bedCov/010_B.chr20.bedCov, bedCov/011_B.chr20.bedCov, bedCov/012_B.chr20.bedCov, bedCov/013_B.chr20.bedCov, bedCov/014_B.chr20.bedCov, bedCov/015_B.chr20.bedCov, bedCov/016_B.chr20.bedCov, bedCov/021_B.chr20.bedCov, bedCov/029_B.chr20.bedCov, bedCov/031_B.chr20.bedCov, bedCov/033_B.chr20.bedCov, bedCov/034_B.chr20.bedCov, bedCov/036_B.chr20.bedCov, bedCov/039_B.chr20.bedCov, bedCov/040_B.chr20.bedCov, bedCov/041_B.chr20.bedCov, bedCov/042_B.chr20.bedCov, bedCov/044_B.chr20.bedCov
+    output: chromCov/chr20.bedCov
+    jobid: 20
+    reason: Missing output files: chromCov/chr20.bedCov
+    wildcards: chrom=chr20
+
+Submitted DRMAA job 20 with external jobid 3714302.
+[Fri Sep 25 19:09:31 2020]
+Finished job 20.
+1 of 22 steps (5%) done
+[Fri Sep 25 19:09:41 2020]
+Finished job 17.
+2 of 22 steps (9%) done
+[Fri Sep 25 19:09:41 2020]
+Finished job 18.
+3 of 22 steps (14%) done
+[Fri Sep 25 19:09:41 2020]
+Finished job 3.
+4 of 22 steps (18%) done
+[Fri Sep 25 19:09:41 2020]
+Finished job 22.
+5 of 22 steps (23%) done
+[Fri Sep 25 19:09:41 2020]
+Finished job 23.
+6 of 22 steps (27%) done
+[Fri Sep 25 19:09:41 2020]
+Finished job 19.
+7 of 22 steps (32%) done
+[Fri Sep 25 19:09:42 2020]
+Finished job 8.
+8 of 22 steps (36%) done
+[Fri Sep 25 19:09:42 2020]
+Finished job 16.
+9 of 22 steps (41%) done
+[Fri Sep 25 19:09:42 2020]
+Finished job 9.
+10 of 22 steps (45%) done
+[Fri Sep 25 19:09:42 2020]
+Finished job 14.
+11 of 22 steps (50%) done
+[Fri Sep 25 19:09:42 2020]
+Finished job 11.
+12 of 22 steps (55%) done
+[Fri Sep 25 19:09:42 2020]
+Finished job 6.
+13 of 22 steps (59%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 10.
+14 of 22 steps (64%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 13.
+15 of 22 steps (68%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 4.
+16 of 22 steps (73%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 15.
+17 of 22 steps (77%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 12.
+18 of 22 steps (82%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 5.
+19 of 22 steps (86%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 7.
+20 of 22 steps (91%) done
+[Fri Sep 25 19:09:53 2020]
+Finished job 21.
+21 of 22 steps (95%) done
+
+[Fri Sep 25 19:09:53 2020]
+localrule all:
+    input: chromCov/chr1.bedCov, chromCov/chr2.bedCov, chromCov/chr3.bedCov, chromCov/chr4.bedCov, chromCov/chr5.bedCov, chromCov/chr6.bedCov, chromCov/chr7.bedCov, chromCov/chr8.bedCov, chromCov/chr9.bedCov, chromCov/chr10.bedCov, chromCov/chr11.bedCov, chromCov/chr12.bedCov, chromCov/chr13.bedCov, chromCov/chr14.bedCov, chromCov/chr15.bedCov, chromCov/chr16.bedCov, chromCov/chr17.bedCov, chromCov/chr18.bedCov, chromCov/chr19.bedCov, chromCov/chr20.bedCov, chromCov/chr21.bedCov, chromCov/chr22.bedCov, chromCov/chrX.bedCov
+    jobid: 0
+    reason: Input files updated by another job: chromCov/chr7.bedCov, chromCov/chr8.bedCov, chromCov/chr22.bedCov, chromCov/chr16.bedCov, chromCov/chr4.bedCov, chromCov/chr14.bedCov, chromCov/chr17.bedCov, chromCov/chr18.bedCov, chromCov/chr20.bedCov, chromCov/chr10.bedCov, chromCov/chr11.bedCov, chromCov/chr6.bedCov, chromCov/chrX.bedCov, chromCov/chr13.bedCov, chromCov/chr5.bedCov, chromCov/chr12.bedCov, chromCov/chr15.bedCov, chromCov/chr3.bedCov, chromCov/chr21.bedCov, chromCov/chr9.bedCov, chromCov/chr19.bedCov
+
+[Fri Sep 25 19:09:53 2020]
+Finished job 0.
+22 of 22 steps (100%) done
+Complete log: /fast/home/users/szyskam_c/snakes/develop/myCNV/.snakemake/log/2020-09-25T190906.597151.snakemake.log
+                                                 path sample
+0   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  001_B
+1   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  002_B
+2   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  003_B
+3   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  004_B
+4   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  005_B
+5   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  006_B
+6   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  008_B
+7   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  009_B
+8   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  010_B
+9   /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  011_B
+10  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  012_B
+11  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  013_B
+12  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  014_B
+13  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  015_B
+14  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  016_B
+15  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  021_B
+16  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  029_B
+17  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  031_B
+18  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  033_B
+19  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  034_B
+20  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  036_B
+21  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  039_B
+22  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  040_B
+23  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  041_B
+24  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  042_B
+25  /fast/groups/ag_damm/work/ref/PoN/HAEv7_hg38_N...  044_B
+    PON COVERAGE PIPELINE STARTING.......
+Workflow finished - everything ran smoothly

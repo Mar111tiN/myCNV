@@ -32,7 +32,8 @@ wildcard_constraints:
 
 rule all:
     input:
-        expand("bedCov/{sample}.{chrom}.bedCov", sample=pon_df['sample'], chrom=chrom_list)
+        # expand("bedCov/{sample}.{chrom}.bedCov", sample=pon_df['sample'], chrom=chrom_list),
+        expand("chromCov/{chrom}.bedCov", chrom=chrom_list)
 
 ###########################################################################
 

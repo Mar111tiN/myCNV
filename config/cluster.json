@@ -10,5 +10,10 @@
     "t": "00:35",
     "mem": 200,
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
+  },
+  "combine_chrom_coverage": {
+    "t": "00:02",
+    "mem": 200,
+    "name": "{rule}:{wildcards.chrom}"
   }
 }

@@ -35,3 +35,6 @@ cleanup: False
 get_coverage:
     threads: 6
     rollingWindowSize: 100  # size of the averager for the coverage tool
+combine_coverage:
+    threads: 1
+    norm_coverage: 250
