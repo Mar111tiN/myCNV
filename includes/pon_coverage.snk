@@ -37,4 +37,4 @@ rule combine_chrom_coverage:
         # reformat
         avg_cov['Chr'] = chrom
         avg_cov = avg_cov.reset_index().loc[:, ['Chr', 'Pos', 'ExonPos', 'meanCov', 'std']]
-        avg_cov.to_csv(output.chromCov, sep='\t')
+        avg_cov.to_csv(output.chromCov, sep='\t', index=False)
