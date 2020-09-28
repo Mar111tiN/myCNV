@@ -34,6 +34,7 @@ cleanup: False
 # RULES
 get_coverage:
     threads: 6
+    MAPQ: 20
     rollingWindowSize: 100  # size of the averager for the coverage tool
 combine_coverage:
     threads: 1

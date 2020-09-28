@@ -1,3 +1,0 @@
-NameError in line 27 of /fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile:
-name 'full_path' is not defined
-  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile", line 27, in <module>

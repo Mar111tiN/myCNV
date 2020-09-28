@@ -1,3 +1,0 @@
-ModuleNotFoundError in line 3 of /fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile:
-No module named 'pd'
-  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile", line 3, in <module>

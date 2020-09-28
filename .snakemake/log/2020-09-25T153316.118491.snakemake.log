@@ -1,3 +1,0 @@
-WorkflowError in line 10 of /fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile:
-Failed to open /fast/home/users/szyskam_c/snakes/develop/myCNV/includes/io.snk.
-  File "/fast/home/users/szyskam_c/snakes/develop/myCNV/Snakefile", line 10, in <module>

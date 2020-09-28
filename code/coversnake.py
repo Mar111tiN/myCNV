@@ -17,7 +17,8 @@ def main(s):
     # squeeze out the config for get_coverage
     config = {
         'bedfile': os.path.join(sconfig['paths']['mystatic'], sconfig['ref']['bed_file']),
-        'rollingWindowSize': sconfig['get_coverage']['rollingWindowSize']
+        'rollingWindowSize': sconfig['get_coverage']['rollingWindowSize'],
+        'q': sconfig['get_coverage']['MAPQ']
     }
 
     # get the correct path to the tools
