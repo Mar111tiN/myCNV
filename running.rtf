@@ -1,9 +1,9 @@
-{\rtf1\ansi\ansicpg1252\cocoartf1671\cocoasubrtf600
-{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 Menlo-Regular;\f2\fnil\fcharset0 Menlo-Bold;
+{\rtf1\ansi\ansicpg1252\cocoartf2513
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 Menlo-Regular;\f2\fnil\fcharset0 Menlo-Bold;
 }
 {\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
 {\*\expandedcolortbl;;\csgray\c0;}
-\margl1440\margr1440\vieww16560\viewh26580\viewkind0
+\paperw12240\paperh15840\margl1440\margr1440\vieww21620\viewh20180\viewkind0
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
 \f0\fs24 \cf0 conda a# create the sep file\
@@ -32,24 +32,62 @@ gunzip < dbsnp153.hg38.anno.txt.gz | filterBed $BED | pigz -p 5 > bedFiltered/db
 gunzip < dbsnp153.hg38.SS_HAEv7.csv.gz | mawk 'length($3) == length($4) && $7 > 0 \{print length($4);\}' > dbsnp153.hg38.SS_HAEv7.SNP.csv.gz\
 \
 \
-# run the samtools SNP pileup\
-cd somVar/CNV\
 \
-# minVAF has to be set via python wrapper\
-? or should the snp-file be generated beforehand\
-?? SNP=gunzip<$SNP|mawk '$1=="chr7"&&$7>=minVAF\{print$1,$2\}'|uniq ??\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f2\b RUN THE SNP PIPELINE
+\f1\b0 \
+\
+ENV:\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\fs24 BED=$\{STATIC\}/bed_files/SureSelect/hg38/SS_HAEv7_hg38_Covered.bed
+\fs22 \
+
+\fs24 HG38chr7=$\{STATIC\}/genome/gatk/hg38/split/chr7.fa
+\fs22 \
+
+\fs24 OUT=/Users/martinscience/Dropbox/Icke/Work/somVar/tooldata/myCNVdata/output\
+SNP=/Users/martinscience/Dropbox/Icke/Work/static/annotation/gatk/hg38/bedFiltered/dbsnp153.hg38.SS_HAEv7.SNP.csv.gz
+\fs22 \
+
+\fs24 BAM=/Users/martinscience/Dropbox/Icke/Work/somVar/testdata/bam/002_A.bam
+\fs22 \
+
+\fs24 BED=/Users/martinscience/Dropbox/Icke/Work/static/bed_files/SureSelect/hg38/SS_HAEv7_hg38_Covered.bed\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\fs22 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f2\b generate chr7SNP file
+\f1\b0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\fs24 gunzip<$SNP|mawk '$1=="chr7"&&$7>=.0000001\{print$1,$2\}'|uniq > $OUT/SNPdb/db153.chr7.snp
+\fs22 \
 \
 \
-samtools mpileup -f $HG38/hg38.fasta -r chr7 -l <(gunzip<$SNP|mawk '$1=="chr7"&&$7>=minVAF\{print$1,$2\}'|uniq) bam/003_A.bam | cleanpileup | mawk '$5 ~ /[.,]*[ACTG]+[.,]*/' | gzip > own/003_A.SNP.pileup\
+
+\fs24 samtools mpileup -f $HG38chr7 -q 20 -Q 25 -r chr7 -l $OUT/SNPdb/db153.chr7.snp $BAM | ./shell/cleanSNP.mawk > $OUT/heteroSNP/002_A.snp.pileup
+\fs22 \
+\
+
+\fs24 cat $OUT/heteroSNP/002_A.snp.pileup | ./shell/snpVAF.mawk 0.001 | ./shell/filterBed.mawk $BED chr7 1 > $OUT/heteroSNP/002_A.snp.vaf
+\fs22 \
+\
+\
+#1 create \
+the SNP chromosome files for all chromosomes\
 \
 \
 \
+\
+\
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
 
 \f2\b # compare SNPs between samples
 \f1\b0 \
 \
-HG38=fast/groups/ag_damm/work/ref/genome/gatk/hg38/hg38.fasta\
-SNP=/fast/groups/ag_damm/work/ref/annotation/gatk/hg38/dbsnp153.hg38.SS_HAEv7.SNP.csv.gz\
-\
-cd recalib\
 samtools mpileup -f $HG38 -l <(gunzip<$SNP|mawk '$7>0.001 && NR>1\{print$1,$2\}'|uniq) 046_A.bam | snpVAF | gzip > ~/work/results/046_A.SNP.pileup}
