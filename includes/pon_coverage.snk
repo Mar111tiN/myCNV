@@ -1,12 +1,12 @@
-rule get_coverage:
+rule chrom_coverage:
+    input:
+        bam = get_pon_bam_path
     output: 
         bedCov = "bedCov/{sample}.{chrom}.bedCov"
     threads:
         config['get_coverage']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
-    params:
-        bam = get_bam_path
     script:
         "../code/coversnake.py"
 
@@ -27,7 +27,7 @@ rule combine_chrom_coverage:
         cov_df = cov_df.fillna(0).sort_values('ExonPos').set_index(['Pos', 'ExonPos'])
 
         # normalize sample coverages to an average coverage of 250
-        norm_cov = cov_df / cov_df.mean() * config['combine_coverage']['norm_coverage']
+        norm_cov = cov_df / cov_df.mean() * config['combine_pon_coverage']['norm_coverage']
 
         # normalize the coverage
         avg_cov = pd.DataFrame(index=norm_cov.index)

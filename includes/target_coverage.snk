@@ -1,0 +1,23 @@
+rule chrom_coverage:
+    input:
+        bam = get_bam_path
+    output: 
+        bedCov = "cnv/{sample}.{chrom}.cov"
+    threads:
+        config['get_coverage']['threads']
+    conda:
+        f"../env/myCNV-CentOS-env.yml"
+    script:
+        "../code/coversnake.py"
+
+rule hetero_SNP:
+    input:
+        bam = get_bam_path
+    output: 
+        bedCov = "cnv/{sample}.{chrom}.snp"
+    threads:
+        config['hetero_snp']['threads']
+    conda:
+        f"../env/myCNV-CentOS-env.yml"
+    script:
+        "../code/SNPsnake.py"

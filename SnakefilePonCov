@@ -13,14 +13,13 @@ include: "includes/utils.snk"
 
 chrom_list = get_chrom_list(config)
 
-# get the samples
-sample_sheet = os.path.join(config['snakedir'], config['sample_sheet'])
-sample_df = get_bam_files(config['bam_folder'], sample_sheet)
-print(sample_df)
 
+pon_list = os.path.join(config['paths']['mystatic'], config['pon_list'])
 
+pon_df = get_pon_df(pon_list)
+print(pon_df)
 # ############ INCLUDES ##############################  
-include: "includes/target_coverage.snk"
+include: "includes/pon_coverage.snk"
 
 
 # specified wildcards have to match the regex
@@ -34,8 +33,7 @@ wildcard_constraints:
 rule all:
     input:
         # expand("bedCov/{sample}.{chrom}.bedCov", sample=pon_df['sample'], chrom=chrom_list),
-        expand("cnv/{sample}.{chrom}.cov", chrom=chrom_list, sample=sample_df.index),
-        expand("cnv/{sample}.{chrom}.snp", chrom=chrom_list, sample=sample_df.index)
+        expand("chromCov/{chrom}.bedCov", chrom=chrom_list)
 
 ###########################################################################
 

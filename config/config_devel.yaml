@@ -1,6 +1,8 @@
+bam_folder: 
+    - /fast/users/szyskam_c/work/results/P483/bamfinal
 workdir: /fast/users/szyskam_c/scratch/develop/PONcoverage # here your results are created
 snakedir: /fast/users/szyskam_c/snakes/develop/myCNV
-
+sample_sheet: config/sample_sheet.csv           # sample_sheet relative to script folder
 #### ABSOLUTE PATHS ############
 paths:
     mystatic: /fast/groups/ag_damm/work/ref/
@@ -9,33 +11,33 @@ paths:
 pon_list: PoN/HAEv7_hg38_NovaSeq/Pon_list.txt # path relative to mystatic path
 #### REF SECTION ###############
 ref:
-    genome_path: genome/gatk/hg38/
     genome: genome/gatk/hg38/hg38.fasta
     genome_split: genome/gatk/hg38/split
-    dbsnp: annotation/gatk/hg38/dbsnp_138.hg38.vcf
-    dbsnp_all: annotation/gatk/hg38/All_20180418.vcf
-    dbsnp_common: annotation/gatk/hg38/common_all_20180418.vcf
-    gold_standard_indels: annotation/gatk/hg38/Mills_and_1000G_gold_standard.indels.hg38.vcf
-    phase1k_indels: annotation/gatk/hg38/1000G_phase1.snps.high_confidence.hg38.vcf # seems to work instead of indels (acc. to GATK blog: https://gatkforums.broadinstitute.org/gatk/discussion/6800/known-sites-for-indel-realignment-and-bqsr-in-hg38-bundle)
+    dbsnp: dbsnp153
+    dbsnp_split: annotation/gatk/hg38/split
     bed_file: bed_files/SureSelect/hg38/SS_HAEv7_hg38_Covered.bed
     bed_file_pad: bed_files/SureSelect/hg38/SS_HAEv7_hg38_Padded.bed
-#### TOOLS SECTION ##############
-tools:
-    gatk: gatk # 
-    gatk3: java -jar /fast/users/szyskam_c/work/utils/gatk3.8/GenomeAnalysisTK.jar -T
-    # annovar: perl /fast/users/szyskam_c/tools/annovar2018
-    annovar: perl /fast/users/szyskam_c/tools/annovar2019
+    chromCov: PoN/HAEv7_hg38_NovaSeq/chromCov
 scripts:
     # bedCoverage
     bamCoverage: bamCoverage.mawk
     filterBed: filterBed.mawk
     rollingCoverage: rollingCoverage.mawk
+    snpVAF: snpVAF.mawk
+    cleanSNP: cleanSNP.mawk
 cleanup: False
 # RULES
 get_coverage:
     threads: 6
     MAPQ: 20
     rollingWindowSize: 100  # size of the averager for the coverage tool
-combine_coverage:
+hetero_snp:
+    threads: 6
+    MAPQ: 20
+    Q: 25
+    minVAF: 0.0001
+    minDepth: 10
+combine_pon_coverage:
     threads: 1
     norm_coverage: 250
+

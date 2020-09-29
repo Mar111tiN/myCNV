@@ -9,8 +9,8 @@ def main(s):
     '''
 
     w = s.wildcards
-    p = s.params
     sconfig = s.config
+    i = s.input
     output = s.output.bedCov
 
     ########## CONFIG #######################
@@ -30,7 +30,7 @@ def main(s):
         script_path, rel_tools[key]) for key in rel_tools}
     config.update(tools)
 
-    bam_file = p.bam
+    bam_file = i.bam
     show_output(
         f"Calculating coverage of {w.sample} on chrom {w.chrom}!", time=True)
     # run the coverage tool

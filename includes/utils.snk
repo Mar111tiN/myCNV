@@ -1,5 +1,6 @@
 import pandas as pd
 
+########### PON COVERAGE ######################################
 def get_chrom_list(config):
     '''
     returns a list of all valid chromosomes determined by build version
@@ -28,10 +29,71 @@ def get_pon_df(pon_list):
     return pon_df
 
 
-def get_bam_path(w):
+def get_pon_bam_path(w):
     '''
-    returns the path to the pon bam from the pon_df (global var) file using the pon_df
+    returns the path to the pon bam from the pon_df (global var)
     '''
     sample = w.sample
     bam_path = pon_df.query('sample == @sample')
     return bam_path.loc[:,'path'].iloc[0]
+
+
+###################### SAMPLES #################################
+
+def get_bam_files(folder_list, sample_sheet):
+    '''
+    retrieves the path to all the files in the sample_sheet
+    if rerun == False, it looks for fastq files
+    if rerun == True, it looks for bam files
+    '''
+
+    # check whether single folder or folder list
+    if len(folder_list[0]) == 1:
+        folder_list = [folder_list]
+
+    # import the sample sheet
+    samples = pd.read_csv(sample_sheet, sep='\t', index_col=0).set_index('name')
+    # for fastq files
+    bam_list = []
+    short_list = []
+    # cycle through the input folders and look for matching bam files
+    for input_folder in folder_list:
+        print(f"Looking for bam files in {input_folder}")
+        for folder, _, files in os.walk(input_folder):
+            for file in files:
+                if '.bam' in file and '.md5' not in file and '.bai' not in file:
+                    bam_list.append(os.path.join(folder, file))
+                    short_list.append(file)
+
+    # include check for empty list
+    def get_bam_paths(row, bam_list=None):
+        '''
+        go through the sample list and find the respective read and index bams in the respective bam_list
+        '''
+
+        for file in bam_list:
+            # get the basename
+            base_file = os.path.basename(file)
+            if row.name in base_file and not "chr" in base_file:
+                row['path'] = file
+        return row
+
+    samples_df = samples.apply(get_bam_paths, axis=1, bam_list=bam_list)
+    short_df = samples.apply(get_bam_paths, axis=1, bam_list=short_list)
+
+    # # remove leading zeros
+    # samples_df.index = samples_df.index.str.lstrip('0')
+    # short_df.index = short_df.index.str.lstrip('0')
+    # ########## DEBUG #################
+    # print(short_df)
+    # print(samples_df)
+    # ##################################
+
+    return samples_df
+
+def get_bam_path(w):
+    '''
+    returns the path to the target bam from the sample_df (global var)
+    '''
+    sample = w.sample
+    return sample_df.loc[sample,'path']
