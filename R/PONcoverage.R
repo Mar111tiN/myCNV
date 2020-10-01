@@ -1,14 +1,28 @@
 library(tidyverse)
 library(glue)
 
+## SET PATHS
 outpath <- "/Users/martinscience/Dropbox/Icke/Work/somVar/tooldata/myCNVdata/output/"
 plotpath <- "/Users/martinscience/Dropbox/Icke/Work/somVar/tooldata/myCNVdata/plot/"
-list.files(outpath)
-read_tsv(glue(outpath, "PON_coverage_normtidy.csv"))
+data.type <- "PONcoverage"
 
+## APPLY PATHS
+outpath <- glue(outpath, data.type, "/")
+plotpath <- glue(plotpath, data.type, "/")
+list.files(outpath)
+
+# INSPECT DATA
+data <- read_tsv(glue(outpath, "PON_coverage_mean.csv"))
+
+#
 ### show the coverage distribution
 plot.cov <- function (coverage.file, sample.list="all", zoom=c(0,2423534), ymax=500) {
-  data <- read_tsv(glue(outpath, coverage.file))
+  
+  # load the data and tidy
+  data <- read_tsv(glue(outpath, coverage.file)) %>% 
+    select(c(1,2,3) | ends_with("_B")) %>% 
+    gather(ends_with("_B"), key=sample, value=Coverage)
+  
   if (sample.list != "all") {
     data <- data %>% filter(sample %in% sample.list)
   }
@@ -30,7 +44,7 @@ plot.cov <- function (coverage.file, sample.list="all", zoom=c(0,2423534), ymax=
 }
 
 # full coverage on three samples
-(pon.cov <- plot.cov("PON_coverage_tidy.csv", sample.list=c("001_B", "002_B", "003_B", "004_B"), ymax=1000))
+(pon.cov <- plot.cov("PON_coverage.csv", sample.list=c("001_B", "002_B", "003_B", "004_B"), ymax=1000))
  ggsave(glue(plotpath, "PONcoverage.png"), plot=pon.cov, width=12, height=6)
        
 # normalized coverage on three samples       
@@ -50,34 +64,11 @@ ggsave(glue(plotpath, "ZOOMnormalizedCoverage.png"), plot=zoom.norm.cov.plot, wi
 ################ RUN THE MEANS
 # PON coverage as a mean of all samples
 
-# first I need a function extracting the mean, median and std into separate df
-get.mean.table <- function(data) {
-  mean.cov <- data %>% 
-    filter(sample == "meanCov") %>% 
-    rename(meanCoverage = Coverage) %>% 
-    select(ExonPos, meanCoverage)
-  
-  median.cov <- data %>% 
-    filter(sample == "medianCov") %>% 
-    rename(medianCoverage = Coverage) %>% 
-    select(ExonPos, medianCoverage)
-  
-  std.cov <- data %>% 
-    filter(sample == "std") %>% 
-    rename(std = Coverage) %>% 
-    select(ExonPos, std)
-  
-  
-  combined.tibble <- mean.cov %>% 
-    full_join(median.cov) %>% 
-    full_join(std.cov)
-  return(combined.tibble)
-}
+# INSPECT DATA
+data <- read_tsv(glue(outpath, "PON_coverage_mean.csv"))
 
-# test get.mean.table
-
-(data <- read_tsv(glue(outpath, "PON_coverage_mean.csv")) %>% 
-    get.mean.table())
+data %>% 
+  select(c(1,2,3, "meanCov", "medianCov", "std"))
 
 # now the combined plot function
 plot.mean.cov <- function (coverage.file, sample.list="all", zoom=c(0,2423534), ymax=500) {
@@ -86,11 +77,12 @@ plot.mean.cov <- function (coverage.file, sample.list="all", zoom=c(0,2423534), 
   all.data <- read_tsv(glue(outpath, coverage.file))
   
   # split data into avg and sample data
-  data.samples <- all.data %>% 
-    filter(grepl("_B", sample))
-  print(data.samples)
+  data.samples <- all.data  %>% 
+    select(c(1,2,3) | ends_with("_B")) %>% 
+    gather(ends_with("_B"), key=sample, value=Coverage)
+  
   data.mean <- all.data %>% 
-    get.mean.table
+    select(c(1,2,3, "meanCov", "medianCov", "std"))
   
   
   if (sample.list != "all") {
@@ -122,16 +114,16 @@ plot.mean.cov <- function (coverage.file, sample.list="all", zoom=c(0,2423534), 
   plot <- plot + 
     geom_line(
       data=data.mean,
-      aes(ExonPos, meanCoverage),
+      aes(ExonPos, meanCov),
       size=0.2,
       alpha=.4) +
     geom_ribbon(
       data=data.mean,
       aes(
         x=ExonPos,
-        y=meanCoverage,
-        ymin=meanCoverage - std,
-        ymax = meanCoverage + std
+        y=meanCov,
+        ymin=meanCov - std,
+        ymax = meanCov + std
         ),
       alpha=0.6
       )
@@ -144,7 +136,29 @@ plot.mean.cov <- function (coverage.file, sample.list="all", zoom=c(0,2423534), 
 ################ RUN THE FILTER
 
 
-(plot <- plot.mean.cov("PON_coverage_filter.csv", zoom=c(10000,20000)))
+(plot <- plot.mean.cov("PON_coverage.chr7.removed.csv", zoom=c(2000,28000)))
+
+
+ggsave(glue(plotpath, "PON_coverage_filter.ZOOM.png"), plot=plot, width=12, height=6)
+(plot <- plot.mean.cov("PON_coverage_removed.csv", zoom=c(14000,16000)))
+ggsave(glue(plotpath, "PON_coverage_removed.ZOOM.png"), plot=plot, width=12, height=6)
+
+(plot <- plot.mean.cov("PON_coverage_filter.csv"))
+ggsave(glue(plotpath, "PON_coverage_filter.png"), plot=plot, width=12, height=6)
+(plot <- plot.mean.cov("PON_coverage_removed.csv"))
+ggsave(glue(plotpath, "PON_coverage_removed.png"), plot=plot, width=12, height=6)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
