@@ -97,3 +97,7 @@ def get_bam_path(w):
     '''
     sample = w.sample
     return sample_df.loc[sample,'path']
+
+
+def get_script(script_name):
+    return os.path.join(config['snakedir'], config['scripts'][script_name])

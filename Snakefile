@@ -21,7 +21,7 @@ print(sample_df)
 
 # ############ INCLUDES ##############################  
 include: "includes/target_coverage.snk"
-
+include: "includes/EB.snk"
 
 # specified wildcards have to match the regex
 wildcard_constraints:
@@ -35,7 +35,8 @@ rule all:
     input:
         # expand("bedCov/{sample}.{chrom}.bedCov", sample=pon_df['sample'], chrom=chrom_list),
         expand("cnv/{sample}.{chrom}.cov", chrom=chrom_list, sample=sample_df.index),
-        expand("cnv/{sample}.{chrom}.snp", chrom=chrom_list, sample=sample_df.index)
+        expand("cnv/{sample}.{chrom}.snp", chrom=chrom_list, sample=sample_df.index),
+        expand("cnv/{sample}.{chrom}.snpEB", chrom=chrom_list, sample=sample_df.index)
 
 ###########################################################################
 
