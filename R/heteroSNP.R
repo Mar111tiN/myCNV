@@ -7,7 +7,7 @@ list.files(outpath)
 
 
 
-read_tsv(glue(outpath,"03_A.snp.csv")) %>% 
+read_tsv(glue(outpath,"01_A.snp.csv")) %>% 
   filter(Chr == "chr7") %>% 
   filter(Depth > 50) %>% 
   filter(VAF > 0.04 & VAF < 0.95) %>% 
