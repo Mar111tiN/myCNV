@@ -39,5 +39,7 @@ hetero_snp:
     minDepth: 10
 combine_pon_coverage:
     threads: 1
-    norm_coverage: 250
-
+    norm_coverage: 100 # to what value are coverages normalized
+    min_coverage: 20   # only exonPositions with the average coverage above minCov are kept
+    max_mean_std: 20     # only exonPositions with a coverage std below max_mean_std are kept
+    std_factor: 2.5       # only exonPositions straighing within stdFactor * std around meanCoverage are kept

@@ -7,38 +7,16 @@ rule chrom_coverage:
         config['get_coverage']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
-    script:
+    script: 
         "../code/coversnake.py"
 
 
 rule combine_chrom_coverage:
     input: expand("bedCov/{sample}.{{chrom}}.bedCov", sample=pon_df['sample'])
     output: 
-        fullCov = "chromCov/{chrom}.full.bedCov.gz",
-        chromCov = "chromCov/{chrom}.bedCov"
-    run:
-        # init empty df
-        chrom = wildcards.chrom
-        cov_df = pd.DataFrame(columns=['ExonPos', 'Pos'])
-        for sample in input:
-            print(f"Reading {sample}.")
-            df = pd.read_csv(sample, sep='\t', compression='gzip').loc[:,['Pos', 'ExonPos', 'Coverage']].rename(columns={'Coverage':sample})
-            cov_df = cov_df.merge(df, on=['ExonPos', 'Pos'], how='outer')
-
-        cov_df = cov_df.fillna(0).sort_values('ExonPos').set_index(['Pos', 'ExonPos'])
-
-        # normalize sample coverages to an average coverage of 250
-        norm_cov = cov_df / cov_df.mean() * config['combine_pon_coverage']['norm_coverage']
-
-        # output normalized coverage matrix
-        norm_cov.to_csv(output.fullCov, sep='\t', index=False, compression='gzip')
-        # normalize the coverage
-        avg_cov = pd.DataFrame(index=norm_cov.index)
-        avg_cov['meanCov'] = norm_cov.mean(axis=1)
-        avg_cov['medianCov'] = norm_cov.median(axis=1)
-        avg_cov['std'] = norm_cov.std(axis=1)
-
-        # reformat
-        avg_cov['Chr'] = chrom
-        avg_cov = avg_cov.reset_index().loc[:, ['Chr', 'Pos', 'ExonPos', 'meanCov', 'std', 'medianCov']]
-        avg_cov.to_csv(output.chromCov, sep='\t', index=False)
+        fullCov = "chromCov/{chrom}.full.csv.gz",
+        filterCov = "chromCov/{chrom}.filtered.csv.gz"
+    threads:
+        1
+    script: 
+        "../code/pon_coverage_snake.py"
