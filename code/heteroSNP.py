@@ -21,5 +21,5 @@ def get_heteroSNP(bam_file, chrom, config):
         run(cmd, stdout=PIPE, check=True, shell=True).stdout.decode('utf-8')), sep='\t')
 
     snp_df = snp_df.loc[snp_df['Depth'] > config['minDepth'], [
-        'Chr', '', 'ExonPos', 'Ref', 'Depth', 'Alt', 'VAF']]
+        'Chr', 'Start', 'ExonPos', 'Ref', 'Depth', 'Alt', 'VAF']]
     return snp_df

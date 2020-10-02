@@ -22,8 +22,9 @@
     "name": "{rule}:{wildcards.chrom}"
   },
   "hetero_SNP": {
-    "t": "00:45",
+    "t": "01:30",
     "mem": 200,
+    "partition": "short",
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
 }

@@ -14,7 +14,7 @@ BEGIN {
     # useExonicCoords 
     useExonicCoords='${3-0}';
     if (useExonicCoords == 1) {
-        printf("Printing out exonic coordinates\n") > "/dev/stderr";
+        printf("filterBed>> Printing out exonic coordinates\n") > "/dev/stderr";
     }
     # get filter chrom as arg3 for matching in filterBed file
     # "7" --> chr7
@@ -24,7 +24,7 @@ BEGIN {
         filterChrom = "chr" filterChrom;
     }
     if (filterChrom != "chr"){
-        printf("Filtering chromosome %s\n", filterChrom) > "/dev/stderr";
+        printf("filterBed>> Filtering chromosome %s\n", filterChrom) > "/dev/stderr";
     }
     readBed=1;
     bedCount=0; 

@@ -14,6 +14,7 @@ rule chrom_coverage:
 rule combine_chrom_coverage:
     input: expand("bedCov/{sample}.{{chrom}}.bedCov", sample=pon_df['sample'])
     output: 
+        fullCov = "chromCov/{chrom}.full.bedCov.gz",
         chromCov = "chromCov/{chrom}.bedCov"
     run:
         # init empty df
@@ -29,6 +30,8 @@ rule combine_chrom_coverage:
         # normalize sample coverages to an average coverage of 250
         norm_cov = cov_df / cov_df.mean() * config['combine_pon_coverage']['norm_coverage']
 
+        # output normalized coverage matrix
+        norm_cov.to_csv(output.fullCov, sep='\t', index=False, compression='gzip')
         # normalize the coverage
         avg_cov = pd.DataFrame(index=norm_cov.index)
         avg_cov['meanCov'] = norm_cov.mean(axis=1)
