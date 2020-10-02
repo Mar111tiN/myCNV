@@ -27,4 +27,10 @@
     "partition": "short",
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
+  "snp2EB": {
+    "t": "02:30",
+    "mem": 500,
+    "partition": "short",
+    "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
+  }
 }
