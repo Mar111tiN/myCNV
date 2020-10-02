@@ -8,7 +8,7 @@ list.files(outpath)
 read_tsv(glue(outpath,"03_A.snp.csv")) %>% 
   filter(Chr == "chr7") %>% 
   filter(Depth > 5) %>% 
-  filter(VAF > 0.05 & VAF < 0.95) %>% 
+  filter(VAF > 0.04 & VAF < 0.95) %>% 
   ggplot(aes(ExonPos, VAF)) +
   geom_point()
 
