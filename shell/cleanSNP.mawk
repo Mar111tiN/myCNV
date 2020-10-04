@@ -19,15 +19,15 @@ mawk '
         post = substr(read,RSTART+RLENGTH+l);
         if (indel == "-") {
             if (match(base,/[ACGT]/)) {
-                base = "D";
-            } else {
                 base = "d";
+            } else {
+                base = "D";
             }
         } else {
             if (match(base,/[ACGT]/)) {
-                base = "I";
-            } else {
                 base = "i";
+            } else {
+                base = "I";
             }            
         }
 
@@ -37,5 +37,5 @@ mawk '
     for (i=0;i++<4;) {
         printf("%s\t",$i);
     };
-    printf("%s\n",$5);
-}' | mawk '$5 ~ /[.,]*[ACTG]+[.,]*/'   # only output actual SNPs
+    printf("%s\n",read);
+}' | mawk '$5 ~ /[.,]*[ACTGDI]+[.,]*/'   # only output actual SNPs
