@@ -14,6 +14,11 @@ outpath
 # INSPECT DATA
 data <- read_tsv(glue(outpath, "01_A.chr7.covDif"))
 
+data %>% 
+  ggplot(aes(ExonPos, rr500)) + 
+   geom_line()
+
+
 #
 ### show the coverage distribution
 plot.cov <- function (data, zoom=c(0,2423534), ymax=200) {
@@ -42,7 +47,7 @@ data <- read_tsv(glue(outpath, "01_A.chr7.covDif"))
 
 data %>% 
   filter(Chr == "chr7") %>% 
-  plot.cov(zoom=c(1500000,1700000))
+  plot.cov(zoom=c(1750000,1760000))
 
 
 
