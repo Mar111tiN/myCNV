@@ -159,18 +159,18 @@ def centerVAF(snp_df):
 
     # get the VAF mean
     meanVAF = snp_df.query('0.05 < VAF < 0.95')['VAF'].mean()
-    # init the new variable
-    snp_df['centeredVAF'] = 0.5
+    # store the original VAF in orgVAF
+    snp_df['orgVAF'] = snp_df['VAF']
     snp_df.loc[snp_df['VAF'] <= meanVAF,
-               'centeredVAF'] = snp_df['VAF'] / meanVAF * 0.5
-    snp_df.loc[snp_df['VAF'] > meanVAF, 'centeredVAF'] = 0.5 + \
+               'VAF'] = snp_df['VAF'] / meanVAF * 0.5
+    snp_df.loc[snp_df['VAF'] > meanVAF, 'VAF'] = 0.5 + \
         0.5 * (snp_df['VAF'] - meanVAF) / (1-meanVAF)
-    return snp_df
+    return snp_df, meanVAF
 
 # combine SNP data and covData
 
 
-def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False):
+def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False, centerSNP=False):
     '''
     load the coverage_data for a sample and the heteroSNP data and apply the same fullExonCoords
     '''
@@ -184,7 +184,9 @@ def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False):
     snp_df, cov_df = get_full_exon_pos_from_cov(snp_df, cov_df)
     # get lo
     snp_df = approx_log2ratio(snp_df, cov_df)
-    #
-    snp_df = centerVAF(snp_df)
+    if centerSNP:
+        snp_df, meanVAF = centerVAF(snp_df)
+        show_output(
+            f'Found SNPs offCenter at {meanVAF}. Centering SNPs around 0.5 {sample}')
     show_output(f"Finished loading sample {sample}", color="success")
     return snp_df, cov_df
