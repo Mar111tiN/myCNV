@@ -12,42 +12,36 @@ plotpath <- glue(plotpath, data.type, "/")
 list.files(outpath)
 outpath
 # INSPECT DATA
-data <- read_tsv(glue(outpath, "01_A.chr7.covDif"))
-
-data %>% 
-  ggplot(aes(ExonPos, rr500)) + 
-   geom_line()
-
-
+data <- read_tsv(glue(outpath, "01_A.cov"))
+glimpse(data)
 #
 ### show the coverage distribution
-plot.cov <- function (data, zoom=c(0,2423534), ymax=200) {
+plot.cov <- function (data, zoom=c(0,Inf), ymax=200) {
     plot <- data %>% 
-      ggplot(aes(ExonPos, Coverage)) +
+      ggplot(aes(FullExonPos, Coveragemean)) +
         geom_line(size=2) + 
         geom_line(
-          aes(ExonPos, PONmeanCov),
+          aes(FullExonPos, PONmeanCovmean),
           size=0.2,
           alpha=.4) +
         geom_ribbon(
           aes(
-            x=ExonPos,
-            y=PONmeanCov,
-            ymin=PONmeanCov - PONstd,
-            ymax = PONmeanCov + PONstd
+            x=FullExonPos,
+            y=PONmeanCovmean,
+            ymin=PONmeanCovmean - PONstd,
+            ymax = PONmeanCovmean + PONstd
             ),
           alpha=0.6
         ) + 
-      scale_x_continuous(limits=zoom) +
       scale_y_continuous(limits=c(0,ymax))
   
   return(plot)
 }
-data <- read_tsv(glue(outpath, "01_A.chr7.covDif"))
+data <- read_tsv(glue(outpath, "01_A.cov"))
 
 data %>% 
-  filter(Chr == "chr7") %>% 
-  plot.cov(zoom=c(1750000,1760000))
+  filter(Chr == "chr5") %>% 
+  plot.cov()
 
 
 

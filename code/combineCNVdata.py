@@ -91,11 +91,12 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False):
         sample_df = cov_df.merge(pon_df, on=['Chr', 'Pos', 'ExonPos'], how="inner").loc[:, [
             'Chr', 'Pos', 'ExonPos', 'Coverage', 'PONmeanCov', 'PONmedianCov', 'PONstd']]
 
-        # normalize the coverage
-        sample_df['Coverage'] = sample_df['Coverage'] / \
-            sample_df['Coverage'].mean() * 100
         cover_dfs.append(sample_df)
     cover_df = pd.concat(cover_dfs)
+
+    # normalize the coverage after concating
+    cover_df['Coverage'] = cover_df['Coverage'] / \
+        cover_df['Coverage'].mean() * 100
     cover_df['log2ratio'] = np.log2(
         cover_df['Coverage'] / cover_df['PONmeanCov'])
     return get_full_exon_pos(cover_df)
@@ -182,8 +183,8 @@ def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False, cent
         sample, sample_cnv_path=sample_cnv_path, verbose=verbose)
     # get full exonPos from cov_df and remove the fullAc
     snp_df, cov_df = get_full_exon_pos_from_cov(snp_df, cov_df)
-    # get lo
-    snp_df = approx_log2ratio(snp_df, cov_df)
+    # # get lo
+    # snp_df = approx_log2ratio(snp_df, cov_df)
     if centerSNP:
         snp_df, meanVAF = centerVAF(snp_df)
         show_output(
