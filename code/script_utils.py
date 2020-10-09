@@ -21,7 +21,7 @@ colors = {
 }
 
 
-def show_output(text, color='normal', multi=False, time=True, **kwargs):
+def show_output(text, color='normal', multi=False, time=False, **kwargs):
     '''
     get colored output to the terminal
     '''
@@ -48,4 +48,4 @@ def show_command(command, list=False, multi=True, **kwargs):
 def run_cmd(cmd, multi=False):
     show_command(cmd, multi=multi)
     exit = shell(cmd, shell=True)
-    return exit==0
+    return exit == 0

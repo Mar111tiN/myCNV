@@ -11,11 +11,14 @@ rule chrom_coverage:
         "../code/coversnake.py"
 
 
-rule combine_chrom_coverage:
-    input: expand("bedCov/{sample}.{{chrom}}.bedCov", sample=pon_df['sample'])
+rule combine_PON_coverage:
+    input: expand("bedCov/{sample}.{chrom}.bedCov", chrom=chrom_list, sample=pon_df['sample'])
     output: 
-        fullCov = "chromCov/{chrom}.full.csv.gz",
-        filterCov = "chromCov/{chrom}.filtered.csv.gz"
+        fullCov = expand("chromCov/{chrom}.full.csv.gz", chrom=chrom_list),
+        filterCov = expand("chromCov/{chrom}.filtered.csv.gz", chrom=chrom_list)
+    params:
+        bedCov_path = os.path.join(config['workdir'], "bedCov"),
+        chromCov_path = os.path.join(config['workdir'], "chromCov")
     threads:
         1
     script: 

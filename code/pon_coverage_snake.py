@@ -19,22 +19,28 @@ def main(s):
     sample_list = s.input
 
     config = {
+        'sample_PON_path': s.params.bedCov_path,
         'normCov': pon_config['norm_coverage'],
-        'minCov': pon_config['min_coverage'],
-        'maxMeanSTD': pon_config['max_mean_std'],
         'stdFactor': pon_config['std_factor']
     }
 
     # output the file
-    show_output(f"Combining PON coverage for chrom {chrom}")
+    show_output(f"Combining PON coverage", time=True)
     full_df, filter_df = make_PON_coverage(chrom, sample_list, config)
 
-    show_output(
-        f"Writing full coverage for chrom {chrom} to {o.fullCov}", color="success")
-    full_df.to_csv(o.fullCov, sep='\t', index=False, compression="gzip")
-    show_output(
-        f"Writing filtered coverage for chrom {chrom} to {o.fullCov}", color="success")
-    filter_df.to_csv(o.filterCov, sep='\t', index=False, compression="gzip")
+    for chrom in chrom_list:
+        out_file = os.path.join(s.params.chromCov_path, "f{chrom}")
+        full_file = f"{out_file}.full.csv.gz"
+        show_output(
+            f"Writing full coverage for chrom {chrom} to {full_file}", color="success")
+        full_df.query('Chr == @chrom').to_csv(
+            full_file, sep='\t', index=False, compression="gzip")
+
+        filtered_file = f"{out_file}.filtered.csv.gz"
+        show_output(
+            f"Writing filtered coverage for chrom {chrom} to {filtered_file}", color="success")
+        filter_df.query('Chr == @chrom').to_csv(filtered_file, sep='\t',
+                                                index=False, compression="gzip")
 
 
 if __name__ == "__main__":

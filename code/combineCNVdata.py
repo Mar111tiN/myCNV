@@ -124,7 +124,8 @@ def centerVAF(snp_df):
                'VAF'] = snp_df['VAF'] / meanVAF * 0.5
     snp_df.loc[snp_df['VAF'] > meanVAF, 'VAF'] = 0.5 + \
         0.5 * (snp_df['VAF'] - meanVAF) / (1-meanVAF)
-    return snp_df, meanVAF
+    newMeanVAF = snp_df.query('0.05 < VAF < 0.95')['VAF'].mean()
+    return snp_df, meanVAF, newMeanVAF
 
 # combine SNP data and covData
 
@@ -144,8 +145,8 @@ def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False, cent
     # # get lo
     # snp_df = approx_log2ratio(snp_df, cov_df)
     if centerSNP:
-        snp_df, meanVAF = centerVAF(snp_df)
+        snp_df, meanVAF, newMeanVAF = centerVAF(snp_df)
         show_output(
-            f'Found SNPs offCenter at {meanVAF}. Centering SNPs around 0.5 {sample}')
+            f'Found SNPs offCenter at {meanVAF}. Re-entering SNPs => meanVAF: {newMeanVAF}')
     show_output(f"Finished loading sample {sample}", color="success")
     return snp_df, cov_df

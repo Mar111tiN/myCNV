@@ -4,14 +4,16 @@ import numpy as np
 from script_utils import show_output
 
 
-def combine_coverage(chrom, sample_file_list):
+def gather_PONcoverage_chrom(chrom, sample_list, config={}):
     cov_df = pd.DataFrame(columns=['ExonPos', 'Pos'])
-    for sample_file in sample_file_list:
+    for sample in sample_list:
+        sample_file = os.path.join(
+            config['sample_PON_path'], f"{sample}.{chrom}.bedCov")
         if not os.path.isfile(sample_file):
             show_output(f"no file: {sample_file}", color="warning")
             continue
-        sample = os.path.basename(sample_file).split('.')[0]
-        show_output(f"Reading {sample} from {sample_file}.")
+        if config['verbose_output']:
+            show_output(f"Reading {sample} from {sample_file}.")
         df = pd.read_csv(sample_file, sep='\t', compression='gzip').loc[:, [
             'Pos', 'ExonPos', 'Coverage']].rename(columns={'Coverage': sample})
         cov_df = cov_df.merge(df, on=['ExonPos', 'Pos'], how='outer')
@@ -22,9 +24,23 @@ def combine_coverage(chrom, sample_file_list):
     return cov_df.loc[:, cols]
 
 
-def normalize_coverage(cov_df, normCov=100):
+def gather_PONcoverage(chrom_list=[], sample_list=[], config={}):
+    '''
+    combine the PONcoverage for all chromosomes
+    '''
+
+    cov_dfs = []
+    for chrom in chrom_list:
+        show_output(f"Collecting PON coverages for {chrom}")
+        cov_df = gather_PONcoverage_chrom(chrom, sample_list, config)
+        cov_dfs.append(cov_df)
+    cov_df_full = pd.concat(cov_dfs).reset_index(drop=True)
+    return cov_df_full
+
+
+def normalize_coverage(cov_df, norm_cov=100):
     norm_df = cov_df.set_index(['Chr', 'Pos', 'ExonPos'])
-    norm_df = norm_df / norm_df.mean() * normCov
+    norm_df = norm_df / norm_df.mean() * norm_cov
     return norm_df.reset_index()
 
 
@@ -36,9 +52,21 @@ def add_mean(norm_df):
     return norm_df.reset_index()
 
 
-def filter_coverage(df, minCov=20, maxMeanSTD=20):
-    filter_df = df.query('meanCov > @minCov and std < @maxMeanSTD')
-    return filter_df
+def get_full_exon_pos(df):
+    '''
+    adds the accumulated exonic position (over all chroms)
+    '''
+
+    # save the output columns
+    cols = list(df.columns)
+    df = df.reset_index(drop=True)
+    # adds the last ExonPos of chrom to start of next chromosome
+    df.loc[:, 'chromStep'] = df.shift(1)['ExonPos'].fillna(0).astype(int)
+    df.loc[df['Chr'] == df.shift(1)['Chr'], 'chromStep'] = 0
+    df['chromAccum'] = df['chromStep'].cumsum()
+    df['FullExonPos'] = df['ExonPos'] + df['chromAccum']
+    cols = cols[:2] + ['FullExonPos'] + cols[2:]
+    return df[cols]
 
 
 def remove_outliers(df, std_factor=2.5):
@@ -49,32 +77,33 @@ def remove_outliers(df, std_factor=2.5):
     for col in list(df.columns)[3:-3]:
         df.loc[np.abs(df['meanCov'] - df[col]) / df['std']
                > std_factor, col] = np.nan
-    return df
+    return add_mean(df.iloc[:, :-3])
 
 
-def make_PON_coverage(chrom, sample_list, config={
-    'normCov': 100,       # to what value are coverages normalized
-    'minCov': 20,        # only exonPositions with the average coverage above minCov are kept
-    'maxMeanSTD': 20,  # only exonPositions with a coverage std below max_mean_std are kept
-    # only exonPositions straighing within stdFactor * std around meanCoverage are kept
+def make_PON_coverage(sample_list, chrom_list=[f"chr{chrom + 1}" for chrom in range(22)] + ['chrX'], config={
+    # provide a different chrom_list if you don't want standard ['chr1', 'chr2'...]
+    'normCov': 100,       # to what value are coverages normalized#
+    # only exonPositions straighing within std_factor * std around meanCoverage are kept
     'stdFactor': 3,
+    'sample_PON_path': '.',
+    'verbose_output': False  # the path to the bed_cover_file
 }):
-    '''
-    load the coverages for all the PON files for one chromosome and write that to a file if given
-    '''
     # load all sample coverages for one chromosome
-    cov_df = combine_coverage(chrom, sample_list)
+    show_output(
+        f"Loading all PON coverages from {config['sample_PON_path']} for exome-wide normalization", time=True)
+    cov_df = gather_PONcoverage(
+        chrom_list=chrom_list, sample_list=sample_list, config=config)
 
     # normalize and add mean values and std
-    mean_df = add_mean(normalize_coverage(cov_df, normCov=config['normCov']))
-
-    # filter hard regions and outlying data points
-    filter_df = filter_coverage(
-        mean_df, minCov=config['minCov'], maxMeanSTD=config['maxMeanSTD'])
-    filter_removed_df = remove_outliers(
-        filter_df, std_factor=config['stdFactor'])
-
-    # recompute the means and std of filtered_df
-    filter_removed_newmean_df = add_mean(filter_removed_df.iloc[:, :-3])
-
-    return mean_df, filter_removed_newmean_df
+    show_output(f"Normalizing PON coverages", time=True)
+    mean_df = add_mean(normalize_coverage(cov_df, norm_cov=config['normCov']))
+    # add full exon coords to normalized PON coverage
+    full_df = get_full_exon_pos(mean_df)
+    show_output(f"Removing outliers", time=True)
+    filter_df = remove_outliers(mean_df, std_factor=config['stdFactor'])
+    # remove sample columns and addd full exon coords to filtered PON coverage
+    filter_df = get_full_exon_pos(
+        filter_df.loc[:, ['Chr', 'Pos', 'ExonPos', 'meanCov', 'medianCov', 'std']])
+    show_output(f"Finished filtering of PON coverages",
+                time=True, color="success")
+    return full_df, filter_df
