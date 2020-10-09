@@ -68,7 +68,7 @@ def get_rolling_metrix_chrom(df, col='VAF', agg='sum', chrom='', window_size=20)
     return df
 
 
-def get_rolling_metrix(df, col='VAF', agg='mean', window_size=20, normalize=True):
+def get_rolling_metrix(df, col='VAF', agg='mean', window_size=20, normalize=True, keep_LR=False):
     '''
     wrapper to apply get_rolling_metrix_chrom per chromosome
     '''
@@ -96,6 +96,9 @@ def get_rolling_metrix(df, col='VAF', agg='mean', window_size=20, normalize=True
     # reduce the columns
 
     keep_cols = org_cols + [cols['Diff'], cols['']]
+    if keep_LR:
+        keep_cols += [cols['L'], cols['R']]
+
     return df[keep_cols]
 
 

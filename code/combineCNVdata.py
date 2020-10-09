@@ -111,48 +111,6 @@ def get_full_exon_pos_from_cov(snp_df, cov_df):
     return snp_df[cols], cov_df.drop(columns=['chromAccum'])
 
 
-def approx_log2ratio(snp_df, cov_df):
-    '''
-    takes the coverage data and approximates the log2ratio for that SNP from adjacent cov data
-    '''
-
-    # merge snp_df and cov_df and rename required columns
-    merge_df = snp_df.merge(cov_df, on=[
-        'Chr',
-        'FullExonPos'
-    ], how='outer').sort_values('FullExonPos').reset_index(drop=True).drop(
-        columns=['Pos'] + list(cov_df.columns[4:-1])
-    )
-
-    # store the fitting SNPs
-    merged_df = merge_df.query('EBscore == EBscore and log2ratio == log2ratio').drop(
-        columns='ExonPos_y').rename(columns={'ExonPos_x': 'ExonPos'})
-
-    # go on with the SNPs with missing log2ratio
-    merge_df = merge_df.query('EBscore != EBscore or log2ratio != log2ratio').rename(columns={
-        'ExonPos_x': 'ExonPos',
-        'ExonPos_y': 'ExonPosL',
-        'log2ratio': 'log2ratioL'
-    })
-
-    merge_dfs = []
-    snp_cols = list(snp_df.columns) + ['log2ratio']
-
-    for chrom in merge_df['Chr'].unique():
-        merge = merge_df.query('Chr == @chrom')
-        merge['ExonPosR'] = merge['ExonPosL'].fillna(method="bfill")
-        merge['log2ratioR'] = merge['log2ratioL'].fillna(method="bfill")
-        merge['ExonPosL'] = merge['ExonPosL'].fillna(method="ffill")
-        merge['log2ratioL'] = merge['log2ratioL'].fillna(method="ffill")
-        merge['log2ratio'] = merge['log2ratioL'] + (merge['log2ratioR'] - merge['log2ratioL']) / (
-            merge['ExonPosR'] - merge['ExonPosL']) * (merge['ExonPos'] - merge['ExonPosL'])
-        merge_dfs.append(merge.loc[:, snp_cols])
-    snp_df = pd.concat(merge_dfs).sort_values(
-        'FullExonPos').query('EBscore == EBscore')
-    snp_df['log2ratio'] = snp_df['log2ratio'].fillna(method='bfill')
-    return snp_df
-
-
 def centerVAF(snp_df):
     '''
     attempting to correct for off-center VAF means

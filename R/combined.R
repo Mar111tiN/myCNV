@@ -101,7 +101,11 @@ plot.rolling.cov <- function(sample, col, chrom) {
   return(plot)
 }
 
-(plot <- plot.rolling.cov("01_A",'log2ratiomean', "chr17"))
+(plot <- plot.rolling.cov("01_A",'log2ratiomean', "chr7"))
+
+
+
+
 
 
 

@@ -43,13 +43,13 @@ def filter_coverage(df, minCov=20, maxMeanSTD=20):
 
 def remove_outliers(df, std_factor=2.5):
     '''
-    cycle through all sample cols, remove outliers and recompute the means and std
+    cycle through all sample cols, remove outliers
     '''
 
     for col in list(df.columns)[3:-3]:
         df.loc[np.abs(df['meanCov'] - df[col]) / df['std']
                > std_factor, col] = np.nan
-    return add_mean(df.iloc[:, :-3])
+    return df
 
 
 def make_PON_coverage(chrom, sample_list, config={
@@ -74,6 +74,7 @@ def make_PON_coverage(chrom, sample_list, config={
     filter_removed_df = remove_outliers(
         filter_df, std_factor=config['stdFactor'])
 
-    # output only if outpath is given
+    # recompute the means and std of filtered_df
+    filter_removed_newmean_df = add_mean(filter_removed_df.iloc[:, :-3])
 
-    return mean_df, filter_removed_df
+    return mean_df, filter_removed_newmean_df
