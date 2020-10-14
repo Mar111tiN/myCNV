@@ -74,7 +74,14 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
         sample_df = cov_df.merge(pon_df, on=['Chr', 'Pos', 'ExonPos'], how="outer").loc[:, [
             'Chr', 'Pos', 'FullExonPos', 'ExonPos', 'Coverage', 'PONmeanCov', 'PONmedianCov', 'PONstd']]
 
-        cover_dfs.append(sample_df)
+        ##### here recover missing FullExonPos from margin
+        # get the off
+        exon_start, full_start = sample_df.iloc[0][['ExonPos', 'FullExonPos']]
+        offset = full_start - exon_start
+        sample_df.loc[sample_df['FullExonPos'] != sample_df['FullExonPos'], 'FullExonPos'] = sample_df['ExonPos'] + offset
+        sample_df.loc[:, 'FullExonPos'] = sample_df.loc[:, 'FullExonPos'].astype(int)
+        cover_dfs.append(sample_df) 
+
     # normalize the coverage over the entire exome!
     sample_df['Coverage'] = sample_df['Coverage'] / \
         sample_df['Coverage'].mean() * 100
