@@ -81,11 +81,14 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
         sample_df.loc[sample_df['FullExonPos'] != sample_df['FullExonPos'], 'FullExonPos'] = sample_df['ExonPos'] + offset
         sample_df.loc[:, 'FullExonPos'] = sample_df.loc[:, 'FullExonPos'].astype(int)
         cover_dfs.append(sample_df) 
+    # combine chrom data     
+    cover_df = pd.concat(cover_dfs)
 
     # normalize the coverage over the entire exome!
-    sample_df['Coverage'] = sample_df['Coverage'] / \
-        sample_df['Coverage'].mean() * 100
-    cover_df = pd.concat(cover_dfs)
+    cover_df['Coverage'] = cover_df['Coverage'].fillna(0)
+    mean_cov = sample_df['Coverage'].mean()
+    cover_df.loc[:, 'Coverage'] = (cover_df['Coverage'] / mean_cov * 100)
+    
     # loggable are the coverages, where log2ratio can be computed
     loggable = (cover_df['PONmeanCov'] * cover_df['Coverage'] != 0)
     cover_df.loc[loggable, 'log2ratio'] = np.log2(
