@@ -18,7 +18,7 @@ glimpse(data)
 ### show the coverage distribution
 plot.cov <- function (data, zoom=c(0,Inf), ymax=200) {
     plot <- data %>% 
-      ggplot(aes(FullExonPos, Coveragemean)) +
+      ggplot(aes(FullExonPos, Coverage)) +
         geom_line(size=2) + 
         geom_line(
           aes(FullExonPos, PONmeanCovmean),
