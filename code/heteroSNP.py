@@ -12,7 +12,6 @@ def get_heteroSNP(bam_file, chrom, config):
 
     split_genome = os.path.join(config['genome_split_path'], f"{chrom}.fa")
     snp_bed = os.path.join(config['SNPdb_path'], f"db153.{chrom}.snp")
-    # the -F 1024 flag is neccessary in order to remove duplicate reads
     pileup_cmd = f"samtools mpileup -f {split_genome} -q {config['q']} -Q {config['Q']} -r {chrom} -l {snp_bed} {bam_file}"
     snp_cmd = f"{config['cleanSNP']} | {config['snpVAF']} {config['minVAF']} | {config['filterBed']} {config['bedfile']} {chrom} 1"
     cmd = f"{pileup_cmd} | {snp_cmd}"

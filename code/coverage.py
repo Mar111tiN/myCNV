@@ -5,6 +5,7 @@ from subprocess import PIPE, run
 from script_utils import show_output, show_command
 
 # get the coverage on a given chromosome
+# filter out duplicates
 # CLI: *samtools view $bam chr7 |
 
 #   + extracts the reads for that chromosome
@@ -31,7 +32,8 @@ def get_coverage(bam_file, chrom='', config={}):
     rollingCoverage = config['rollingCoverage']
     filterBed = config['filterBed']
     run("pwd", shell=True)
-    view_cmd = f"samtools view -q {config['q']} {bam_file} {chrom}"
+    # the -F 1024 flag is neccessary in order to remove duplicate reads
+    view_cmd = f"samtools view -F 1024 -q {config['q']} {bam_file} {chrom}"
     cov_cmd = f"{bamCoverage} | {rollingCoverage} {config['rollingWindowSize']} | "
     # the 1 at the end is the option for the filterbed tool to output exonic coords
     cov_cmd += f"{filterBed} {config['bedfile']} {chrom} 1"
