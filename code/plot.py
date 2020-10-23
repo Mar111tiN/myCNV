@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns; sns.set()
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle
-
+import pandas as pd
+import numpy as np
 
 def sort_df(df):
     '''
@@ -148,9 +149,12 @@ def set_ticks(ax, df, chrom_df, ticks=20):
     
     ax.xaxis.set_major_locator(plt.FixedLocator(major_pos))
     # only print the genomic coords below a certain base total
-    if stretch < 1e8:
+    print(stretch / 1e6)
+    if stretch < 2e7:
         major_labels = [str_pos(pos, df) for pos in major_pos]
         ax.xaxis.set_major_formatter(plt.FixedFormatter(major_labels))
+        # set the axis labels
+        _ = ax.set_xlabel('genomic coords')
     else:
         ax.xaxis.set_major_formatter(plt.NullFormatter())
     ax.xaxis.set_minor_locator(plt.FixedLocator(minor_pos))
@@ -189,7 +193,7 @@ def extract_pos(region):
     return chrom, start, end
     
 
-def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_r', region='', figsize=(20,4), ylim=(-1,1)):
+def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_r', region='', figsize=(20,4), ylim=(-1,1), ):
     
     #### DATA MANGELING ##########
     # get cols for rearranging
@@ -235,8 +239,6 @@ def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_
     
     
     ######## LABELS ###################
-    # set the axis labels
-    _ = ax.set_xlabel('genomic coords');
     # quick fix for one y-label
     _ = ax.set_ylabel(' / '.join([plot['title'] for plot in plots]))
     
@@ -245,7 +247,6 @@ def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_
     
     ####### X-AXIS ####################
     # set major ticks and grid for chrom
-    
     ax = set_ticks(ax, df, chrom_df)
     
     # return fig and ax for further plotting and return edited dataframe
