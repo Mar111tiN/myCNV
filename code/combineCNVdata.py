@@ -74,21 +74,23 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
         sample_df = cov_df.merge(pon_df, on=['Chr', 'Pos', 'ExonPos'], how="outer").loc[:, [
             'Chr', 'Pos', 'FullExonPos', 'ExonPos', 'Coverage', 'PONmeanCov', 'PONmedianCov', 'PONstd']]
 
-        ##### here recover missing FullExonPos from margin
+        # here recover missing FullExonPos from margin
         # get the off
         exon_start, full_start = sample_df.iloc[0][['ExonPos', 'FullExonPos']]
         offset = full_start - exon_start
-        sample_df.loc[sample_df['FullExonPos'] != sample_df['FullExonPos'], 'FullExonPos'] = sample_df['ExonPos'] + offset
-        sample_df.loc[:, 'FullExonPos'] = sample_df.loc[:, 'FullExonPos'].astype(int)
-        cover_dfs.append(sample_df) 
-    # combine chrom data     
+        sample_df.loc[sample_df['FullExonPos'] != sample_df['FullExonPos'],
+                      'FullExonPos'] = sample_df['ExonPos'] + offset
+        sample_df.loc[:, 'FullExonPos'] = sample_df.loc[:,
+                                                        'FullExonPos'].astype(int)
+        cover_dfs.append(sample_df)
+    # combine chrom data
     cover_df = pd.concat(cover_dfs)
 
     # normalize the coverage over the entire exome!
     cover_df['Coverage'] = cover_df['Coverage'].fillna(0)
     mean_cov = sample_df['Coverage'].mean()
     cover_df.loc[:, 'Coverage'] = (cover_df['Coverage'] / mean_cov * 100)
-    
+
     # loggable are the coverages, where log2ratio can be computed
     loggable = (cover_df['PONmeanCov'] * cover_df['Coverage'] != 0)
     cover_df.loc[loggable, 'log2ratio'] = np.log2(
@@ -124,22 +126,6 @@ def get_full_exon_pos_from_cov(snp_df, cov_df):
     return snp_df
 
 
-def centerVAF(snp_df):
-    '''
-    attempting to correct for off-center VAF means
-    '''
-
-    # get the VAF mean
-    meanVAF = snp_df.query('0.05 < VAF < 0.95')['VAF'].mean()
-    # store the original VAF in orgVAF
-    snp_df['orgVAF'] = snp_df['VAF']
-    snp_df.loc[snp_df['VAF'] <= meanVAF,
-               'VAF'] = snp_df['VAF'] / meanVAF * 0.5
-    snp_df.loc[snp_df['VAF'] > meanVAF, 'VAF'] = 0.5 + \
-        0.5 * (snp_df['VAF'] - meanVAF) / (1-meanVAF)
-    newMeanVAF = snp_df.query('0.05 < VAF < 0.95')['VAF'].mean()
-    return snp_df, meanVAF, newMeanVAF
-
 # combine SNP data and covData
 
 
@@ -153,13 +139,5 @@ def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False, cent
     show_output(f'Loading SNP data for sample {sample}')
     snp_df = combine_SNPdata(
         sample, sample_cnv_path=sample_cnv_path, verbose=verbose)
-    # get full exonPos from cov_df and remove the fullAc
-    snp_df = get_full_exon_pos_from_cov(snp_df, cov_df)
-    # # get lo
-    # snp_df = approx_log2ratio(snp_df, cov_df)
-    if centerSNP:
-        snp_df, meanVAF, newMeanVAF = centerVAF(snp_df)
-        show_output(
-            f'Found SNPs offCenter at {meanVAF}. Re-entering SNPs => meanVAF: {newMeanVAF}')
     show_output(f"Finished loading sample {sample}", color="success")
     return snp_df, cov_df

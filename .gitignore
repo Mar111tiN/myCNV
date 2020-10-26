@@ -6,4 +6,4 @@ __pycache__
 .snakemake
 stop.file
 slogs
-.ipynb_checkpoints
+.ipynb_checkpoints/
