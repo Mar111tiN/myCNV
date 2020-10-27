@@ -36,8 +36,8 @@ def combine_SNPdata(sample, sample_cnv_path="", verbose=False):
         snp_df = snp_df.merge(snpEB_df, on=['Chr', 'Start', 'Ref', 'Alt'])
 
         snp_dfs.append(snp_df)
-    snp_df = pd.concat(snp_dfs)
-    return snp_df.loc[:, ["Chr", "Start", "ExonPos", "Ref", "Depth", "Alt", "VAF", "EBscore", "PoN-Alt"]]
+    snp_df = pd.concat(snp_dfs).rename({'Start': 'Pos'}, axis=1)
+    return snp_df.loc[:, ["Chr", "Pos", "ExonPos", "Ref", "Depth", "Alt", "VAF", "EBscore", "PoN-Alt"]]
 
 
 def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, filtered=True):
@@ -98,33 +98,6 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
     # mark regions without PON coverage as 0
     cover_df.loc[~loggable, 'log2ratio'] = np.nan
     return cover_df
-
-
-def get_full_exon_pos_from_cov(snp_df, cov_df):
-
-    snp_cols = list(snp_df.columns)
-    snp_dfs = []
-    for chrom in snp_df['Chr'].unique():
-        merge = snp_df.query('Chr == @chrom').merge(cov_df.query('Chr == @chrom').loc[:, [
-            'Chr', 'Pos', 'FullExonPos', 'ExonPos']], how='outer').sort_values('ExonPos')
-        merge['PosL'] = merge['Pos'].fillna(method="ffill")
-        merge['FullL'] = merge['FullExonPos'].fillna(method="ffill")
-        merge.loc[merge['FullExonPos'] != merge['FullExonPos'],
-                  'FullExonPos'] = merge['FullL'] + merge['Start'] - merge['PosL']
-        # fill the margins
-        merge.loc[:, 'FullExonPos'] = merge['FullExonPos'].fillna(
-            method="bfill").fillna(method="ffill")
-        # reduce the columns and only snp_data rows
-        cols = snp_cols[:2] + ['FullExonPos'] + snp_cols[2:]
-        snp_merge = merge[cols].query("VAF == VAF")
-        for col in ['Start', 'FullExonPos', 'Depth']:
-            snp_merge.loc[:, col] = snp_merge[col].astype(int)
-        snp_dfs.append(snp_merge)
-    snp_df = pd.concat(snp_dfs).reset_index(drop=True).sort_values(
-        'FullExonPos').rename(columns={'Start': 'Pos'})
-
-    return snp_df
-
 
 # combine SNP data and covData
 
