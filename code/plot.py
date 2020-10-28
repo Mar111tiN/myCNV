@@ -156,7 +156,7 @@ def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
 
     ax.xaxis.set_major_locator(plt.FixedLocator(major_pos))
     # only print the genomic coords below a certain base total
-    if stretch < 1e8:
+    if stretch < 2e7:
         major_labels = [str_pos(pos, df) for pos in major_pos]
         ax.xaxis.set_major_formatter(plt.FixedFormatter(major_labels))
     else:
@@ -335,14 +335,13 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
     _ = ax.set_xlabel('genomic coords', fontsize=1.25*label_size)
     # quick fix for one y-label
     _ = ax.set_ylabel(' / '.join([plot['title']
-                                  for plot in plots]), fontsize=1.25*label_size)
+                                  for plot in snp_plots]), fontsize=1.25*label_size)
 
     ######## CHROM LABELS #############
     add_chrom_labels(ax, chrom_df, ax.get_ylim())
 
     ####### X-AXIS ####################
     # set major ticks and grid for chrom
-
     ax = set_ticks(ax, df, chrom_df, label_size=label_size)
 
     # return fig and ax for further plotting and return edited dataframe
