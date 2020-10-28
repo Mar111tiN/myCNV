@@ -13,19 +13,27 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
 
 
 def one_col_rolling(df, df_filter, col, agg, window_size=200, expand_limit=20, normalize=False, debug=False):
-
-    #
+    '''
+    performs rolling computation of <agg> on data column <col> with given window size
+    the aggregation has to be a string expression understood by the agg-function of the pandas.groupby API
+    computation is performed on a left and right rolling window
+    missing margins are filled by the counterpart window function
+    a diff column is included ()
+    
+    '''
+    
     org_cols = list(df.columns)
     # rolling left
     # get the right computation by passing agg to .agg()
     # only this allows passing methods as string
-    df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(agg)
+    df.loc[:,'L'] = df_filter[col].rolling(window_size).agg(agg)
     # rolling right by shifting the L column
     df.loc[:, 'R'] = df.shift(-window_size + 1)['L']
-
+    
+    
     col_name = col + agg
     diff_name = col_name + "Diff"
-    new_cols = org_cols + [col_name, diff_name]
+    new_cols = org_cols +[col_name, diff_name]
     if debug:
         new_cols += [f'{col_name}L', f'{col_name}R']
     # skips interpolation if value == 0
@@ -33,24 +41,32 @@ def one_col_rolling(df, df_filter, col, agg, window_size=200, expand_limit=20, n
         # interpolate missing values
         for c in ['L', 'R']:
             df = interpolate(df, c, expand_limit=expand_limit)
-
-    # normalize values
-    # not good for coverage and VAF
-    if normalize:
-        # normalize the data
+    # fill the margins
+    L_margin = df['L'].first_valid_index()
+    df.loc[:L_margin, 'L'] = df['R']
+    R_margin = df['R'].last_valid_index() + 1
+    df.loc[R_margin:, 'R'] = df['L']
+    
+    # normalize values 
+    # should be only used for sum aggregations
+    if normalize and agg == 'sum':
+    # normalize the data
         print('Normalizing data')
         _min = df['L'].min()
         _max = df['L'].max()
         for c in ['L', 'R']:
-            df.loc[:, c] = (df[c] - _min) / (_max - _min)
-
+            df.loc[:,c] = (df[c] - _min) / (_max - _min)
+            
     # get the Diff
-    df.loc[:, diff_name] = ((df['R'] - df['L']) ** 2)
-    df.loc[:, diff_name] = df[diff_name] / df[diff_name].max()
+    df.loc[:,diff_name] = np.abs(df['R'] - df['L'])
+    # normalize to max
+    df.loc[:,diff_name] = df[diff_name] / df[diff_name].max()
     # here, contribution of L and R is controlled by diff value
-    df.loc[:, col_name] = df['R'] * \
-        df[diff_name] + df['L'] * (1 - df[diff_name])
-
+    df.loc[:,col_name] = df['R'] * df[diff_name] + df['L'] * (1 - df[diff_name])
+    
+    # square the diff
+    df.loc[:,diff_name] = df[diff_name] ** config['diff_exp']
+    
     # reduce to the right columns
     df = df.rename(columns=dict(L=f'{col_name}L', R=f'{col_name}R'))
     return df[new_cols]
