@@ -199,12 +199,12 @@ def extract_pos(region):
     return chrom, start, end
 
 
-def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_r', region='', figsize=(20, 4), ylim=(-1, 1), ):
-
+def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_r', region='', figsize=(20,4), ylim=(-1,1), label_size=12):
+    
     #### DATA MANGELING ##########
     # get cols for rearranging
     org_cols = list(df.columns)
-
+    
     # sort the df
     df = sort_df(df)
     # reduce the df to the selected chromosomes
@@ -214,54 +214,132 @@ def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_
     elif chroms != 'all':
         df = df.query('Chr in @chroms')
 
-    # get the chrom_df for collapsing the
+    # get the chrom_df for collapsing the 
     chrom_df = get_chrom_df(df)
-
+    
     df = df.merge(chrom_df.loc[:, 'dif'], on='Chr')
     df['PlotPos'] = df['FullExonPos'] - df['dif']
-
+    
     # rearrange the df as return value
     new_cols = org_cols[:4] + ['PlotPos'] + org_cols[4:]
     df = df.loc[:, new_cols]
+    
 
     ######## PLOTTING #######
     # plot the figure
     fig, ax = plt.subplots(figsize=figsize)
+
     # set the x-axis limits
     _ = ax.set_xlim(0, df['PlotPos'].max())
-
+    
     # plot the graphs #######
-    # !!!!
-    # print('Datapoints', len(df.index))
-    # suggestions for the best scatter
-    #
-
     for plot in plots:
         if plot['plot_type'] == 'line':
-            plot = ax.plot(df['PlotPos'], df[plot['data']],
-                           **plot['plot_args'])
+            plot = ax.plot(df['PlotPos'],df[plot['data']], **plot['plot_args'])
         elif plot['plot_type'] == 'scatter':
-            plot = ax.scatter(
-                df['PlotPos'], df[plot['data']], **plot['plot_args'])
-
+            plot = ax.scatter(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+    
     _ = ax.set_ylim(ylim)
     # add the color chroms
-    _ = make_color_chroms(ax, chrom_df, color_chroms,
-                          ylimits=ax.get_ylim(), colormap=colormap)
-
+    _ = make_color_chroms(ax, chrom_df, color_chroms, ylimits=ax.get_ylim(), colormap=colormap)
+    
+    
     ######## LABELS ###################
+    # set the axis labels
+    _ = ax.set_xlabel('genomic coords', fontsize=1.25*label_size);
     # quick fix for one y-label
-    label = ' / '.join([plot['title'] for plot in plots])
-    if len(label) > 80:
-        label = label.replace(' / ', ' /\n')
-    _ = ax.set_ylabel(label)
-
+    _ = ax.set_ylabel(' / '.join([plot['title'] for plot in plots]), fontsize=1.25*label_size)
+    
     ######## CHROM LABELS #############
     add_chrom_labels(ax, chrom_df, ax.get_ylim())
-
+    
     ####### X-AXIS ####################
     # set major ticks and grid for chrom
-    ax = set_ticks(ax, df, chrom_df)
+    
+    ax = set_ticks(ax, df, chrom_df, label_size=label_size)
+    
+    # return fig and ax for further plotting and return edited dataframe
+    return fig, ax, df, chrom_df
 
+
+def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_height=0.5, color_chroms=True, colormap='coolwarm_r', region='', label_size=12, figsize=(20,4), ylim=(-1,1)):
+    
+    MAXLOG2RATIO = 2.5
+    #### DATA MANGELING ##########
+    # get cols for rearranging
+    org_cols = list(df.columns)
+    
+    # sort the df
+    df = sort_df(df)
+    # reduce the df to the selected chromosomes
+    if region:
+        chrom, start, end = extract_pos(region)
+        df = df.query('Chr == @chrom and @start <= Pos <= @end')
+    elif chroms != 'all':
+        df = df.query('Chr in @chroms')
+
+    # get the chrom_df for collapsing the 
+    chrom_df = get_chrom_df(df)
+    
+    df = df.merge(chrom_df.loc[:, 'dif'], on='Chr')
+    df['PlotPos'] = df['FullExonPos'] - df['dif']
+    
+    # rearrange the df as return value
+    new_cols = org_cols[:4] + ['PlotPos'] + org_cols[4:]
+    df = df.loc[:, new_cols]
+    
+    #########################
+    ######## PLOTTING #######
+    # plot the figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # set the x-axis limits
+    _ = ax.set_xlim(0, df['PlotPos'].max())
+    
+    
+    ######## PLOT COV Data
+    
+    if len(cov_plots):
+        scale_factor = cov_height / (MAXLOG2RATIO + 1)
+        offset = 1 + scale_factor + cov_offset
+
+        ylim = (ylim[0], ylim[1] + cov_offset + cov_height)
+        
+        for plot in cov_plots:
+            # normalize the coverage data:
+            # 2.5 is the approx max log2ratio (LOH to 8N)
+
+            df[plot['data']] = df[plot['data']] * scale_factor + offset
+            if plot['plot_type'] == 'line':
+                plot = ax.plot(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+            elif plot['plot_type'] == 'scatter':
+                plot = ax.scatter(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+    
+    ######## plot the SNP graphs #######
+    for plot in snp_plots:
+        if plot['plot_type'] == 'line':
+            plot = ax.plot(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+        elif plot['plot_type'] == 'scatter':
+            plot = ax.scatter(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+    
+    _ = ax.set_ylim(ylim)
+    # add the color chroms
+    _ = make_color_chroms(ax, chrom_df, color_chroms, ylimits=ax.get_ylim(), colormap=colormap)
+    
+    
+    ######## LABELS ###################
+    # set the axis labels
+    _ = ax.set_xlabel('genomic coords', fontsize=1.25*label_size);
+    # quick fix for one y-label
+    _ = ax.set_ylabel(' / '.join([plot['title'] for plot in plots]), fontsize=1.25*label_size)
+    
+    ######## CHROM LABELS #############
+    add_chrom_labels(ax, chrom_df, ax.get_ylim())
+    
+    ####### X-AXIS ####################
+    # set major ticks and grid for chrom
+    
+    ax = set_ticks(ax, df, chrom_df, label_size=label_size)
+    
     # return fig and ax for further plotting and return edited dataframe
     return fig, ax, df, chrom_df

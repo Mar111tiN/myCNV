@@ -12,7 +12,7 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
     return df.reset_index()[cols]
 
 
-def one_col_rolling(df, df_filter, col, agg, window_size=200, expand_limit=20, normalize=False, debug=False):
+def one_col_rolling(df, df_filter, col, agg, window_size=200, expand_limit=20, normalize=False, debug=False, diff_exp=2):
     '''
     performs rolling computation of <agg> on data column <col> with given window size
     the aggregation has to be a string expression understood by the agg-function of the pandas.groupby API
@@ -65,7 +65,7 @@ def one_col_rolling(df, df_filter, col, agg, window_size=200, expand_limit=20, n
     df.loc[:,col_name] = df['R'] * df[diff_name] + df['L'] * (1 - df[diff_name])
     
     # square the diff
-    df.loc[:,diff_name] = df[diff_name] ** config['diff_exp']
+    df.loc[:,diff_name] = df[diff_name] ** diff_exp
     
     # reduce to the right columns
     df = df.rename(columns=dict(L=f'{col_name}L', R=f'{col_name}R'))
@@ -98,8 +98,12 @@ def rolling_coverage(cov_df, config):
                 window_size = data_params[data_col][agg]
                 expand_limit = int(params['expand'] * window_size)
                 # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
-                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, window_size=window_size,
-                                           expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'])
+                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, 
+                window_size=window_size,
+                expand_limit=expand_limit, 
+                normalize=params['normalize'],
+                diff_exp=config['diff_exp'],
+                debug=config['debug'])
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
 
@@ -126,7 +130,7 @@ def mergeSNPnCov(cov_df, snp_df):
     snp_df = snp_df.loc[:, snp_keep_cols]
     # cov
     cov_keep_cols = list(cov_df.columns)[
-        :4] + ['log2ratiomean', 'log2ratiomeanDiff']
+        :4] + ['log2ratio', 'log2ratiomean', 'log2ratiomeanDiff']
     cov_df = cov_df.loc[:, cov_keep_cols]
 
     # merge the data
