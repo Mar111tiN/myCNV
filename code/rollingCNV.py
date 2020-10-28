@@ -65,14 +65,14 @@ def rolling_coverage(cov_df, config):
     params = config['coverage']
     filter_params = params['filter']
     data_params = params['data']
+    # get the params for filtering
+    min_cov = filter_params['min_cov']
+    min_PON_cov = filter_params['min_PON_cov']
+    max_PON_std = filter_params['max_PON_std']
     chrom_dfs = []
     for chrom in cov_df['Chr'].unique():
         # restrict to chrom
         chrom_df = cov_df.query('Chr == @chrom').sort_values('FullExonPos')
-        # get the params for filtering
-        min_cov = filter_params['min_cov']
-        min_PON_cov = filter_params['min_PON_cov']
-        max_PON_std = filter_params['max_PON_std']
 
         # filter df
         filter_df = chrom_df.query(
@@ -106,7 +106,7 @@ def mergeSNPnCov(cov_df, snp_df):
 
     # reduce the data to important columns
     # snp
-    snp_keep_cols = list(snp_df.columns)[:3] + ['Depth', 'VAF']
+    snp_keep_cols = list(snp_df.columns)[:3] + ['Depth', 'EBscore', 'VAF']
     snp_df = snp_df.loc[:, snp_keep_cols]
     # cov
     cov_keep_cols = list(cov_df.columns)[

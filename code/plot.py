@@ -227,7 +227,7 @@ def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_
     ######## PLOTTING #######
     # plot the figure
     fig, ax = plt.subplots(figsize=figsize)
-
+    print('DEBUG', df['PlotPos'].max())
     # set the x-axis limits
     _ = ax.set_xlim(0, df['PlotPos'].max())
 
