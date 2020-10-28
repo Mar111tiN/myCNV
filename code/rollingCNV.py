@@ -159,3 +159,72 @@ def apply_rolling_coverage(snp_df, cov_df, config):
     snpcov_df, rolling_cov_df = mergeSNPnCov(cov_df, snp_df)
 
     return snpcov_df, rolling_cov_df
+
+
+def expand_SNPdata(snp_df, config):
+    '''
+    retrieve a few data columns locally to use rolling windows on
+    this needs to be done chromosome-wise in order to avoid gap effects
+    VAF limits are also applied here
+    '''
+
+    # split the params dict for easier access
+    params = config['heteroSNP']
+    filter_params = params['filter']
+    data_params = params['data']
+    # reduce the snp_df using config limits
+    VAFmin, VAFmax = filter_params['VAF']
+    snp_df = snp_df.query('@VAFmin < VAF < @VAFmax')
+    
+    # get the new features from VAFs
+    snp_df.loc[:,'absVAF'] = np.abs(snp_df['VAF'] - 0.5) * 2
+    # get the local VAF difference chrom based
+    dfs = []
+    for chrom in snp_df['Chr'].unique():
+        chrom_df = snp_df.query('Chr == @chrom')
+        chrom_df.loc[:, 'deltaVAF'] = np.abs(chrom_df['VAF'] - chrom_df.shift(1)['VAF']).fillna(0)
+        dfs.append(chrom_df)
+    snp_df = pd.concat(dfs).sort_values('FullExonPos')
+    return snp_df.reset_index(drop=True)
+
+
+def rolling_SNP(snp_df, config):
+    '''
+    cycle through the chroms and perform rolling window computations of snp data set in config
+    '''
+    
+    # split the params dict for easier access
+    params = config['heteroSNP']
+    filter_params = params['filter']
+    data_params = params['data']
+    # reduce the snp_df using config limits
+    VAFmin, VAFmax = filter_params['VAF'] 
+    minDepth = filter_params['minDepth']
+    minEBscore = filter_params['minEB']
+    
+    # cycle through chroms for 
+    chrom_dfs = []
+    for chrom in snp_df['Chr'].unique():
+        # restrict to chrom
+        chrom_df = snp_df.query('Chr == @chrom').sort_values('FullExonPos')        
+        # filter df
+        filter_df = snp_df.query('Depth >= @minDepth and EBscore > @minEBscore') #.query('@VAFmin < VAF < @VAFmax and 
+        for data_col in data_params.keys():
+            for agg in data_params[data_col].keys():
+                window_size = data_params[data_col][agg]
+                expand_limit = int(params['expand'] * window_size)
+                # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
+                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, window_size=window_size, expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'])
+        chrom_dfs.append(chrom_df)
+    df = pd.concat(chrom_dfs).sort_values('FullExonPos')
+    return df
+
+
+def apply_rolling_SNP(snp_df, config):
+    # center the data
+    snp_df = center_data(snp_df, config)
+    # get extra data
+    snp_df = expand_SNPdata(snp_df, config)
+    # do the rolling
+    snp_df = rolling_SNP(snp2_df, config)
+    return snp_df
