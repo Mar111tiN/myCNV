@@ -72,7 +72,7 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
         trans_dict = {col: f"PON{col}" for col in pon_df.columns[4:]}
         pon_df = pon_df.rename(columns=trans_dict)
         # merge sample with PON coverage
-        sample_df = cov_df.merge(pon_df, on=['Chr', 'Pos', 'ExonPos'], how="outer").loc[:, [
+        sample_df = cov_df.merge(pon_df, on=['Chr', 'Pos', 'ExonPos'], how="right").loc[:, [
             'Chr', 'Pos', 'FullExonPos', 'ExonPos', 'Coverage', 'PONmeanCov', 'PONmedianCov', 'PONstd']]
 
         # here recover missing FullExonPos from margin

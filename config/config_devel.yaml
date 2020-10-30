@@ -48,7 +48,7 @@ CNV:
         minDepth: 10
     combine:
         threads: 1
-        debug: true
+        debug: false
         na_remove: true
         diff_exp: 4
         coverage:

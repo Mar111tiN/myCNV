@@ -4,7 +4,7 @@ rule chrom_coverage:
     output: 
         bedCov = "cnv/{sample}.{chrom}.cov"
     threads:
-        config['get_coverage']['threads']
+        config['CNV']['get_coverage']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script:
@@ -16,13 +16,13 @@ rule hetero_SNP:
     output: 
         bedCov = "cnv/{sample}.{chrom}.snp"
     threads:
-        config['hetero_snp']['threads']
+        config['CNV']['hetero_snp']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script:
         "../code/SNPsnake.py"
 
-rule combine_SNP:
+rule combine_CNV:
     input:
         snp = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list),
         cov = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list)
@@ -33,6 +33,8 @@ rule combine_SNP:
         rcov = "CNV/{sample}.roll.cov"
     threads:
         config['CNV']['combine']['threads']
+    conda:
+        f"../env/myCNV-CentOS-env.yml"
     script:
-        "scripts/combineCNV.py"
+        "../scripts/combineCNV.py"
     

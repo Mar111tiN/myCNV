@@ -1,14 +1,22 @@
 import os
-from coverage import get_coverage
-from code.script_utils import show_output
-from code.rollingCNV import rollingCNV
+import sys
+import pandas as pd
+
+# add package to path
+package_path = os.path.join(snakemake.scriptdir, '../code')
+if not package_path in sys.path:
+    sys.path.append(package_path)
+    print(f'Added {package_path} to PYTHONPATH')
+    
+from script_utils import show_output
+from rollingCNV import rollingCNV
 
 
 def main(s):
     '''
     snakemake wrapper for CNV combine and rolling metrices
     '''
-
+    
     c = s.config
     w = s.wildcards
     p = s.params
@@ -36,7 +44,10 @@ def main(s):
     cov_df.to_csv(o.cov, sep='\t', index=False)
     snp_df.to_csv(o.snp, sep='\t', index=False)
     rCov_df.to_csv(o.rcov, sep='\t', index=False)
-    rSNP_df.to_csv(o.rcov, sep='\t', index=False)
+    rSNP_df.to_csv(o.rsnp, sep='\t', index=False)
+    show_output(f"Finished writing output for sample {sample}.", time=True, color='success')
+
 
 if __name__ == "__main__":
+    print('Running the script')
     main(snakemake)

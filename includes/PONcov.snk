@@ -4,7 +4,7 @@ rule chrom_coverage:
     output: 
         bedCov = "bedCov/{sample}.{chrom}.bedCov"
     threads:
-        config['get_coverage']['threads']
+        config['CNV']['get_coverage']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script: 

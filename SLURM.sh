@@ -41,6 +41,6 @@ echo $CONDA_PREFIX "activated";
 DRMAA=" -p {cluster.partition} -t {cluster.t} --mem-per-cpu={cluster.mem} -J {cluster.name} --nodes={cluster.nodes} -n {cluster.threads}";
 DRMAA="$DRMAA -o ${LOGDIR}/{rule}-%j.log";
 snakemake --unlock --rerun-incomplete;
-snakemake --use-conda --rerun-incomplete --cluster-config config/cluster.json --drmaa "$DRMAA" -prk -j 1000 -s SnakefilePonCov;
+snakemake --use-conda --rerun-incomplete --cluster-config config/cluster.json --drmaa "$DRMAA" -prk -j 1000;
 # -k ..keep going if job fails
 # -p ..print out shell commands
