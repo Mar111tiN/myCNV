@@ -24,4 +24,15 @@ rule hetero_SNP:
 
 rule combine_SNP:
     input:
-        expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list
+        snp = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list),
+        cov = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list)
+    output:
+        snp = "CNV/{sample}.snp",
+        cov = "CNV/{sample}.cov",
+        rsnp = "CNV/{sample}.roll.snp",
+        rcov = "CNV/{sample}.roll.cov"
+    threads:
+        config['CNV']['combine']['threads']
+    script:
+        "scripts/combineCNV.py"
+    

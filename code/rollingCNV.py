@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from script_utils import show_output
-from cluster import center_data
 from combineCNVdata import get_covNsnp
 
 
@@ -231,8 +230,11 @@ def rolling_SNP(snp_df, config):
 
 
 def apply_rolling_SNP(snp_df, config):
-    # center the data
-    snp_df = center_data(snp_df, config)
+    '''
+    expands the SNP data to absVAF and deltaVAF and performs rolling window computations
+    set in the config
+    '''
+
     # get extra data
     snp_df = expand_SNPdata(snp_df, config)
     # do the rolling
@@ -244,24 +246,27 @@ def rollingCNV(sample, sample_cnv_path, PON_cnv_path, config):
     '''
     combines all the hetSNP and coverage data per sample and 
     performs rolling computations for clustering
+    returns the combined raw data and the (optionally na_removed) rolling data 
     '''
-
+    
     # combine the chromosome data and associate coverage data with pon coverage
     snp_df, cov_df = get_covNsnp(
-        sample,
-        sample_cnv_path=sample_cnv_path,
-        PON_cnv_path=PON_cnv_path,
+        sample, 
+        sample_cnv_path=sample_cnv_path, 
+        PON_cnv_path=PON_cnv_path, 
         verbose=config['debug']
     )
-
+    
     # apply rolling coverage
-    show_output(
-        f"Performing rolling coverage computation for sample {sample}.")
+    show_output(f"Performing rolling coverage computation for sample {sample}.")
     snpcov_df, rolling_cov_df = apply_rolling_coverage(snp_df, cov_df, config)
-
+    
     # apply rolling SNP
-    show_output(
-        f"Performing rolling computation for hetSNP data of sample {sample}.")
+    show_output(f"Performing rolling computation for hetSNP data of sample {sample}.")
     rolling_snpcov_df = apply_rolling_SNP(snpcov_df, config)
     show_output(f"Finished computations for sample {sample}.")
-    return rolling_cov_df.dropna(), rolling_snpcov_df.dropna()
+    if config['na_remove']:
+        rolling_cov_df = rolling_cov_df.dropna()
+        rolling_snpcov_df = rolling_snpcov_df.dropna()
+        show_output(f"Removed missing values from rolling data for sample {sample}.")
+    return cov_df, snp_df, rolling_cov_df, rolling_snpcov_df

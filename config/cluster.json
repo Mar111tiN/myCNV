@@ -27,10 +27,16 @@
     "partition": "short",
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
-  "snp2EB": {
+  "SNP2EB": {
     "t": "02:30",
     "mem": 500,
     "partition": "short",
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
+  },
+  "combine_SNP": {
+    "t": "00:30",
+    "mem": 2500,
+    "partition": "debug",
+    "name": "{rule}:{wildcards.sample}"
   }
 }

@@ -9,7 +9,7 @@ def main(s):
     '''
 
     w = s.wildcards
-    sconfig = s.config
+    c = s.config
     i = s.input
     output = s.output.bedCov
 
@@ -17,19 +17,19 @@ def main(s):
     # squeeze out the config for get_coverage
     config = {
         # paths
-        'bedfile': os.path.join(sconfig['paths']['mystatic'], sconfig['ref']['bed_file']),
-        'genome_split_path': os.path.join(sconfig['paths']['mystatic'], sconfig['ref']['genome_split']),
-        'SNPdb_path': os.path.join(sconfig['paths']['mystatic'], sconfig['ref']['dbsnp_split']),
+        'bedfile': os.path.join(c['paths']['mystatic'], c['ref']['bed_file']),
+        'genome_split_path': os.path.join(c['paths']['mystatic'], c['ref']['genome_split']),
+        'SNPdb_path': os.path.join(c['paths']['mystatic'], c['ref']['dbsnp_split']),
         # params
-        'q': sconfig['hetero_snp']['MAPQ'],
-        'Q': sconfig['hetero_snp']['Q'],
-        'minVAF': sconfig['hetero_snp']['minVAF'],
-        'minDepth': sconfig['hetero_snp']['minDepth']
+        'q': c['hetero_snp']['MAPQ'],
+        'Q': c['hetero_snp']['Q'],
+        'minVAF': c['hetero_snp']['minVAF'],
+        'minDepth': c['hetero_snp']['minDepth']
     }
     # get the correct path to the tools
     script_path = os.path.join(
-        sconfig['snakedir'], sconfig['paths']['scripts'])
-    rel_tools = sconfig['scripts']
+        c['snakedir'], c['paths']['scripts'])
+    rel_tools = c['scripts']
     # convert relative paths to abs paths using dict comprehension
     tools = {key: os.path.join(
         script_path, rel_tools[key]) for key in rel_tools}

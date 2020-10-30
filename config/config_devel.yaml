@@ -17,7 +17,7 @@ ref:
     dbsnp_split: annotation/gatk/hg38/split
     bed_file: bed_files/SureSelect/hg38/SS_HAEv7_hg38_Covered.bed
     bed_file_pad: bed_files/SureSelect/hg38/SS_HAEv7_hg38_Padded.bed
-    chromCov: PoN/HAEv7_hg38_NovaSeq/chromCov
+    PONcov: PoN/HAEv7_hg38_NovaSeq/chromCov
 scripts:
     # bedCoverage
     bamCoverage: bamCoverage.mawk
@@ -36,22 +36,50 @@ scripts:
     reordermatrix: shell/reorder_matrix.mawk
 cleanup: False
 # RULES
-get_coverage:
-    threads: 6
-    MAPQ: 20
-    rollingWindowSize: 100  # size of the averager for the coverage tool
-hetero_snp:
-    threads: 6
-    MAPQ: 20
-    Q: 25
-    minVAF: 0.0001
-    minDepth: 10
-combine_pon_coverage:
-    threads: 1
-    norm_coverage: 100 # to what value are coverages normalized
-    min_coverage: 20   # only exonPositions with the average coverage above minCov are kept
-    max_mean_std: 20     # only exonPositions with a coverage std below max_mean_std are kept
-    std_factor: 2.5       # only exonPositions straighing within stdFactor * std around meanCoverage are kept
+CNV:
+    get_coverage:
+        threads: 6
+        MAPQ: 20
+    hetero_snp:
+        threads: 6
+        MAPQ: 20
+        Q: 25
+        minVAF: 0.0001
+        minDepth: 10
+    combine:
+        threads: 1
+        debug: true
+        na_remove: true
+        diff_exp: 4
+        coverage:
+            filter:
+                min_cov: 30
+                min_PON_cov: 50
+                max_PON_std: 100
+            normalize: false
+            center: true
+            expand: 0.2
+            data:
+                log2ratio:
+                    mean: 100
+        heteroSNP:
+            filter:
+                VAF:
+                - 0.05
+                - 0.95
+                minDepth: 30
+                minEB: 0.5
+            normalize: true
+            center: false
+            expand: 0.5
+            data:
+                absVAF:
+                    mean: 20
+                VAF:
+                    std: 20
+                deltaVAF:
+                    var: 20
+                    std: 20
 EBFilter:
     run: True
     pon_list: PoN/HAEv7_hg38_NovaSeq/Pon_list.txt # path relative to mystatic path

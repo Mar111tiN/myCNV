@@ -19,7 +19,7 @@ pon_list = os.path.join(config['paths']['mystatic'], config['pon_list'])
 pon_df = get_pon_df(pon_list)
 print(pon_df)
 # ############ INCLUDES ##############################  
-include: "includes/pon_coverage.snk"
+include: "includes/PONcov.snk"
 
 
 # specified wildcards have to match the regex

@@ -1,4 +1,4 @@
-rule snp2EB:
+rule SNP2EB:
     input:
         table = "cnv/{sample}.{chrom}.snp",
         tumor_bam = get_bam_path
