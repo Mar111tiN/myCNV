@@ -1,11 +1,12 @@
 bam_folder: 
-    - /fast/users/szyskam_c/work/results/P483/bamfinal
-workdir: /fast/users/szyskam_c/scratch/develop/PONcoverage # here your results are created
+    - /fast/users/szyskam_c/work/results/P559/bamfinal
+workdir: /fast/users/szyskam_c/scratch/develop/P559CNV # here your results are created
 snakedir: /fast/users/szyskam_c/snakes/develop/myCNV
-sample_sheet: config/P483_sheet.csv           # sample_sheet relative to script folder
+sample_sheet: config/P559_AML_sheet.csv           # sample_sheet relative to script folder
 #### ABSOLUTE PATHS ############
 paths:
     mystatic: /fast/groups/ag_damm/work/ref/
+    scripts: shell  # path relative to the snake folder
 #### PON #######################
 pon_list: PoN/HAEv7_hg38_NovaSeq/Pon_list.txt # path relative to mystatic path
 #### REF SECTION ###############

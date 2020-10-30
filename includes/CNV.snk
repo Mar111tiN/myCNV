@@ -4,11 +4,11 @@ rule chrom_coverage:
     output: 
         bedCov = "cnv/{sample}.{chrom}.cov"
     threads:
-        config['CNV']['get_coverage']['threads']
+        config['CNV']['coverage']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script:
-        "../code/coversnake.py"
+        "../scripts/coversnake.py"
 
 rule hetero_SNP:
     input:
@@ -16,16 +16,30 @@ rule hetero_SNP:
     output: 
         bedCov = "cnv/{sample}.{chrom}.snp"
     threads:
-        config['CNV']['hetero_snp']['threads']
+        config['CNV']['hetSNP']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script:
-        "../code/SNPsnake.py"
+        "../scripts/SNPsnake.py"
+
+rule SNP2EB:
+    input:
+        table = "cnv/{sample}.{chrom}.snp",
+        tumor_bam = get_bam_path
+    output:
+        "cnv/{sample}.{chrom}.snpEB"
+    threads:
+        config['EBFilter']['threads']['EBscore']
+    conda:
+        f"../env/eb-env.yml"
+    script:
+        "../scripts/ebsnake.py"
+
 
 rule combine_CNV:
     input:
-        snp = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list),
-        cov = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list)
+        snp = expand("cnv/{{sample}}.{chrom}.snpEB", chrom=chrom_list),
+        cov = expand("cnv/{{sample}}.{chrom}.cov", chrom=chrom_list)
     output:
         snp = "CNV/{sample}.snp",
         cov = "CNV/{sample}.cov",
@@ -36,5 +50,5 @@ rule combine_CNV:
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script:
-        "../scripts/combineCNV.py"
+        "../scripts/combineCNVsnake.py"
     

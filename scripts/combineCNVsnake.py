@@ -2,11 +2,6 @@ import os
 import sys
 import pandas as pd
 
-# add package to path
-package_path = os.path.join(snakemake.scriptdir, '../code')
-if not package_path in sys.path:
-    sys.path.append(package_path)
-    print(f'Added {package_path} to PYTHONPATH')
     
 from script_utils import show_output
 from rollingCNV import rollingCNV

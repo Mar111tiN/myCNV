@@ -1,4 +1,9 @@
 import os
+
+from script_utils import set_path
+# get the run_shell function to be passed to running code and set PYTHONPATH
+run_shell = set_path('codeCNV', snakemake)
+
 from coverage import get_coverage
 from script_utils import show_output
 
@@ -8,27 +13,23 @@ def main(s):
     wrapped into function lest module be called by each subprocess
     '''
 
+    c = s.config
     w = s.wildcards
-    sconfig = s.config
+    p = s.params
     i = s.input
+    o = s.output
+    cc = c['CNV']['coverage']
     output = s.output.bedCov
 
     ########## CONFIG #######################
     # squeeze out the config for get_coverage
     config = {
-        'bedfile': os.path.join(sconfig['paths']['mystatic'], sconfig['ref']['bed_file']),
-        'rollingWindowSize': sconfig['get_coverage']['rollingWindowSize'],
-        'q': sconfig['get_coverage']['MAPQ']
+        'bedfile': os.path.join(c['paths']['mystatic'], c['ref']['bed_file']),
+        'rollingWindowSize': cc['rollingWindowSize'],
+        'q': cc['MAPQ'],
+        'run_shell': run_shell
     }
 
-    # get the correct path to the tools
-    script_path = os.path.join(
-        sconfig['snakedir'], sconfig['paths']['scripts'])
-    rel_tools = sconfig['scripts']
-    # convert relative paths to abs paths using dict comprehension
-    tools = {key: os.path.join(
-        script_path, rel_tools[key]) for key in rel_tools}
-    config.update(tools)
 
     bam_file = i.bam
     show_output(

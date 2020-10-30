@@ -1,8 +1,14 @@
 import os
-from pon_coverage import make_PON_coverage
-from script_utils import show_output
 import re
 import pandas as pd
+
+from script_utils import set_path
+# get the run_shell function to be passed to running code
+run_shell = set_path('codeCNV', snakemake)
+
+from pon_coverage import make_PON_coverage
+from script_utils import show_output
+
 
 
 def main(s):

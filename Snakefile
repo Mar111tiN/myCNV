@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 # ############ SETUP ##############################
-configfile: "config/config_devel.yaml"
+configfile: "config/config_P559CNV.yaml"
 # configfile: "configs/config.json"
 workdir: config['workdir']
 
@@ -21,7 +21,6 @@ print(sample_df)
 
 # ############ INCLUDES ##############################  
 include: "includes/CNV.snk"
-include: "includes/EB.snk"
 
 # specified wildcards have to match the regex
 wildcard_constraints:

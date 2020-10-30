@@ -27,16 +27,17 @@ def get_coverage(bam_file, chrom='', config={}):
     '''
     creates a coverage_df for a bam file on a given chromosome
     '''
-    # unwrap the tools
-    bamCoverage = config['bamCoverage']
-    rollingCoverage = config['rollingCoverage']
-    filterBed = config['filterBed']
+
+
+    # unwrap the tools with s function
+    s = config['run_shell']
+
     run("pwd", shell=True)
     # the -F 1024 flag is neccessary in order to remove duplicate reads
     view_cmd = f"samtools view -F 1024 -q {config['q']} {bam_file} {chrom}"
-    cov_cmd = f"{bamCoverage} | {rollingCoverage} {config['rollingWindowSize']} | "
+    cov_cmd = f"{s('bamCoverage.mawk')} | {s('rollingCoverage.mawk')} {config['rollingWindowSize']} | "
     # the 1 at the end is the option for the filterbed tool to output exonic coords
-    cov_cmd += f"{filterBed} {config['bedfile']} {chrom} 1"
+    cov_cmd += f"{s('filterBed.mawk')} {config['bedfile']} {chrom} 1"
     cmd = f"{view_cmd} | {cov_cmd}"
     show_command(cmd, multi=False)
     cov_df = pd.read_csv(StringIO(
