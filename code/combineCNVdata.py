@@ -3,7 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 from script_utils import show_output
-j
+
+
 chrom_list = [f"chr{chrom + 1}" for chrom in range(22)] + ['chrX']
 
 

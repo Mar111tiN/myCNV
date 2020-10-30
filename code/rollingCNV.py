@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 from script_utils import show_output
+from cluster import center_data
+from combineCNVdata import get_covNsnp
 
 
 def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
@@ -10,7 +12,8 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
     cols = list(df.columns)
     # set FullExonPos as index for the interpolation method to work on proper intervals
     df = df.reset_index(drop=False).set_index(ref_col, drop=False)
-    df.loc[:,data_col] = df[data_col].interpolate(method='values', limit=expand_limit, limit_direction='both')
+    df.loc[:, data_col] = df[data_col].interpolate(
+        method='values', limit=expand_limit, limit_direction='both')
     return df.set_index('index')[cols]
 
 
@@ -21,21 +24,20 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     computation is performed on a left and right rolling window
     missing margins are filled by the counterpart window function
     a diff column is included ()
-    
+
     '''
-    
+
     org_cols = list(df.columns)
     # rolling left
     # get the right computation by passing aggr to .agg()
     # only this allows passing methods as string
-    df.loc[:,'L'] = df_filter[col].rolling(window_size).agg(aggr)
+    df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(aggr)
     # rolling right by shifting the L column
     df.loc[:, 'R'] = df.shift(-window_size + 1)['L']
-    
-    
+
     col_name = col + aggr
     diff_name = col_name + "Diff"
-    new_cols = org_cols +[col_name, diff_name]
+    new_cols = org_cols + [col_name, diff_name]
     if debug:
         new_cols += [f'{col_name}L', f'{col_name}R']
     # skips interpolation if value == 0
@@ -48,27 +50,28 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     df.loc[:L_margin, 'L'] = df['R']
     R_margin = df['R'].last_valid_index() + 1
     df.loc[R_margin:, 'R'] = df['L']
-    
-    # normalize values 
+
+    # normalize values
     # should be only used for sum aggregations
     if normalize and aggr == 'sum':
-    # normalize the data
+        # normalize the data
         # print('Normalizing data')
         _min = df['L'].min()
         _max = df['L'].max()
         for c in ['L', 'R']:
-            df.loc[:,c] = (df[c] - _min) / (_max - _min)
-            
+            df.loc[:, c] = (df[c] - _min) / (_max - _min)
+
     # get the Diff
-    df.loc[:,diff_name] = np.abs(df['R'] - df['L'])
+    df.loc[:, diff_name] = np.abs(df['R'] - df['L'])
     # normalize to max
-    df.loc[:,diff_name] = df[diff_name] / df[diff_name].max()
+    df.loc[:, diff_name] = df[diff_name] / df[diff_name].max()
     # here, contribution of L and R is controlled by diff value
-    df.loc[:,col_name] = df['R'] * df[diff_name] + df['L'] * (1 - df[diff_name])
-    
+    df.loc[:, col_name] = df['R'] * \
+        df[diff_name] + df['L'] * (1 - df[diff_name])
+
     # square the diff
-    df.loc[:,diff_name] = df[diff_name] ** diff_exp
-    
+    df.loc[:, diff_name] = df[diff_name] ** diff_exp
+
     # reduce to the right columns
     df = df.rename(columns=dict(L=f'{col_name}L', R=f'{col_name}R'))
     return df[new_cols]
@@ -100,12 +103,12 @@ def rolling_coverage(cov_df, config):
                 window_size = data_params[data_col][agg]
                 expand_limit = int(params['expand'] * window_size)
                 # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
-                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, 
-                window_size=window_size,
-                expand_limit=expand_limit, 
-                normalize=params['normalize'],
-                diff_exp=config['diff_exp'],
-                debug=config['debug'])
+                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg,
+                                           window_size=window_size,
+                                           expand_limit=expand_limit,
+                                           normalize=params['normalize'],
+                                           diff_exp=config['diff_exp'],
+                                           debug=config['debug'])
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
 
@@ -124,7 +127,7 @@ def interpolate_fullexonpon(merge_df):
     return df
 
 
-def mergeSNPnCov(cov_df, snp_df):
+def mergeSNPnCov(cov_df, snp_df, debug=False):
 
     # reduce the data to important columns
     # snp
@@ -133,6 +136,8 @@ def mergeSNPnCov(cov_df, snp_df):
     # cov
     cov_keep_cols = list(cov_df.columns)[
         :4] + ['log2ratio', 'log2ratiomean', 'log2ratiomeanDiff']
+    if debug:
+        cov_keep_cols += ['log2ratiomeanL', 'log2ratiomeanR']
     cov_df = cov_df.loc[:, cov_keep_cols]
 
     # merge the data
@@ -156,7 +161,8 @@ def apply_rolling_coverage(snp_df, cov_df, config):
 
     cov_df = rolling_coverage(cov_df, config)
 
-    snpcov_df, rolling_cov_df = mergeSNPnCov(cov_df, snp_df)
+    snpcov_df, rolling_cov_df = mergeSNPnCov(
+        cov_df, snp_df, debug=config['debug'])
 
     return snpcov_df, rolling_cov_df
 
@@ -175,14 +181,15 @@ def expand_SNPdata(snp_df, config):
     # reduce the snp_df using config limits
     VAFmin, VAFmax = filter_params['VAF']
     snp_df = snp_df.query('@VAFmin < VAF < @VAFmax')
-    
+
     # get the new features from VAFs
-    snp_df.loc[:,'absVAF'] = np.abs(snp_df['VAF'] - 0.5) * 2
+    snp_df.loc[:, 'absVAF'] = np.abs(snp_df['VAF'] - 0.5) * 2
     # get the local VAF difference chrom based
     dfs = []
     for chrom in snp_df['Chr'].unique():
         chrom_df = snp_df.query('Chr == @chrom')
-        chrom_df.loc[:, 'deltaVAF'] = np.abs(chrom_df['VAF'] - chrom_df.shift(1)['VAF']).fillna(0)
+        chrom_df.loc[:, 'deltaVAF'] = np.abs(
+            chrom_df['VAF'] - chrom_df.shift(1)['VAF']).fillna(0)
         dfs.append(chrom_df)
     snp_df = pd.concat(dfs).sort_values('FullExonPos')
     return snp_df.reset_index(drop=True)
@@ -192,29 +199,32 @@ def rolling_SNP(snp_df, config):
     '''
     cycle through the chroms and perform rolling window computations of snp data set in config
     '''
-    
+
     # split the params dict for easier access
     params = config['heteroSNP']
     filter_params = params['filter']
     data_params = params['data']
     # reduce the snp_df using config limits
-    VAFmin, VAFmax = filter_params['VAF'] 
+    VAFmin, VAFmax = filter_params['VAF']
     minDepth = filter_params['minDepth']
     minEBscore = filter_params['minEB']
-    
-    # cycle through chroms for 
+
+    # cycle through chroms for
     chrom_dfs = []
     for chrom in snp_df['Chr'].unique():
         # restrict to chrom
-        chrom_df = snp_df.query('Chr == @chrom').sort_values('FullExonPos')        
+        chrom_df = snp_df.query('Chr == @chrom').sort_values('FullExonPos')
         # filter df
-        filter_df = snp_df.query('Depth >= @minDepth and EBscore > @minEBscore') #.query('@VAFmin < VAF < @VAFmax and 
+        # .query('@VAFmin < VAF < @VAFmax and
+        filter_df = snp_df.query(
+            'Depth >= @minDepth and EBscore > @minEBscore')
         for data_col in data_params.keys():
             for agg in data_params[data_col].keys():
                 window_size = data_params[data_col][agg]
                 expand_limit = int(params['expand'] * window_size)
                 # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
-                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, window_size=window_size, expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'])
+                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, window_size=window_size,
+                                           expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'])
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
     return df
@@ -226,5 +236,32 @@ def apply_rolling_SNP(snp_df, config):
     # get extra data
     snp_df = expand_SNPdata(snp_df, config)
     # do the rolling
-    snp_df = rolling_SNP(snp2_df, config)
+    snp_df = rolling_SNP(snp_df, config)
     return snp_df
+
+
+def rollingCNV(sample, sample_cnv_path, PON_cnv_path, config):
+    '''
+    combines all the hetSNP and coverage data per sample and 
+    performs rolling computations for clustering
+    '''
+
+    # combine the chromosome data and associate coverage data with pon coverage
+    snp_df, cov_df = get_covNsnp(
+        sample,
+        sample_cnv_path=sample_cnv_path,
+        PON_cnv_path=PON_cnv_path,
+        verbose=config['debug']
+    )
+
+    # apply rolling coverage
+    show_output(
+        f"Performing rolling coverage computation for sample {sample}.")
+    snpcov_df, rolling_cov_df = apply_rolling_coverage(snp_df, cov_df, config)
+
+    # apply rolling SNP
+    show_output(
+        f"Performing rolling computation for hetSNP data of sample {sample}.")
+    rolling_snpcov_df = apply_rolling_SNP(snpcov_df, config)
+    show_output(f"Finished computations for sample {sample}.")
+    return rolling_cov_df.dropna(), rolling_snpcov_df.dropna()

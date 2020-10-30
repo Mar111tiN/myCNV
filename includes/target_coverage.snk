@@ -21,3 +21,7 @@ rule hetero_SNP:
         f"../env/myCNV-CentOS-env.yml"
     script:
         "../code/SNPsnake.py"
+
+rule combine_SNP:
+    input:
+        expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list
