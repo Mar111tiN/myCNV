@@ -44,6 +44,23 @@ def normalize_coverage(cov_df, norm_cov=100):
     return norm_df.reset_index()
 
 
+def equalize_X(norm_df):
+    '''
+    detects samples with a normed chromX coverage below 75 (XY)
+    and doubles respective coverages for an overall diploidy for 
+    normalization of coverage
+    '''
+    
+    # extract x chrom from normalized df and set index to hide non-coverage cols
+    x_df = norm_df.query('Chr == "chrX"').set_index(['Chr','Pos','ExonPos'])
+    no_x_df = norm_df.query('Chr != "chrX"')
+    # double the values for samples with mean below 75
+    x_df.loc[:, x_df.mean() < 75] = x_df * 2
+    # concat norm_df without x and harmonized X chrom df
+    equalX_df = pd.concat([no_x_df, x_df.reset_index()]).sort_values(['Chr', 'Pos'])
+    return equalX_df
+
+
 def add_mean(norm_df):
     norm_df = norm_df.set_index(['Chr', 'Pos', 'ExonPos'])
     norm_df['meanCov'] = norm_df.mean(axis=1)
@@ -82,11 +99,11 @@ def remove_outliers(df, std_factor=2.5):
 
 def make_PON_coverage(sample_list, chrom_list=[f"chr{chrom + 1}" for chrom in range(22)] + ['chrX'], config={
     # provide a different chrom_list if you don't want standard ['chr1', 'chr2'...]
-    'normCov': 100,       # to what value are coverages normalized#
+    'normCov': 100,       
     # only exonPositions straighing within std_factor * std around meanCoverage are kept
     'stdFactor': 3,
-    'sample_PON_path': '.',
-    'verbose_output': False  # the path to the bed_cover_file
+    'sample_PON_path': '.', # the path to the bed_cover_file
+    'verbose_output': False  
 }):
     # load all sample coverages for one chromosome
     show_output(
@@ -95,8 +112,11 @@ def make_PON_coverage(sample_list, chrom_list=[f"chr{chrom + 1}" for chrom in ra
         chrom_list=chrom_list, sample_list=sample_list, config=config)
 
     # normalize and add mean values and std
-    show_output(f"Normalizing PON coverages", time=True)
-    mean_df = add_mean(normalize_coverage(cov_df, norm_cov=config['normCov']))
+    show_output(f"Normalizing PON coverages and adjusting X chrom coverage", time=True)
+    eqX_df = equalize_X(normalize_coverage(cov_df, norm_cov=config['normCov']))
+    show_output(f"Re-Normalizing X-adjusted PON coverages", time=True)
+    normX_df = normalize_coverage(eqX_df, norm_cov=config['normCov'])
+    mean_df = add_mean(normX_df)
     # add full exon coords to normalized PON coverage
     full_df = get_full_exon_pos(mean_df)
     show_output(f"Removing outliers", time=True)

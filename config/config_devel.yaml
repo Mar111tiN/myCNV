@@ -24,6 +24,10 @@ CNV:
         threads: 6
         MAPQ: 20
         rollingWindowSize: 100  # size of the averager for the coverage tool
+    PONcoverage:
+        normCov: 100 # to what value are coverages normalized#
+        stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
+        verbose_output: false
     hetSNP:
         threads: 6
         MAPQ: 20

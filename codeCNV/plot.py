@@ -426,3 +426,4 @@ def plot_3d(df, xcol, ycol, zcol, df2=pd.DataFrame(), figsize=(10,10)):
     _ = ax.set_xlim(get_lims(xcol))
     _ = ax.set_ylim(get_lims(ycol))
     _ = ax.set_zlim(get_lims(zcol))
+    return fig, ax

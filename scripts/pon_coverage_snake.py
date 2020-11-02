@@ -19,7 +19,7 @@ def main(s):
     w = s.wildcards
 
     sconfig = s.config
-    pon_config = sconfig['combine_pon_coverage']
+    pon_config = sconfig['CNV']['PONcoverage']
 
     o = s.output
 
@@ -35,19 +35,14 @@ def main(s):
     sample_list = sample_df['sample'].unique()
     chrom_list = sample_df['Chr'].unique()
 
-    config = {
-        'sample_PON_path': s.params.bedCov_path,
-        'normCov': pon_config['norm_coverage'],
-        'stdFactor': pon_config['std_factor'],
-        'verbose_output': False
-    }
+    pon_config['sample_PON_path'] = s.params.bedCov_path
 
     # output the file
     show_output(
         f"Combining PON coverage for {len(sample_df.index)} samples", time=True)
     show_output(f"{len(sample_list)} samples detected:")
     full_df, filter_df = make_PON_coverage(
-        sample_list, chrom_list=chrom_list, config=config)
+        sample_list, chrom_list=chrom_list, config=pon_config)
 
     for chrom in chrom_list:
         out_file = os.path.join(s.params.chromCov_path, f"{chrom}")
