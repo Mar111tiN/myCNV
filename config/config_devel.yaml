@@ -65,6 +65,10 @@ CNV:
                     var: 20
                     std: 20
     cluster:
+        thresholds: 
+            log2ratiomean: [1, 0.5, True] # lower and upper threshold for filter_df, if True: value is absolute
+            deltaVAFvar: [0.075, 0.025, True]
+        cleanup_density: 0.4
         centers: 2
 EBFilter:
     run: True

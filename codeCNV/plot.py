@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import re
-from matplotlib.patches import Rectangle
-from matplotlib.collections import PatchCollection
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
+from matplotlib.patches import Rectangle
+from matplotlib.collections import PatchCollection
 # use seaborn plotting defaults
 import seaborn as sns
 sns.set()
@@ -372,3 +373,56 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
     
     # return fig and ax for further plotting and return edited dataframe
     return fig, ax, df, chrom_df
+
+
+
+def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5,5)):
+    fig, ax = plt.subplots(figsize=figsize)
+    _ = ax.scatter(df[xcol], df[ycol], s=.1)
+    if len(df2.index):
+        _ = ax.scatter(df2[xcol], df2[ycol], s=5, color='red')
+    _ = ax.set_xlabel(xcol, fontsize=10)
+    _ = ax.set_ylabel(ycol, fontsize=10)
+    def get_lims(col):
+        if 'log' in col: 
+            return (-1,3)
+        if 'abs' in col:
+            return (0, 1)
+        if col == 'deltaVAFvar' :
+            return (0,0.15)
+        if col == 'deltaVAFstd':
+            return (0, 1)
+        else:
+            return (-1,1)
+    _ = ax.set_xlim(get_lims(xcol))
+    _ = ax.set_ylim(get_lims(ycol))
+
+
+
+
+
+def plot_3d(df, xcol, ycol, zcol, df2=pd.DataFrame(), figsize=(10,10)):
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    
+    _ = ax.scatter3D(df[xcol], df[ycol], df[zcol], color='green', alpha=.2, s=.1)
+    if len(df2.index):
+        _ = ax.scatter3D(df2[xcol], df2[ycol], df2[zcol], s=5, color='red')
+    # labels
+    _ = ax.set_xlabel(xcol, fontsize=10)
+    _ = ax.set_ylabel(ycol, fontsize=10)
+    _ = ax.set_zlabel(zcol, fontsize=10)
+    def get_lims(col):
+        if 'log' in col: 
+            return (-1,3)
+        if 'abs' in col:
+            return (0, 1)
+        if col == 'deltaVAFvar' :
+            return (0,0.15)
+        if col == 'deltaVAFstd':
+            return (0, 1)
+        else:
+            return (-1,1)
+    _ = ax.set_xlim(get_lims(xcol))
+    _ = ax.set_ylim(get_lims(ycol))
+    _ = ax.set_zlim(get_lims(zcol))
