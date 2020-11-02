@@ -2,7 +2,11 @@ import os
 import sys
 import pandas as pd
 
-    
+from script_utils import set_path
+# get the run_shell function to be passed to running code and set PYTHONPATH
+run_shell = set_path('codeCNV', snakemake)
+
+
 from script_utils import show_output
 from rollingCNV import rollingCNV
 
@@ -44,5 +48,4 @@ def main(s):
 
 
 if __name__ == "__main__":
-    print('Running the script')
     main(snakemake)

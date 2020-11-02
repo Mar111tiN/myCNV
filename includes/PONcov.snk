@@ -4,7 +4,7 @@ rule chrom_coverage:
     output: 
         bedCov = "bedCov/{sample}.{chrom}.bedCov"
     threads:
-        config['CNV']['get_coverage']['threads']
+        config['CNV']['coverage']['threads']
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script: 
@@ -22,4 +22,4 @@ rule combine_PON_coverage:
     threads:
         1
     script: 
-        "../code/pon_coverage_snake.py"
+        "../scripts/pon_coverage_snake.py"
