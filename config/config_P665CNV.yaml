@@ -1,8 +1,8 @@
 bam_folder: 
-    - /fast/users/szyskam_c/work/results/P483/bamfinal
-workdir: /fast/users/szyskam_c/scratch/develop/P483CNV # here your results are created
+    - /fast/users/szyskam_c/work/results/P665/bamfinal
+workdir: /fast/users/szyskam_c/scratch/develop/P665CNV # here your results are created
 snakedir: /fast/users/szyskam_c/snakes/develop/myCNV
-sample_sheet: config/P483_sheet.csv           # sample_sheet relative to script folder
+sample_sheet: config/P665_AML_sheet.csv           # sample_sheet relative to script folder
 #### ABSOLUTE PATHS ############
 paths:
     mystatic: /fast/groups/ag_damm/work/ref/
