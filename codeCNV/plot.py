@@ -150,6 +150,7 @@ def get_precision(pos_list):
     precision = max(7 - power10, 0)
     return precision
 
+
 def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
     '''
     for a given tick number, set nicely spread ticks
@@ -173,7 +174,8 @@ def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
     if stretch < 2e7:
         precision = get_precision(major_pos)
         print_suff = precision < 3
-        major_labels = [str_pos(pos, df, precision=precision, print_suff=print_suff) for pos in major_pos]
+        major_labels = [str_pos(
+            pos, df, precision=precision, print_suff=print_suff) for pos in major_pos]
         ax.xaxis.set_major_formatter(plt.FixedFormatter(major_labels))
     else:
         ax.xaxis.set_major_formatter(plt.NullFormatter())
@@ -278,13 +280,13 @@ def plot_genomic(df, plots, chroms='all', color_chroms=True, colormap='coolwarm_
     return fig, ax, df, chrom_df
 
 
-def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_height=0.5, color_chroms=True, colormap='coolwarm_r', region='', label_size=12, figsize=(20,4), ylim=(-1,1)):
-    
+def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_height=0.5, color_chroms=True, colormap='coolwarm_r', region='', label_size=12, figsize=(20, 4), ylim=(-1, 1)):
+
     MAXLOG2RATIO = 2.5
     #### DATA MANGELING ##########
     # get cols for rearranging
     org_cols = list(df.columns)
-    
+
     # sort the df
     df = sort_df(df)
     # reduce the df to the selected chromosomes
@@ -294,16 +296,16 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
     elif chroms != 'all':
         df = df.query('Chr in @chroms')
 
-    # get the chrom_df for collapsing the 
+    # get the chrom_df for collapsing the
     chrom_df = get_chrom_df(df)
-    
+
     df = df.merge(chrom_df.loc[:, 'dif'], on='Chr')
     df['PlotPos'] = df['FullExonPos'] - df['dif']
-    
+
     # rearrange the df as return value
     new_cols = org_cols[:4] + ['PlotPos'] + org_cols[4:]
     df = df.loc[:, new_cols]
-    
+
     #########################
     ######## PLOTTING #######
     # plot the figure
@@ -311,23 +313,23 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
 
     # set the x-axis limits
     _ = ax.set_xlim(0, df['PlotPos'].max())
-    
-    
-    ######## PLOT COV Data
-    
+
+    # PLOT COV Data
+
     if len(cov_plots):
         scale_factor = cov_height / (MAXLOG2RATIO + 1)
         offset = 1 + scale_factor + cov_offset
 
         ylim = (ylim[0], ylim[1] + cov_offset + cov_height)
-        
+
         for plot in cov_plots:
             # normalize the coverage data:
             # 2.5 is the approx max log2ratio (LOH to 8N)
 
             df[plot['data']] = df[plot['data']] * scale_factor + offset
             if plot['plot_type'] == 'line':
-                plot = ax.plot(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+                plot = ax.plot(df['PlotPos'], df[plot['data']],
+                               **plot['plot_args'])
             elif plot['plot_type'] == 'scatter':
                 # highjack plot_args
                 pa = plot['plot_args']
@@ -336,93 +338,94 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
                 if "s" in pa:
                     if isinstance(pa['s'], str):
                         pa['s'] = df[pa['s']] * 20 + 1
-                plot = ax.scatter(df['PlotPos'],df[plot['data']], **pa)
-    
+                plot = ax.scatter(df['PlotPos'], df[plot['data']], **pa)
+
     ######## plot the SNP graphs #######
     for plot in snp_plots:
         if plot['plot_type'] == 'line':
-            plot = ax.plot(df['PlotPos'],df[plot['data']], **plot['plot_args'])
+            plot = ax.plot(df['PlotPos'], df[plot['data']],
+                           **plot['plot_args'])
         elif plot['plot_type'] == 'scatter':
-            # highjack plot_args with 
+            # highjack plot_args with
             pa = plot['plot_args']
             if "c" in pa:
-                    pa['c'] = df[pa['c']]
+                pa['c'] = df[pa['c']]
             if "s" in pa:
                 if isinstance(pa['s'], str):
                     pa['s'] = df[pa['s']] * 20 + 1
-            plot = ax.scatter(df['PlotPos'],df[plot['data']], **pa)
-    
+            plot = ax.scatter(df['PlotPos'], df[plot['data']], **pa)
+
     _ = ax.set_ylim(ylim)
     # add the color chroms
-    _ = make_color_chroms(ax, chrom_df, color_chroms, ylimits=ax.get_ylim(), colormap=colormap)
-    
-    
+    _ = make_color_chroms(ax, chrom_df, color_chroms,
+                          ylimits=ax.get_ylim(), colormap=colormap)
+
     ######## LABELS ###################
     # set the axis labels
-    _ = ax.set_xlabel('genomic coords', fontsize=1.25*label_size);
+    _ = ax.set_xlabel('genomic coords', fontsize=1.25*label_size)
     # quick fix for one y-label
-    _ = ax.set_ylabel(' / '.join([plot['title'] for plot in snp_plots]), fontsize=1.25*label_size)
-    
+    _ = ax.set_ylabel(' / '.join([plot['title']
+                                  for plot in snp_plots]), fontsize=1.25*label_size)
+
     ######## CHROM LABELS #############
     add_chrom_labels(ax, chrom_df, ax.get_ylim())
-    
+
     ####### X-AXIS ####################
     # set major ticks and grid for chrom
-    
+
     ax = set_ticks(ax, df, chrom_df, label_size=label_size)
-    
+
     # return fig and ax for further plotting and return edited dataframe
     return fig, ax, df, chrom_df
 
 
-
-def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5,5)):
+def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5, 5)):
     fig, ax = plt.subplots(figsize=figsize)
     _ = ax.scatter(df[xcol], df[ycol], s=.1)
     if len(df2.index):
         _ = ax.scatter(df2[xcol], df2[ycol], s=5, color='red')
     _ = ax.set_xlabel(xcol, fontsize=10)
     _ = ax.set_ylabel(ycol, fontsize=10)
+
     def get_lims(col):
-        if 'log' in col: 
-            return (-1,3)
+        if 'log' in col:
+            return (-1.5, 3)
         if 'abs' in col:
             return (0, 1)
-        if col == 'deltaVAFvar' :
-            return (0,0.15)
+        if col == 'deltaVAFvar':
+            return (0, 0.2)
         if col == 'deltaVAFstd':
             return (0, 1)
         else:
-            return (-1,1)
+            return (-1, 1)
     _ = ax.set_xlim(get_lims(xcol))
     _ = ax.set_ylim(get_lims(ycol))
 
 
-
-
-
-def plot_3d(df, xcol, ycol, zcol, df2=pd.DataFrame(), figsize=(10,10)):
+def plot_3d(df, xcol, ycol, zcol, df2=pd.DataFrame(), figsize=(10, 10)):
     fig = plt.figure()
     ax = plt.axes(projection='3d')
-    
-    _ = ax.scatter3D(df[xcol], df[ycol], df[zcol], color='green', alpha=.2, s=.1)
+
+    _ = ax.scatter3D(df[xcol], df[ycol], df[zcol],
+                     color='green', alpha=.2, s=.1)
     if len(df2.index):
         _ = ax.scatter3D(df2[xcol], df2[ycol], df2[zcol], s=5, color='red')
     # labels
     _ = ax.set_xlabel(xcol, fontsize=10)
     _ = ax.set_ylabel(ycol, fontsize=10)
     _ = ax.set_zlabel(zcol, fontsize=10)
+
     def get_lims(col):
-        if 'log' in col: 
-            return (-1,3)
+        if 'log' in col:
+            return (-1.5, 3)
         if 'abs' in col:
             return (0, 1)
-        if col == 'deltaVAFvar' :
-            return (0,0.15)
+        if col == 'deltaVAFvar':
+            return (0, 0.2)
         if col == 'deltaVAFstd':
             return (0, 1)
         else:
-            return (-1,1)
+            return (-1, 1)
     _ = ax.set_xlim(get_lims(xcol))
     _ = ax.set_ylim(get_lims(ycol))
     _ = ax.set_zlim(get_lims(zcol))
