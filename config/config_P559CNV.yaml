@@ -40,6 +40,7 @@ CNV:
         debug: false # also export the left and right rolling window values (L/R)
         na_remove: true
         diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
+        ddof: 0     # set the degree of freedom (0 seems better)
         coverage:
             filter:
                 min_cov: 15

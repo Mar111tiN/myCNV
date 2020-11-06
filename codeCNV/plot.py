@@ -315,7 +315,6 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
     _ = ax.set_xlim(0, df['PlotPos'].max())
 
     # PLOT COV Data
-
     if len(cov_plots):
         scale_factor = cov_height / (MAXLOG2RATIO + 1)
         offset = 1 + scale_factor + cov_offset

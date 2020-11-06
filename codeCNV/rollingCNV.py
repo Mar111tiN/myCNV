@@ -16,7 +16,7 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
     return df.set_index('index')[cols]
 
 
-def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, normalize=False, debug=False, diff_exp=2):
+def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, normalize=False, debug=False, diff_exp=2, ddof=0):
     '''
     performs rolling computation of <agg> on data column <col> with given window size
     the aggregation has to be a string expression understood by the agg-function of the pandas.groupby API
@@ -30,7 +30,7 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     # rolling left
     # get the right computation by passing aggr to .agg()
     # only this allows passing methods as string
-    df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(aggr)
+    df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(aggr, ddof=ddof)
     # rolling right by shifting the L column
     df.loc[:, 'R'] = df.shift(-window_size + 1)['L']
 
@@ -107,7 +107,8 @@ def rolling_coverage(cov_df, config):
                                            expand_limit=expand_limit,
                                            normalize=params['normalize'],
                                            diff_exp=config['diff_exp'],
-                                           debug=config['debug'])
+                                           debug=config['debug'],
+                                           ddof=config['ddof'])
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
 
@@ -223,7 +224,7 @@ def rolling_SNP(snp_df, config):
                 expand_limit = int(params['expand'] * window_size)
                 # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
                 chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, window_size=window_size,
-                                           expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'])
+                                           expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'], ddof=config['ddof'])
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
     return df
@@ -248,25 +249,28 @@ def rollingCNV(sample, sample_cnv_path, PON_cnv_path, config):
     performs rolling computations for clustering
     returns the combined raw data and the (optionally na_removed) rolling data 
     '''
-    
+
     # combine the chromosome data and associate coverage data with pon coverage
     snp_df, cov_df = get_covNsnp(
-        sample, 
-        sample_cnv_path=sample_cnv_path, 
-        PON_cnv_path=PON_cnv_path, 
+        sample,
+        sample_cnv_path=sample_cnv_path,
+        PON_cnv_path=PON_cnv_path,
         verbose=config['debug']
     )
-    
+
     # apply rolling coverage
-    show_output(f"Performing rolling coverage computation for sample {sample}.")
+    show_output(
+        f"Performing rolling coverage computation for sample {sample}.")
     snpcov_df, rolling_cov_df = apply_rolling_coverage(snp_df, cov_df, config)
-    
+
     # apply rolling SNP
-    show_output(f"Performing rolling computation for hetSNP data of sample {sample}.")
+    show_output(
+        f"Performing rolling computation for hetSNP data of sample {sample}.")
     rolling_snpcov_df = apply_rolling_SNP(snpcov_df, config)
     show_output(f"Finished computations for sample {sample}.")
     if config['na_remove']:
         rolling_cov_df = rolling_cov_df.dropna()
         rolling_snpcov_df = rolling_snpcov_df.dropna()
-        show_output(f"Removed missing values from rolling data for sample {sample}.")
+        show_output(
+            f"Removed missing values from rolling data for sample {sample}.")
     return cov_df, snp_df, rolling_cov_df, rolling_snpcov_df
