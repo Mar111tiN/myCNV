@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 # ############ SETUP ##############################
-configfile: "config/config_PmergeCNV.yaml"
+configfile: "config/config_P483CNV.yaml"
 # configfile: "configs/config.json"
 workdir: config['workdir']
 
