@@ -51,16 +51,19 @@ CNV:
             data:
                 log2ratio:
                     mean: 250
-        heteroSNP:
+        SNP:
             filter:
                 VAF:
                 - 0.05
-                - 0.95
+                - 1
                 minDepth: 15
-                minEB: 0.5
+                minEB: 0
             normalize: true
             center: false
             expand: 0.5
+            sigma: 
+                heteroSNP: 0.02 # the sigma of the center gaussian
+                homoSNP: 0.02 # the sigma for VAF=1
             data:
                 absVAF:
                     mean: 20

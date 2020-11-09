@@ -298,10 +298,8 @@ def plot_snp(df, snp_plots=[], cov_plots=[], chroms='all', cov_offset=.25, cov_h
 
     # get the chrom_df for collapsing the
     chrom_df = get_chrom_df(df)
-
     df = df.merge(chrom_df.loc[:, 'dif'], on='Chr')
     df['PlotPos'] = df['FullExonPos'] - df['dif']
-
     # rearrange the df as return value
     new_cols = org_cols[:4] + ['PlotPos'] + org_cols[4:]
     df = df.loc[:, new_cols]
@@ -394,6 +392,8 @@ def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5, 5)):
         if col == 'deltaVAFvar':
             return (0, 0.2)
         if col == 'deltaVAFstd':
+            return (0, 1)
+        if col == 'VAF':
             return (0, 1)
         else:
             return (-1, 1)

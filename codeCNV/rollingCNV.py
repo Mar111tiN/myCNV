@@ -8,6 +8,7 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
     '''
     interpolates missing values in data_col using linear interpolation based on ref_col
     '''
+
     cols = list(df.columns)
     # set FullExonPos as index for the interpolation method to work on proper intervals
     df = df.reset_index(drop=False).set_index(ref_col, drop=False)
