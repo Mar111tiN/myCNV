@@ -31,6 +31,7 @@ CNV:
     hetSNP:
         threads: 6
         MAPQ: 20
+
         Q: 25
         minVAF: 0.0001
         minDepth: 10
@@ -48,9 +49,12 @@ CNV:
             normalize: false
             center: true
             expand: 0.25   # after interpolation of rolling data from filtered df into full df, interpolate missing data within this fraction of window size, set 0 if no interpolation is wanted
+            sigma: 0.2
             data:
                 log2ratio:
                     mean: 250
+                llh:
+                    sum: 250
         SNP:
             filter:
                 VAF:

@@ -208,7 +208,6 @@ def rolling_SNP(snp_df, config):
     # reduce the snp_df using config limits
     VAFmin, VAFmax = filter_params['VAF']
     minDepth = filter_params['minDepth']
-    minEBscore = filter_params['minEB']
 
     # cycle through chroms for
     chrom_dfs = []
@@ -218,7 +217,7 @@ def rolling_SNP(snp_df, config):
         # filter df
         # .query('@VAFmin < VAF < @VAFmax and
         filter_df = snp_df.query(
-            'Depth >= @minDepth and EBscore > @minEBscore')
+            'Depth >= @minDepth')
         for data_col in data_params.keys():
             for agg in data_params[data_col].keys():
                 window_size = data_params[data_col][agg]

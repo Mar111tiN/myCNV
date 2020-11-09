@@ -38,7 +38,7 @@ rule SNP2EB:
 
 rule combine_CNV:
     input:
-        snp = expand("cnv/{{sample}}.{chrom}.snpEB", chrom=chrom_list),
+        snp = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list),
         cov = expand("cnv/{{sample}}.{chrom}.cov", chrom=chrom_list)
     output:
         snp = "CNV/{sample}.snp",

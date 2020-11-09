@@ -68,7 +68,7 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
                 f"Reading PON coverage of {chrom} from file {pon_cov_file}.")
         pon_df = pd.read_csv(pon_cov_file, sep='\t', compression="gzip").loc[:, [
             'Chr', 'Pos', 'FullExonPos', 'ExonPos', 'meanCov', 'medianCov', 'std']]
-        # column rename
+        # column rename PON columns to PON<col>
         trans_dict = {col: f"PON{col}" for col in pon_df.columns[4:]}
         pon_df = pon_df.rename(columns=trans_dict)
         # merge sample with PON coverage
@@ -89,14 +89,16 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
 
     # normalize the coverage over the entire exome!
     cover_df['Coverage'] = cover_df['Coverage'].fillna(0)
-    mean_cov = sample_df['Coverage'].mean()
+
+    # take the mean without chrX because of male chrom!
+    mean_cov = cover_df[cover_df['Chr'] != "chrX", 'Coverage'].mean()
     cover_df.loc[:, 'Coverage'] = (cover_df['Coverage'] / mean_cov * 100)
 
     # loggable are the coverages, where log2ratio can be computed
     loggable = (cover_df['PONmeanCov'] * cover_df['Coverage'] != 0)
     cover_df.loc[loggable, 'log2ratio'] = np.log2(
         cover_df.loc[loggable, 'Coverage'] / cover_df.loc[loggable, 'PONmeanCov'])
-    # mark regions without PON coverage as 0
+    # mark regions without PON coverage as NAN
     cover_df.loc[~loggable, 'log2ratio'] = np.nan
     return cover_df
 
