@@ -51,16 +51,6 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     R_margin = df['R'].last_valid_index() + 1
     df.loc[R_margin:, 'R'] = df['L']
 
-    # normalize values
-    # should be only used for sum aggregations
-    if normalize and aggr == 'sum':
-        # normalize the data
-        # print('Normalizing data')
-        _min = df['L'].min()
-        _max = df['L'].max()
-        for c in ['L', 'R']:
-            df.loc[:, c] = (df[c] - _min) / (_max - _min)
-
     # get the Diff
     df.loc[:, diff_name] = np.abs(df['R'] - df['L'])
     # normalize to max
@@ -72,9 +62,42 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     # square the diff
     df.loc[:, diff_name] = df[diff_name] ** diff_exp
 
+    if debug:
+        # specify col names of L and R
+        df = df.rename(columns=dict(L=f'{col_name}L', R=f'{col_name}R'))
+
     # reduce to the right columns
-    df = df.rename(columns=dict(L=f'{col_name}L', R=f'{col_name}R'))
     return df[new_cols]
+
+
+def llh(data, mean, sigma):
+    '''
+    compute the density function for a given gaussian
+    takes a pd.Series or np.array
+    '''
+    s = np.sqrt(2 * np.pi) * sigma
+    return np.exp((data - mean)**2 / (-2*(sigma**2))) / s
+
+
+def compute_coverage_llh(df, config):
+    '''
+    computes the local log-likelihood of belonging to the center gaussian
+    '''
+
+    # get config params
+    params = config['coverage']['llh']
+
+    min_log2ratio, max_log2ratio = params['center_range']
+    # get the sigma and mean of the center band log2ratio
+    center_logs = df.query('@min_log2ratio < log2ratio < @max_log2ratio')[
+        'log2ratio']
+    sigma = center_logs.std() * params['sigma_factor']
+    mean = center_logs.mean()
+    print(
+        f"Computing log-likelihood of log2ratio belonging to center gaussian [mean:{round(mean, 3)}, sigma:{round(sigma,3)}]")
+    df.loc[:, 'covllh'] = llh(df['log2ratio'], mean, sigma)
+
+    return df
 
 
 def rolling_coverage(cov_df, config):
@@ -85,7 +108,8 @@ def rolling_coverage(cov_df, config):
     # split the params dict for easier access
     params = config['coverage']
     filter_params = params['filter']
-    data_params = params['data']
+    data_params = params['rolling_data']
+    debug = config['debug']
     # get the params for filtering
     min_cov = filter_params['min_cov']
     min_PON_cov = filter_params['min_PON_cov']
@@ -94,7 +118,6 @@ def rolling_coverage(cov_df, config):
     for chrom in cov_df['Chr'].unique():
         # restrict to chrom
         chrom_df = cov_df.query('Chr == @chrom').sort_values('FullExonPos')
-
         # filter df
         filter_df = chrom_df.query(
             'Coverage >= @min_cov and PONmeanCov >= @min_PON_cov and PONstd < @max_PON_std')
@@ -108,11 +131,29 @@ def rolling_coverage(cov_df, config):
                                            expand_limit=expand_limit,
                                            normalize=params['normalize'],
                                            diff_exp=config['diff_exp'],
-                                           debug=config['debug'],
-                                           ddof=config['ddof'])
+                                           debug=debug)
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
 
+    # now do global normalization for sum aggregations:
+    # cycle through rolling_data
+    for data_col in data_params.keys():
+        for agg in data_params[data_col].keys():
+            # only do normalization for sum aggregations
+            if not agg == "sum":
+                continue
+            print(f"Normalizing {data_col} {agg}")
+            # get the columns for normalization
+            col_name = data_col + agg
+            cols = [col_name]
+            if debug:
+                cols += [f'{col_name}L', f'{col_name}R']
+
+            for c in cols:
+
+                _min = df[c].min()
+                _max = df[c].max()
+                df.loc[:, c] = (df[c] - _min) / (_max - _min)
     return df
 
 
@@ -128,17 +169,17 @@ def interpolate_fullexonpon(merge_df):
     return df
 
 
-def mergeSNPnCov(cov_df, snp_df, debug=False):
+def mergeSNPnCov(cov_df, snp_df):
 
     # reduce the data to important columns
     # snp
     snp_keep_cols = list(snp_df.columns)[:3] + ['Depth', 'EBscore', 'VAF']
     snp_df = snp_df.loc[:, snp_keep_cols]
     # cov
-    cov_keep_cols = list(cov_df.columns)[
-        :4] + ['log2ratio', 'log2ratiomean', 'log2ratiomeanDiff']
-    if debug:
-        cov_keep_cols += ['log2ratiomeanL', 'log2ratiomeanR']
+    cov_keep_cols = list(cov_df.columns)[:4]
+    for data in ['log2ratio', 'covllh']:
+        cov_keep_cols += [col for col in cov_df.columns if data in col]
+
     cov_df = cov_df.loc[:, cov_keep_cols]
 
     # merge the data
@@ -152,6 +193,7 @@ def mergeSNPnCov(cov_df, snp_df, debug=False):
         merge_df = interpolate(merge_df, col, expand_limit=100)
     # reduce to VAF values
     snpcov_df = merge_df.query('VAF == VAF')
+    cov_df = cov_df.query('log2ratiomean == log2ratiomean')
     return snpcov_df, cov_df
 
 
@@ -159,11 +201,15 @@ def apply_rolling_coverage(snp_df, cov_df, config):
     '''
     master function for rolling coverage
     '''
+    # reduce cov_df to valid data
+    cov_df = cov_df.query('log2ratio == log2ratio')
+
+    # compute llh
+    cov_df = compute_coverage_llh(cov_df, config)
 
     cov_df = rolling_coverage(cov_df, config)
 
-    snpcov_df, rolling_cov_df = mergeSNPnCov(
-        cov_df, snp_df, debug=config['debug'])
+    snpcov_df, rolling_cov_df = mergeSNPnCov(cov_df, snp_df)
 
     return snpcov_df, rolling_cov_df
 
@@ -204,7 +250,7 @@ def rolling_SNP(snp_df, config):
     # split the params dict for easier access
     params = config['heteroSNP']
     filter_params = params['filter']
-    data_params = params['data']
+    data_params = params['rolling_data']
     # reduce the snp_df using config limits
     VAFmin, VAFmax = filter_params['VAF']
     minDepth = filter_params['minDepth']
