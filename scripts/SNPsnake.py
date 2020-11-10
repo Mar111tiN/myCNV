@@ -1,11 +1,10 @@
-import os
-from script_utils import set_path
+import os 
+from codeCNV.heteroSNP import get_heteroSNP
+from script_utils import set_path, show_output
 
 # get the run_shell function to be passed to running code
-run_shell = set_path('codeCNV', snakemake)
-
-from heteroSNP import get_heteroSNP
-from script_utils import show_output
+# the snakemake object has to be passed to retrieve the proper scripts folder
+# run_shell = set_path('codeCNV', snakemake)
 
 
 def main(s):
@@ -21,10 +20,13 @@ def main(s):
     cc = c['CNV']['hetSNP']
     output = s.output.bedCov
 
+    # get the run_shell function to be passed to running code
+    # the snakemake object has to be passed to retrieve the proper scripts folder
+    run_shell = set_path('codeCNV', s)
 
     ########## CONFIG #######################
     # squeeze out the config for get_coverage
-    
+
     config = {
         # paths
         'bedfile': os.path.join(c['paths']['mystatic'], c['ref']['bed_file']),

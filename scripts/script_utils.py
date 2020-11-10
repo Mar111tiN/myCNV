@@ -54,21 +54,20 @@ def run_cmd(cmd, multi=False):
 
 def set_path(code_folder, s):
     '''
-    sets PYTHONPATH to code_path relative to Snakefile
+    sets PYTHONPATH to code_path relative to Snakemake scripts folder (if not already)
     and returns a shell_function to be passed to code running shell scripts from
     code_path/shell
     '''
 
-    snake_dir = os.path.dirname(s.scriptdir)
-    # 
-    code_path = os.path.join(snake_dir, code_folder)
+    #
+    code_path = os.path.join(s.scriptdir, code_folder)
 
     if not code_path in sys.path:
         sys.path.append(code_path)
         print(f'Added {code_path} to PYTHONPATH')
-    
+
     # create helper function with code_path as closure
     def run_shell(tool):
         return os.path.join(code_path, f"shell/{tool}")
-    
+
     return run_shell

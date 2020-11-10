@@ -1,10 +1,9 @@
 import os
 
+from codeEB.ebrun import run_eb
 from script_utils import set_path
-# get the run_shell function to be passed to running code and set PYTHONPATH
-run_shell = set_path('codeEB', snakemake)
 
-from ebrun import run_eb
+
 
 
 def main(s):
@@ -18,14 +17,17 @@ def main(s):
     i = s.input
     o = s.output
 
+    # get the run_shell function to be passed to running code and set PYTHONPATH
+    # the snakemake object has to be passed to retrieve the proper scripts folder
+    run_shell = set_path('codeEB', s)
 
     static_path = c['paths']['mystatic']
 
     pon_list = os.path.join(static_path, c['pon_list'])
 
     EBconfig = dict(
-        pon_list= pon_list,
-        run_shell=run_shell # pass the shell_function for the tools
+        pon_list=pon_list,
+        run_shell=run_shell  # pass the shell_function for the tools
     )
 
     run_eb(

@@ -1,11 +1,10 @@
 import os
 
-from script_utils import set_path
+from script_utils import show_output, set_path
+from codeCNV.coverage import get_coverage
+
 # get the run_shell function to be passed to running code and set PYTHONPATH
 run_shell = set_path('codeCNV', snakemake)
-
-from coverage import get_coverage
-from script_utils import show_output
 
 
 def main(s):
@@ -18,8 +17,12 @@ def main(s):
     p = s.params
     i = s.input
     o = s.output
+
     cc = c['CNV']['coverage']
-    output = s.output.bedCov
+    output = o.bedCov
+    # get the run_shell function to be passed to running code
+    # the snakemake object has to be passed to retrieve the proper scripts folder
+    run_shell = set_path('codeCNV', s)
 
     ########## CONFIG #######################
     # squeeze out the config for get_coverage
@@ -29,7 +32,6 @@ def main(s):
         'q': cc['MAPQ'],
         'run_shell': run_shell
     }
-
 
     bam_file = i.bam
     show_output(
