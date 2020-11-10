@@ -93,7 +93,7 @@ def compute_coverage_llh(df, config):
         'log2ratio']
     sigma = center_logs.std() * params['sigma_factor']
     mean = center_logs.mean()
-    print(
+    show_output(
         f"Computing log-likelihood of log2ratio belonging to center gaussian [mean:{round(mean, 3)}, sigma:{round(sigma,3)}]")
     df.loc[:, 'covllh'] = llh(df['log2ratio'], mean, sigma)
 
@@ -125,7 +125,7 @@ def rolling_coverage(cov_df, config):
             for agg in data_params[data_col].keys():
                 window_size = data_params[data_col][agg]
                 expand_limit = int(params['expand'] * window_size)
-                # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
+                # show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
                 chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg,
                                            window_size=window_size,
                                            expand_limit=expand_limit,
@@ -142,7 +142,7 @@ def rolling_coverage(cov_df, config):
             # only do normalization for sum aggregations
             if not agg == "sum":
                 continue
-            print(f"Normalizing {data_col} {agg}")
+            show_output(f"Normalizing {data_col} {agg}")
             # get the columns for normalization
             col_name = data_col + agg
             cols = [col_name]
@@ -189,7 +189,7 @@ def mergeSNPnCov(cov_df, snp_df):
     merge_df = interpolate_fullexonpon(merge_df)
 
     # interpolate the data
-    for col in [col for col in merge_df.columns if 'log2ratio' in col]:
+    for col in [col for col in merge_df.columns if 'log2ratio' in col or 'covllh' in col]:
         merge_df = interpolate(merge_df, col, expand_limit=100)
     # reduce to VAF values
     snpcov_df = merge_df.query('VAF == VAF')
@@ -268,7 +268,7 @@ def rolling_SNP(snp_df, config):
             for agg in data_params[data_col].keys():
                 window_size = data_params[data_col][agg]
                 expand_limit = int(params['expand'] * window_size)
-                # print(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
+                # show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
                 chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg, window_size=window_size,
                                            expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'], ddof=config['ddof'])
         chrom_dfs.append(chrom_df)

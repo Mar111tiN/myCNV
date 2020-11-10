@@ -36,7 +36,7 @@ CNV:
         minDepth: 10
     combine:
         threads: 1
-        debug: true # also export the left and right rolling window values (L/R)
+        debug: false # also export the left and right rolling window values (L/R)
         na_remove: true
         diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
         ddof: 0     # set the degree of freedom (0 seems better)
@@ -46,7 +46,7 @@ CNV:
                 min_PON_cov: 30
                 max_PON_std: 100
             llh:    # parameters for llh computation
-                center_range: [-.6, .4]   # the mean of the gaussian is taken from log2ratios within center range
+                center_range: [-0.6, .4]   # the mean of the gaussian is taken from log2ratios within center range
                 sigma_factor: 1     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
             normalize: false
             center: true
@@ -66,6 +66,9 @@ CNV:
             normalize: true
             center: false
             expand: 0.5
+            llh:    # parameters for llh computation
+                center_range: [-0.6, .4]   # the mean of the gaussian is taken from log2ratios within center range
+                sigma_factor: 1     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
             sigma: 
                 heteroSNP: 0.02 # the sigma of the center gaussian
                 homoSNP: 0.02 # the sigma for VAF=1
