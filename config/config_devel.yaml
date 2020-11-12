@@ -40,13 +40,13 @@ CNV:
         na_remove: true
         diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
         ddof: 0     # set the degree of freedom (0 seems better)
-        coverage:
+        cov:
             filter:
-                min_cov: 15
-                min_PON_cov: 30
-                max_PON_std: 100
-            llh:    # parameters for llh computation
-                center_range: [-0.6, .4]   # the mean of the gaussian is taken from log2ratios within center range
+                min_cov: 30
+                min_PON_cov: 50
+                max_PON_std: 50
+            LLH:    # parameters for llh computation
+                center_range: [-0.6, 0.4]   # the mean of the gaussian is taken from log2ratios within center range
                 sigma_factor: 1     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
             normalize: false
             center: true
@@ -54,9 +54,14 @@ CNV:
             rolling_data:
                 log2ratio:
                     mean: 250
-                covllh:
+                covLLH:
                     sum: 250
-        SNP:
+            LLH_cutoff:  # data with LLH below threshold are used for L2R-absVAF clustering
+                cnv: 0.45
+                center: 0.6
+                max_diff: 0.1
+                min_block_size: 50  # the number of contiguous data to make a block
+        snp:
             filter:
                 VAF:
                 - 0.05
@@ -66,9 +71,9 @@ CNV:
             normalize: true
             center: false
             expand: 0.5
-            llh:    # parameters for llh computation
-                center_range: [-0.6, .4]   # the mean of the gaussian is taken from log2ratios within center range
-                sigma_factor: 1     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
+            LLH:    # parameters for llh computation
+                center_range: [0.4, 0.6]   # the mean of the gaussian is taken from log2ratios within center range
+                sigma_factor: 0.5     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
             sigma: 
                 heteroSNP: 0.02 # the sigma of the center gaussian
                 homoSNP: 0.02 # the sigma for VAF=1
@@ -81,6 +86,12 @@ CNV:
                     var: 20
                     std: 20
     cluster:
+        LLH_cutoff:  # data with LLH below threshold are used for L2R-absVAF clustering
+            covLLH: 
+                cnv: 0.45
+                center: 0.6
+                diff: 0.1
+
         thresholds: 
             log2ratiomean: [0.55, 0.35, True] # lower and upper threshold for filter_df, if True: value is absolute
             deltaVAFvar: [0.075, 0.025, True]

@@ -85,7 +85,7 @@ def compute_coverage_llh(df, config):
     '''
 
     # get config params
-    params = config['coverage']['llh']
+    params = config['cov']['LLH']
 
     min_log2ratio, max_log2ratio = params['center_range']
     # get the sigma and mean of the center band log2ratio
@@ -95,7 +95,7 @@ def compute_coverage_llh(df, config):
     mean = center_logs.mean()
     show_output(
         f"Computing log-likelihood of log2ratio belonging to center gaussian [mean:{round(mean, 3)}, sigma:{round(sigma,3)}]")
-    df.loc[:, 'covllh'] = llh(df['log2ratio'], mean, sigma)
+    df.loc[:, 'covLLH'] = llh(df['log2ratio'], mean, sigma)
 
     return df
 
@@ -106,7 +106,7 @@ def rolling_coverage(cov_df, config):
     '''
 
     # split the params dict for easier access
-    params = config['coverage']
+    params = config['cov']
     filter_params = params['filter']
     data_params = params['rolling_data']
     debug = config['debug']
@@ -157,6 +157,83 @@ def rolling_coverage(cov_df, config):
     return df
 
 
+def get_blocks(df, col, min_size=0):
+    '''
+    takes a column of binary containment to certain group and returns block numbers and respective block_sizes
+    excludes blocks below a certain block size limit
+    '''
+
+    org_cols = list(df.columns)
+    # find gaps where col value changes
+    df.loc[:, ['gap']] = (df[col] != df.shift(1)[col]).astype(int)
+    # set the col names
+    blocksize = f'{col}block_size'
+    block = f'{col}block'
+
+    # enumerate the gaps for blockID where value is 1
+    df.loc[:, [block]] = df['gap'].cumsum() * df[col]
+    # group by blocks and count size
+    blocks = df.groupby(block)['gap'].count().rename(blocksize)
+    # merge block size into df
+    df = df.merge(blocks, left_on=block, right_index=True)
+    # remove miniscule blocks
+    df.loc[df[blocksize] < min_size, block] = 0
+
+    # maybe adjust block labelling to be numerically ordered
+    # should maybe done
+    df.loc[:, col] = df[block]
+    # cols = org_cols + [block, blocksize]
+    return df[org_cols]
+
+
+def get_CNV_blocks(df, data, config):
+    '''
+    finds blocks of CNV with center LLH below threshold
+    then it reduces these blocks to the regions within the Diff-peaks.. 
+    ..to only enter the most meaningful data into clustering
+
+    do the same thing for covCenter with values above center threshold
+    (definitely belonging to the center)
+    '''
+
+    # extract params from config
+    # for covLLH --> lookup combine.cov.LLH_cutoff
+    t = data.replace('LLH', "")
+    params = config[t]
+
+    LLH_params = params['LLH_cutoff']
+
+    col = data + "sum"
+    diff_col = data + "Diff"
+
+    # get the covCNV
+
+    # get boolint whether LLH falls below threshold
+    # fillna(1) to exclude any missing coverages
+    df.loc[:, 'covCNV'] = (df[col].fillna(1) < LLH_params['cnv']).astype(int)
+    # get the covCNV blocks
+    df = get_blocks(df, 'covCNV', min_size=LLH_params['min_block_size'])
+    # reduce data to within Diff-peaks
+    df.loc[:, 'covCNVcore'] = ((df['covCNV'] > 0) & (
+        df['covLLHsumDiff'] < LLH_params['max_diff'])).astype(int)
+
+    # here I could also expand the covCNV to the peak of the Diff for covCNVexp
+    # get the window_size for core expanding
+    window_size = params['rolling_data'][data]['sum']
+
+    # get the covCenter
+    df.loc[:, 'covCenter'] = (df[col].fillna(
+        0) > LLH_params['center']).astype(int)
+    # get the covCenter blocks
+    df = get_blocks(df, 'covCenter', min_size=LLH_params['min_block_size'])
+    # reduce data to within Diff-peaks
+    df.loc[:, 'covCentercore'] = ((df['covCenter'] > 0) & (
+        df['covLLHsumDiff'] < LLH_params['max_diff'])).astype(int)
+    # get the window_size for core expanding
+    window_size = params['rolling_data'][data]['sum']
+    return df
+
+
 def interpolate_fullexonpon(merge_df):
     chrom_dfs = []
     for chrom in merge_df['Chr'].unique():
@@ -177,7 +254,7 @@ def mergeSNPnCov(cov_df, snp_df):
     snp_df = snp_df.loc[:, snp_keep_cols]
     # cov
     cov_keep_cols = list(cov_df.columns)[:4]
-    for data in ['log2ratio', 'covllh']:
+    for data in ['log2ratio', 'covLLH', 'covC']:
         cov_keep_cols += [col for col in cov_df.columns if data in col]
 
     cov_df = cov_df.loc[:, cov_keep_cols]
@@ -188,8 +265,8 @@ def mergeSNPnCov(cov_df, snp_df):
     # interpolate FullExonPos
     merge_df = interpolate_fullexonpon(merge_df)
 
-    # interpolate the data
-    for col in [col for col in merge_df.columns if 'log2ratio' in col or 'covllh' in col]:
+    # interpolate the data for all added fields
+    for col in [col for col in merge_df.columns if 'log2ratio' in col or 'covllh' in col or 'covC' in col]:
         merge_df = interpolate(merge_df, col, expand_limit=100)
     # reduce to VAF values
     snpcov_df = merge_df.query('VAF == VAF')
@@ -205,9 +282,16 @@ def apply_rolling_coverage(snp_df, cov_df, config):
     cov_df = cov_df.query('log2ratio == log2ratio')
 
     # compute llh
+    show_output(
+        f"Computing covCenter log-likelihood.")
     cov_df = compute_coverage_llh(cov_df, config)
-
+    # compute llh
+    show_output(
+        f"Performing rolling coverage.")
     cov_df = rolling_coverage(cov_df, config)
+    show_output(
+        f"Identifying CNV blocks.")
+    cov_df = get_CNV_blocks(cov_df, 'covLLH', config)
 
     snpcov_df, rolling_cov_df = mergeSNPnCov(cov_df, snp_df)
 
