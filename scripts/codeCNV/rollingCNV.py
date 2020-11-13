@@ -253,23 +253,29 @@ def mergeSNPnCov(cov_df, snp_df):
     snp_keep_cols = list(snp_df.columns)[:3] + ['Depth', 'EBscore', 'VAF']
     snp_df = snp_df.loc[:, snp_keep_cols]
     # cov
-    cov_keep_cols = list(cov_df.columns)[:4]
-    for data in ['log2ratio', 'covLLH', 'covC']:
-        cov_keep_cols += [col for col in cov_df.columns if data in col]
+    snpcov_keep_cols = list(cov_df.columns)[:4]
+    # columns for snpcov_df only need to contain the basics
+    for data in ['log2ratio', 'covC']:
+        snpcov_keep_cols += [col for col in cov_df.columns if data in col]
+    # columns for cov_df should contain most data
+    cov_keep_cols = snpcov_keep_cols + \
+        [col for col in cov_df.columns if 'covLLH' in col]
 
     cov_df = cov_df.loc[:, cov_keep_cols]
 
+    merge_df = cov_df.loc[:, snpcov_keep_cols]
     # merge the data
-    merge_df = cov_df.merge(snp_df, on=list(snp_df.columns[:3]), how='outer')
+    merge_df = merge_df.merge(snp_df, on=list(
+        snp_df.columns[:3]), how='outer')
 
     # interpolate FullExonPos
     merge_df = interpolate_fullexonpon(merge_df)
-
     # interpolate the data for all added fields
-    for col in [col for col in merge_df.columns if 'log2ratio' in col or 'covllh' in col or 'covC' in col]:
+    for col in [col for col in merge_df.columns if 'log2ratio' in col or 'covC' in col]:
         merge_df = interpolate(merge_df, col, expand_limit=100)
     # reduce to VAF values
     snpcov_df = merge_df.query('VAF == VAF')
+
     cov_df = cov_df.query('log2ratiomean == log2ratiomean')
     return snpcov_df, cov_df
 
@@ -292,9 +298,7 @@ def apply_rolling_coverage(snp_df, cov_df, config):
     show_output(
         f"Identifying CNV blocks.")
     cov_df = get_CNV_blocks(cov_df, 'covLLH', config)
-
     snpcov_df, rolling_cov_df = mergeSNPnCov(cov_df, snp_df)
-
     return snpcov_df, rolling_cov_df
 
 
@@ -306,9 +310,10 @@ def expand_SNPdata(snp_df, config):
     '''
 
     # split the params dict for easier access
-    params = config['heteroSNP']
+    params = config['snp']
     filter_params = params['filter']
-    data_params = params['data']
+    data_params = params['rolling_data']
+    debug = config['debug']
     # reduce the snp_df using config limits
     VAFmin, VAFmax = filter_params['VAF']
     snp_df = snp_df.query('@VAFmin < VAF < @VAFmax')
@@ -330,9 +335,8 @@ def rolling_SNP(snp_df, config):
     '''
     cycle through the chroms and perform rolling window computations of snp data set in config
     '''
-
     # split the params dict for easier access
-    params = config['heteroSNP']
+    params = config['snp']
     filter_params = params['filter']
     data_params = params['rolling_data']
     # reduce the snp_df using config limits
@@ -346,7 +350,7 @@ def rolling_SNP(snp_df, config):
         chrom_df = snp_df.query('Chr == @chrom').sort_values('FullExonPos')
         # filter df
         # .query('@VAFmin < VAF < @VAFmax and
-        filter_df = snp_df.query(
+        filter_df = chrom_df.query(
             'Depth >= @minDepth')
         for data_col in data_params.keys():
             for agg in data_params[data_col].keys():
@@ -357,6 +361,27 @@ def rolling_SNP(snp_df, config):
                                            expand_limit=expand_limit, normalize=params['normalize'], debug=config['debug'], ddof=config['ddof'])
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
+
+    # now do global normalization for sum aggregations:
+    # cycle through rolling_data
+    for data_col in data_params.keys():
+        for agg in data_params[data_col].keys():
+            print(data_col, agg)
+            # only do normalization for sum aggregations
+            if not agg == "sum":
+                continue
+            show_output(f"Normalizing {data_col} {agg}")
+            # get the columns for normalization
+            col_name = data_col + agg
+            cols = [col_name]
+            if debug:
+                cols += [f'{col_name}L', f'{col_name}R']
+
+            for c in cols:
+
+                _min = df[c].min()
+                _max = df[c].max()
+                df.loc[:, c] = (df[c] - _min) / (_max - _min)
     return df
 
 
