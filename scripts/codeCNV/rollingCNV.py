@@ -16,26 +16,46 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
         method='values', limit=expand_limit, limit_direction='both')
     return df.set_index('index')[cols]
 
-
+def normalize_df(df, col):
+    '''
+    normalize a column of a df
+    '''
+    _min = df[col].min()
+    _max = df[col].max()
+    df.loc[:, col] = (df[col] - _min) / (_max - _min)
+    return df
+    
 def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, normalize=False, debug=False, diff_exp=2, ddof=0):
     '''
     performs rolling computation of <agg> on data column <col> with given window size
-    the aggregation has to be a string expression understood by the agg-function of the pandas.groupby API
+    the aggregation can be a:
+        - callable taking df[col] as argument and returning a scalar
+            column name will be taken from function name (stripping underscores)
+        - string expression understood by the agg-function of the pandas.groupby API
+            column name will be composed of col + aggr
     computation is performed on a left and right rolling window
     missing margins are filled by the counterpart window function
     a diff column is included ()
-
     '''
 
     org_cols = list(df.columns)
     # rolling left
-    # get the right computation by passing aggr to .agg()
-    # only this allows passing methods as string
-    df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(aggr, ddof=ddof)
+    # check if aggr is a function
+    if callable(aggr):
+        if debug:
+            show_output(f'Aggregating custom function {aggr.__name__}')
+        df.loc[:, 'L'] = df_filter[col].rolling(window_size).apply(aggr)
+        # pass the function name for ensuing column naming
+        col_name = aggr.__name__.replace('_', '')
+    else:
+        # get the right computation by passing aggr to .agg()
+        # only this allows passing methods as string
+        df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(aggr, ddof=ddof)
+        col_name = col + aggr
+        
     # rolling right by shifting the L column
     df.loc[:, 'R'] = df.shift(-window_size + 1)['L']
 
-    col_name = col + aggr
     diff_name = col_name + "Diff"
     new_cols = org_cols + [col_name, diff_name]
     if debug:
@@ -58,7 +78,13 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     # here, contribution of L and R is controlled by diff value
     df.loc[:, col_name] = df['R'] * \
         df[diff_name] + df['L'] * (1 - df[diff_name])
-
+    
+    if normalize:
+        df = normalize_df(df, col_name)
+        if debug:
+            for c in ['L', 'R']:
+                df = normalize(df, c)
+    
     # square the diff
     df.loc[:, diff_name] = df[diff_name] ** diff_exp
 
@@ -148,12 +174,9 @@ def rolling_coverage(cov_df, config):
             cols = [col_name]
             if debug:
                 cols += [f'{col_name}L', f'{col_name}R']
-
+            # normalize all columns globally
             for c in cols:
-
-                _min = df[c].min()
-                _max = df[c].max()
-                df.loc[:, c] = (df[c] - _min) / (_max - _min)
+                df = normalize_df(df, c)
     return df
 
 

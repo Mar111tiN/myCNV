@@ -65,13 +65,13 @@ CNV:
             filter:
                 VAF: [0.05,.98]
                 minDepth: 15
-                offVAFsum: 0 # after computation, filter out "falling SNPs with offVAFsum" 
+            fallSNP:
+                run: true
+                maxFallSNP: 0.4 # after computation, filter out "falling SNPs" with fallSNP > 0.4"
+                offVAFwindow: 20
             normalize: true
             center: false
             expand: 0.5
-            rolling_filter:
-                offVAF:
-                    sum: 50
             rolling_data:
                 absVAF:
                     mean: 40
