@@ -125,6 +125,45 @@ def compute_coverage_llh(df, config):
 
     return df
 
+def rolling_data(df, filter_df, expand=0.25, ddof=0, debug=False, data_params={}):
+    '''
+    cycles through the data params (rolling_data object from config dict)
+    and performs rolling computations for these params
+    '''
+    # now do global normalization for sum aggregations:
+    # cycle through rolling_data
+    for data_col in data_params.keys():
+        for agg in data_params[data_col].keys():
+            # cycle through the chroms
+            chrom_dfs = []
+            for chrom in df['Chr'].unique():
+                # get the chrom_dfs
+                chrom_df = df.query('Chr == @chrom').sort_values('FullExonPos')
+                filter_chrom_df = filter_df.query('Chr == @chrom').sort_values('FullExonPos')
+                window_size = data_params[data_col][agg]
+                expand_limit = int(expand * window_size)
+                # show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
+                chrom_df = one_col_rolling(chrom_df, filter_chrom_df, data_col, agg, window_size=window_size,
+                                           expand_limit=expand_limit, ddof=ddof)            
+                chrom_dfs.append(chrom_df)
+            # combine the chrom_dfs
+            df = pd.concat(chrom_dfs).sort_values('FullExonPos')
+            
+            #### Normalization
+            # only do normalization for sum aggregations
+            if not agg == "sum":
+                continue
+            print(f"Normalizing {data_col} {agg}")
+            # get the columns for normalization
+            col_name = data_col + agg
+            cols = [col_name]
+            if debug:
+                cols += [f'{col_name}L', f'{col_name}R']
+            for c in cols:
+                _min = df[c].min()
+                _max = df[c].max()
+                df.loc[:, c] = (df[c] - _min) / (_max - _min)
+    return df
 
 def rolling_coverage(cov_df, config):
     '''
@@ -135,49 +174,19 @@ def rolling_coverage(cov_df, config):
     params = config['cov']
     filter_params = params['filter']
     data_params = params['rolling_data']
-    debug = config['debug']
+    
     # get the params for filtering
     min_cov = filter_params['min_cov']
     min_PON_cov = filter_params['min_PON_cov']
     max_PON_std = filter_params['max_PON_std']
-    chrom_dfs = []
-    for chrom in cov_df['Chr'].unique():
-        # restrict to chrom
-        chrom_df = cov_df.query('Chr == @chrom').sort_values('FullExonPos')
-        # filter df
-        filter_df = chrom_df.query(
+    
+    cov_df = cov_df.sort_values('FullExonPos')
+    filter_df = cov_df.query(
             'Coverage >= @min_cov and PONmeanCov >= @min_PON_cov and PONstd < @max_PON_std')
-        for data_col in data_params.keys():
-            for agg in data_params[data_col].keys():
-                window_size = data_params[data_col][agg]
-                expand_limit = int(params['expand'] * window_size)
-                # show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
-                chrom_df = one_col_rolling(chrom_df, filter_df, data_col, agg,
-                                           window_size=window_size,
-                                           expand_limit=expand_limit,
-                                           normalize=params['normalize'],
-                                           diff_exp=config['diff_exp'],
-                                           debug=debug)
-        chrom_dfs.append(chrom_df)
-    df = pd.concat(chrom_dfs).sort_values('FullExonPos')
-
-    # now do global normalization for sum aggregations:
-    # cycle through rolling_data
-    for data_col in data_params.keys():
-        for agg in data_params[data_col].keys():
-            # only do normalization for sum aggregations
-            if not agg == "sum":
-                continue
-            show_output(f"Normalizing {data_col} {agg}")
-            # get the columns for normalization
-            col_name = data_col + agg
-            cols = [col_name]
-            if debug:
-                cols += [f'{col_name}L', f'{col_name}R']
-            # normalize all columns globally
-            for c in cols:
-                df = normalize_df(df, c)
-    return df
+    
+    cov_df = rolling_data(cov_df, filter_df, expand=params['expand'], ddof=config['ddof'], debug=config['debug'], data_params=data_params)
+                   
+    return cov_df
 
 
 def get_blocks(df, col, min_size=0):

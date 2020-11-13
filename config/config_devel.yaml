@@ -59,7 +59,7 @@ CNV:
             LLH_cutoff:  # data with LLH below threshold are used for L2R-absVAF clustering
                 cnv: 0.45   # covLLH
                 center: 0.6
-                max_diff: 0.1
+                max_diff: 0.1 # the cutoff for the diff used for block collapsing
                 min_block_size: 50  # the number of contiguous data to make a block
         snp:
             filter:
@@ -74,13 +74,13 @@ CNV:
             expand: 0.5
             rolling_data:
                 absVAF:
-                    mean: 40
+                    mean: 20
                 VAF:
                     std: 30
                 snpLLH: 
-                    sum: 80
+                    sum: 20
                 hsnpLLH:
-                    sum: 80
+                    sum: 40
 
             LLH:    # parameters for llh computation
                 center_range: [0.4, 0.6]   # the mean of the gaussian is taken from log2ratios within center range
@@ -89,7 +89,7 @@ CNV:
                     cnv: 0.15
                     center: 0.4
                     max_diff: 0.1
-                    min_block_size: 20  # the number of contiguous data to make a block
+                    min_block_size: 10  # the number of contiguous data to make a block
     cluster:
         LLH_cutoff:  # data with LLH below threshold are used for L2R-absVAF clustering
             covLLH: 
