@@ -381,6 +381,7 @@ def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5, 5)):
         _ = ax.scatter(df2[xcol], df2[ycol], s=5, color='red')
     _ = ax.set_xlabel(xcol, fontsize=10)
     _ = ax.set_ylabel(ycol, fontsize=10)
+    seaborn.despine(ax=ax, offset=0)
 
     def get_lims(col):
         if 'log' in col:
