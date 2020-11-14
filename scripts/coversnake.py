@@ -3,9 +3,6 @@ import os
 from script_utils import show_output, set_path
 from codeCNV.coverage import get_coverage
 
-# get the run_shell function to be passed to running code and set PYTHONPATH
-run_shell = set_path('codeCNV', snakemake)
-
 
 def main(s):
     '''
@@ -17,6 +14,9 @@ def main(s):
     p = s.params
     i = s.input
     o = s.output
+
+    # get the run_shell function to be passed to running code and set PYTHONPATH
+    run_shell = set_path('codeCNV', s)
 
     cc = c['CNV']['coverage']
     output = o.bedCov
@@ -30,7 +30,8 @@ def main(s):
         'bedfile': os.path.join(c['paths']['mystatic'], c['ref']['bed_file']),
         'rollingWindowSize': cc['rollingWindowSize'],
         'q': cc['MAPQ'],
-        'run_shell': run_shell
+        'run_shell': run_shell,
+        'chrom_with_chr': c['chrom_with_chr']
     }
 
     bam_file = i.bam

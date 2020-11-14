@@ -36,6 +36,10 @@ NR == 1 {
         } 
     }
     if (vaf > minVAF) {
+        # I want chr in chromosomes
+        if ($1 !~ "chr") {
+            $1 = "chr" $1;
+        }
         printf("%s\t%s\t%s\t%s\t",$1,$2,$3,$4);
         printf("%s%s\t%s\n", base,maxcount,vaf);
     } 

@@ -8,7 +8,7 @@ rule chrom_coverage:
     conda:
         f"../env/myCNV-CentOS-env.yml"
     script: 
-        "../code/coversnake.py"
+        "../scripts/coversnake.py"
 
 
 rule combine_PON_coverage:

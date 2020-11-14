@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 # ############ SETUP ##############################
-configfile: "config/config_P483CNV.yaml"
+configfile: "config/config_PMBLtarget.yaml"
 # configfile: "configs/config.json"
 workdir: config['workdir']
 
@@ -33,13 +33,13 @@ wildcard_constraints:
 rule all:
     input:
         # expand("bedCov/{sample}.{chrom}.bedCov", sample=pon_df['sample'], chrom=chrom_list),
-        # expand("cnv/{sample}.{chrom}.cov", chrom=chrom_list, sample=sample_df.index),
+        expand("cnv/{sample}.{chrom}.cov", chrom=chrom_list, sample=sample_df.index),
         # expand("cnv/{sample}.{chrom}.snp", chrom=chrom_list, sample=sample_df.index),
         # expand("cnv/{sample}.{chrom}.snpEB", chrom=chrom_list, sample=sample_df.index),
-        expand("CNV/{sample}.cov", sample=sample_df.index),
-        expand("CNV/{sample}.snp", sample=sample_df.index),
-        expand("CNV/{sample}.roll.cov", sample=sample_df.index),
-        expand("CNV/{sample}.roll.snp", sample=sample_df.index)
+        # expand("CNV/{sample}.cov", sample=sample_df.index),
+        # expand("CNV/{sample}.snp", sample=sample_df.index),
+        # expand("CNV/{sample}.roll.cov", sample=sample_df.index),
+        # expand("CNV/{sample}.roll.snp", sample=sample_df.index)
 
 ###########################################################################
 

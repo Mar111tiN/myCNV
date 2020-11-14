@@ -28,6 +28,10 @@ BEGIN {
 $6 !~ /\*/ {
   # get the data
   chrom = $3;
+  # I want chr everywhere
+  if (chrom !~"chr") {
+      chrom = "chr" chrom;
+  }
   start = $4; # start position is pushed up by cigar info
   cigar = $6;
 

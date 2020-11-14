@@ -65,7 +65,6 @@ def get_bam_files(folder_list, sample_sheet):
                 if '.bam' in file and '.md5' not in file and '.bai' not in file:
                     bam_list.append(os.path.join(folder, file))
                     short_list.append(file)
-
     # include check for empty list
     def get_bam_paths(row, bam_list=None):
         '''

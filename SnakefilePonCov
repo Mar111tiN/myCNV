@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 # ############ SETUP ##############################
-configfile: "config/config_devel.yaml"
+configfile: "config/config_PMBLtarget.yaml"
 # configfile: "configs/config.json"
 workdir: config['workdir']
 
@@ -12,7 +12,6 @@ workdir: config['workdir']
 include: "includes/utils.snk"
 
 chrom_list = get_chrom_list(config)
-
 
 pon_list = os.path.join(config['paths']['mystatic'], config['pon_list'])
 
