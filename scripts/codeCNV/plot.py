@@ -380,7 +380,7 @@ def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5, 5)):
     fig, ax = plt.subplots(figsize=figsize)
     _ = ax.scatter(df[xcol], df[ycol], s=.1)
     if len(df2.index):
-        _ = ax.scatter(df2[xcol], df2[ycol], s=5, color='red')
+        _ = ax.scatter(df2[xcol], df2[ycol], s=1, alpha=0.5, color='red')
     _ = ax.set_xlabel(xcol, fontsize=10)
     _ = ax.set_ylabel(ycol, fontsize=10)
 

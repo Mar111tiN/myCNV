@@ -102,7 +102,7 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
         df = df.rename(columns=dict(L=f'{col_name}L', R=f'{col_name}R'))
 
     # reduce to the right columns
-    return df[new_cols]
+    return df.loc[:, new_cols]
 
 
 def rolling_data(df, filter_df, expand=0.25, ddof=0, debug=False, data_params={}):
