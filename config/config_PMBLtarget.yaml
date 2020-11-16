@@ -13,10 +13,10 @@ ref:
     genome: genome/gatk/b37/human_g1k_v37.fasta  
     genome_split: genome/gatk/b37/split
     dbsnp: dbsnp154
-    dbsnp_split: annotation/gatk/hg19/split
+    dbsnp_split: annotation/gatk/hg19/splitPMBL
     bed_file: bed_files/PMBLtarget/hg19/PMBLtarget.bed
     bed_file_pad: bed_files/PMBLtarget/hg19/PMBLtarget.bed
-    PONcov: PoN/PMBLtarget/chromCov
+    PONcov: PoN/PMBLtarget/chromCov  #  chromCovDups
 cleanup: False
 chrom_with_chr: false # whether bam files contain chr in name
 # RULES
@@ -25,6 +25,7 @@ CNV:
         threads: 6
         MAPQ: 20
         rollingWindowSize: 100  # size of the averager for the coverage tool
+        drop_duplicates: false
     PONcoverage:
         normCov: 100 # to what value are coverages normalized#
         stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
@@ -51,9 +52,9 @@ CNV:
             expand: 0.25   # after interpolation of rolling data from filtered df into full df, interpolate missing data within this fraction of window size, set 0 if no interpolation is wanted
             rolling_data:
                 log2ratio:
-                    mean: 250
+                    mean: 50
                 covLLH:
-                    sum: 250
+                    sum: 50
             LLH:    # parameters for llh computation
                 center_range: [-0.6, 0.4]   # the mean of the gaussian is taken from log2ratios within center range
                 sigma_factor: 1     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
@@ -75,13 +76,13 @@ CNV:
             expand: 0.5
             rolling_data:
                 absVAF:
-                    mean: 20
+                    mean: 1
                 VAF:
-                    std: 30
+                    std: 1
                 snpLLH: 
-                    sum: 20
+                    sum: 1
                 hsnpLLH:
-                    sum: 40
+                    sum: 1
 
             LLH:    # parameters for llh computation
                 center_range: [0.4, 0.6]   # the mean of the gaussian is taken from log2ratios within center range

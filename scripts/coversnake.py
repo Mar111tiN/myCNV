@@ -31,7 +31,8 @@ def main(s):
         'rollingWindowSize': cc['rollingWindowSize'],
         'q': cc['MAPQ'],
         'run_shell': run_shell,
-        'chrom_with_chr': c['chrom_with_chr']
+        'chrom_with_chr': c['chrom_with_chr'],
+        'drop_duplicates': cc['drop_duplicates']
     }
 
     bam_file = i.bam

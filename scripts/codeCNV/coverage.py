@@ -36,7 +36,8 @@ def get_coverage(bam_file, chrom='', config={}):
     bam_chrom = chrom if config['chrom_with_chr'] else chrom.replace(
         'chr', '')
     # the -F 1024 flag is neccessary in order to remove duplicate reads
-    view_cmd = f"samtools view -F 1024 -q {config['q']} {bam_file} {bam_chrom}"
+    drop_dups = " -F 1024" if config['drop_duplicates'] else ""
+    view_cmd = f"samtools view{drop_dups} -q {config['q']} {bam_file} {bam_chrom}"
     cov_cmd = f"{s('bamCoverage.mawk')} | {s('rollingCoverage.mawk')} {config['rollingWindowSize']} | "
     # the 1 at the end is the option for the filterbed tool to output exonic coords
     cov_cmd += f"{s('filterBed.mawk')} {config['bedfile']} {chrom} 1"

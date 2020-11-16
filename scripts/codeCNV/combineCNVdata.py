@@ -3,7 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 from script_utils import show_output
-
+from codeCNV.rollingCov import apply_rolling_coverage
+from codeCNV.rollingSNP import apply_rolling_SNP
 
 chrom_list = [f"chr{chrom + 1}" for chrom in range(22)] + ['chrX']
 
@@ -25,20 +26,13 @@ def combine_SNPdata(sample, sample_cnv_path="", verbose=False):
             r"([AGCT])([0-9]+)")
 
         # reading snpEB
-        file = f"{file_base}.{chrom}.snpEB"
+        file = f"{file_base}.{chrom}.snp"
         if not os.path.isfile(file):
             show_output(f'No file {file}', color="warning")
             continue
-        if verbose:
-            show_output(
-                f"Reading SNP EBscores from {chrom} of sample {sample} from {file}.")
-        snpEB_df = pd.read_csv(file, sep='\t').loc[:, [
-            'Chr', 'Start', 'Ref', 'Alt', 'EBscore', 'PoN-Alt']]
-        snp_df = snp_df.merge(snpEB_df, on=['Chr', 'Start', 'Ref', 'Alt'])
-
         snp_dfs.append(snp_df)
     snp_df = pd.concat(snp_dfs).rename({'Start': 'Pos'}, axis=1)
-    return snp_df.loc[:, ["Chr", "Pos", "ExonPos", "Ref", "Depth", "Alt", "VAF", "EBscore", "PoN-Alt"]]
+    return snp_df.loc[:, ["Chr", "Pos", "ExonPos", "Ref", "Depth", "Alt", "VAF"]]
 
 
 def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, filtered=True):
@@ -105,7 +99,7 @@ def combine_Covdata(sample, sample_cnv_path="", PON_cnv_path="", verbose=False, 
 # combine SNP data and covData
 
 
-def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False, centerSNP=False):
+def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False):
     '''
     load the coverage_data for a sample and the heteroSNP data and apply the same fullExonCoords
     '''
@@ -116,4 +110,37 @@ def get_covNsnp(sample, sample_cnv_path='', PON_cnv_path='', verbose=False, cent
     snp_df = combine_SNPdata(
         sample, sample_cnv_path=sample_cnv_path, verbose=verbose)
     show_output(f"Finished loading sample {sample}", color="success")
-    return snp_df, cov_df
+    return cov_df, snp_df
+
+
+def rollingCNV(sample, sample_cnv_path, PON_cnv_path, config):
+    '''
+    combines all the hetSNP and coverage data per sample and 
+    performs rolling computations for clustering
+    returns the combined raw data and the (optionally na_removed) rolling data 
+    '''
+
+    # combine the chromosome data and associate coverage data with pon coverage
+    snp_df, cov_df = get_covNsnp(
+        sample,
+        sample_cnv_path=sample_cnv_path,
+        PON_cnv_path=PON_cnv_path,
+        verbose=config['debug']
+    )
+
+    # apply rolling coverage
+    show_output(
+        f"Performing rolling coverage computation for sample {sample}.")
+    snpcov_df, rolling_cov_df = apply_rolling_coverage(snp_df, cov_df, config)
+
+    # apply rolling SNP
+    show_output(
+        f"Performing rolling computation for hetSNP data of sample {sample}.")
+    rolling_snpcov_df, cluster_df = apply_rolling_SNP(snpcov_df, config)
+    show_output(f"Finished computations for sample {sample}.")
+    if config['na_remove']:
+        rolling_cov_df = rolling_cov_df.dropna()
+        rolling_snpcov_df = rolling_snpcov_df.dropna()
+        show_output(
+            f"Removed missing values from rolling data for sample {sample}.")
+    return cov_df, snp_df, rolling_cov_df, rolling_snpcov_df, cluster_df

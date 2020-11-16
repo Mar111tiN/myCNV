@@ -1,5 +1,4 @@
-
-from codeCNV.rollingCNV import rollingCNV
+from codeCNV.combineCNVdata import get_covNsnp
 from script_utils import set_path, show_output
 import os
 import sys
@@ -31,18 +30,15 @@ def main(s):
 
     # run the function
     show_output(
-        f"Combining CNV data for sample {sample} and computing rolling metrices", time=True)
-    cov_df, snp_df, rCov_df, rSNP_df = rollingCNV(sample,
-                                                  sample_cnv_path=cnv_path,
-                                                  PON_cnv_path=cnvPON_path,
-                                                  config=cnv_config)
+        f"Combining CNV data for sample {sample}", time=True)
+    cov_df, snp_df = get_covNsnp(sample,
+                                 sample_cnv_path=cnv_path,
+                                 PON_cnv_path=cnvPON_path)
 
     show_output(
         f"Rolling metrix computation for sample {sample} finished.", time=True, color='success')
     cov_df.to_csv(o.cov, sep='\t', index=False)
     snp_df.to_csv(o.snp, sep='\t', index=False)
-    rCov_df.to_csv(o.rcov, sep='\t', index=False)
-    rSNP_df.to_csv(o.rsnp, sep='\t', index=False)
     show_output(
         f"Finished writing output for sample {sample}.", time=True, color='success')
 

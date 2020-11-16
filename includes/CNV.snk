@@ -41,10 +41,8 @@ rule combine_CNV:
         snp = expand("cnv/{{sample}}.{chrom}.snp", chrom=chrom_list),
         cov = expand("cnv/{{sample}}.{chrom}.cov", chrom=chrom_list)
     output:
-        snp = "CNV/{sample}.snp",
+        snp = "tmp/{sample}.snp",
         cov = "CNV/{sample}.cov",
-        rsnp = "CNV/{sample}.roll.snp",
-        rcov = "CNV/{sample}.roll.cov"
     threads:
         config['CNV']['combine']['threads']
     conda:
@@ -52,3 +50,16 @@ rule combine_CNV:
     script:
         "../scripts/combineCNVsnake.py"
     
+rule rolling_cov:
+    input:
+        snp = "tmp/{sample}.snp",
+        cov = "CNV/{sample}.cov"
+    output:
+        snp = "CNV/{sample}.snp",
+        rcov = "CNV/{sample}.roll.cov" 
+    threads:
+        config['CNV']['combine']['threads']
+    conda:
+        f"../env/myCNV-CentOS-env.yml"
+    script:
+        "../scripts/rolling_coverage_snake.py"

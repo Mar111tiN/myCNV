@@ -34,8 +34,14 @@
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
   "combine_CNV": {
-    "t": "00:30",
-    "mem": 2500,
+    "t": "00:05",
+    "mem": 500,
+    "partition": "debug",
+    "name": "{rule}:{wildcards.sample}"
+  },
+  "rolling_cov": {
+    "t": "00:10",
+    "mem": 100,
     "partition": "debug",
     "name": "{rule}:{wildcards.sample}"
   }

@@ -4,6 +4,7 @@ import numpy as np
 from codeCNV.rollingCNV import llh, rolling_data, get_CNV_blocks, interpolate
 from script_utils import show_output
 
+
 def compute_coverage_llh(df, config):
     '''
     computes the local log-likelihood of belonging to the center gaussian
@@ -34,18 +35,19 @@ def rolling_coverage(cov_df, config):
     params = config['cov']
     filter_params = params['filter']
     data_params = params['rolling_data']
-    
+
     # get the params for filtering
     min_cov = filter_params['min_cov']
     min_PON_cov = filter_params['min_PON_cov']
     max_PON_std = filter_params['max_PON_std']
-    
+
     cov_df = cov_df.sort_values('FullExonPos')
     filter_df = cov_df.query(
-            'Coverage >= @min_cov and PONmeanCov >= @min_PON_cov and PONstd < @max_PON_std')
-    
-    cov_df = rolling_data(cov_df, filter_df, expand=params['expand'], ddof=config['ddof'], debug=config['debug'], data_params=data_params)
-                   
+        'Coverage >= @min_cov and PONmeanCov >= @min_PON_cov and PONstd < @max_PON_std')
+
+    cov_df = rolling_data(
+        cov_df, filter_df, expand=params['expand'], ddof=config['ddof'], debug=config['debug'], data_params=data_params)
+
     return cov_df
 
 
@@ -57,7 +59,7 @@ def interpolate_fullexonpon(merge_df):
                                ref_col='Pos', expand_limit=1000000)
         chrom_dfs.append(chrom_df)
     df = pd.concat(chrom_dfs).sort_values('FullExonPos')
-    df.loc[:, 'FullExonPos'] = df['FullExonPos'].astype(int)
+    df.loc[:, 'FullExonPos'] = df['FullExonPos'].fillna(0).astype(int)
     return df
 
 
@@ -65,7 +67,7 @@ def mergeSNPnCov(cov_df, snp_df):
 
     # reduce the data to important columns
     # snp
-    snp_keep_cols = list(snp_df.columns)[:3] + ['Depth', 'EBscore', 'VAF']
+    snp_keep_cols = list(snp_df.columns)[:3] + ['Depth', 'VAF']
     snp_df = snp_df.loc[:, snp_keep_cols]
     # cov
     snpcov_keep_cols = list(cov_df.columns)[:4]

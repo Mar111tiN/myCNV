@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from script_utils import show_output
-from codeCNV.combineCNVdata import get_covNsnp
 
 
 def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
@@ -16,6 +15,7 @@ def interpolate(df, data_col, ref_col='FullExonPos', expand_limit=20):
         method='values', limit=expand_limit, limit_direction='both')
     return df.set_index('index')[cols]
 
+
 def normalize_df(df, col):
     '''
     normalize a column of a df
@@ -25,6 +25,7 @@ def normalize_df(df, col):
     df.loc[:, col] = (df[col] - _min) / (_max - _min)
     return df
 
+
 def llh(data, mean, sigma):
     '''
     compute the density function for a given gaussian
@@ -33,7 +34,7 @@ def llh(data, mean, sigma):
     s = np.sqrt(2 * np.pi) * sigma
     return np.exp((data - mean)**2 / (-2*(sigma**2))) / s
 
-    
+
 def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, normalize=False, debug=False, diff_exp=2, ddof=0):
     '''
     performs rolling computation of <agg> on data column <col> with given window size
@@ -59,9 +60,10 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     else:
         # get the right computation by passing aggr to .agg()
         # only this allows passing methods as string
-        df.loc[:, 'L'] = df_filter[col].rolling(window_size).agg(aggr, ddof=ddof)
+        df.loc[:, 'L'] = df_filter[col].rolling(
+            window_size).agg(aggr, ddof=ddof)
         col_name = col + aggr
-        
+
     # rolling right by shifting the L column
     df.loc[:, 'R'] = df.shift(-window_size + 1)['L']
 
@@ -77,6 +79,12 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     # fill the margins
     L_margin = df['L'].first_valid_index()
     df.loc[:L_margin, 'L'] = df['R']
+
+    ######################
+    # this fails if window is too large!!!!
+    # debug
+    #####################
+
     R_margin = df['R'].last_valid_index() + 1
     df.loc[R_margin:, 'R'] = df['L']
 
@@ -87,13 +95,13 @@ def one_col_rolling(df, df_filter, col, aggr, window_size=200, expand_limit=20, 
     # here, contribution of L and R is controlled by diff value
     df.loc[:, col_name] = df['R'] * \
         df[diff_name] + df['L'] * (1 - df[diff_name])
-    
+
     if normalize:
         df = normalize_df(df, col_name)
         if debug:
             for c in ['L', 'R']:
                 df = normalize(df, c)
-    
+
     # square the diff
     df.loc[:, diff_name] = df[diff_name] ** diff_exp
 
@@ -121,17 +129,20 @@ def rolling_data(df, filter_df, expand=0.25, ddof=0, debug=False, data_params={}
             for chrom in df['Chr'].unique():
                 # get the chrom_dfs
                 chrom_df = df.query('Chr == @chrom').sort_values('FullExonPos')
-                filter_chrom_df = filter_df.query('Chr == @chrom').sort_values('FullExonPos')
+                filter_chrom_df = filter_df.query(
+                    'Chr == @chrom').sort_values('FullExonPos')
                 window_size = data_params[data_col][agg]
+                if len(filter_chrom_df.index) < 2 * window_size:
+                    continue
                 expand_limit = int(expand * window_size)
                 # show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
                 chrom_df = one_col_rolling(chrom_df, filter_chrom_df, data_col, agg, window_size=window_size,
-                                           expand_limit=expand_limit, ddof=ddof)            
+                                           expand_limit=expand_limit, ddof=ddof)
                 chrom_dfs.append(chrom_df)
             # combine the chrom_dfs
             df = pd.concat(chrom_dfs).sort_values('FullExonPos')
-            
-            #### Normalization
+
+            # Normalization
             # only do normalization for sum aggregations
             if not agg == "sum":
                 continue
@@ -146,38 +157,6 @@ def rolling_data(df, filter_df, expand=0.25, ddof=0, debug=False, data_params={}
                 _max = df[c].max()
                 df.loc[:, c] = (df[c] - _min) / (_max - _min)
     return df
-
-def rollingCNV(sample, sample_cnv_path, PON_cnv_path, config):
-    '''
-    combines all the hetSNP and coverage data per sample and 
-    performs rolling computations for clustering
-    returns the combined raw data and the (optionally na_removed) rolling data 
-    '''
-
-    # combine the chromosome data and associate coverage data with pon coverage
-    snp_df, cov_df = get_covNsnp(
-        sample,
-        sample_cnv_path=sample_cnv_path,
-        PON_cnv_path=PON_cnv_path,
-        verbose=config['debug']
-    )
-
-    # apply rolling coverage
-    show_output(
-        f"Performing rolling coverage computation for sample {sample}.")
-    snpcov_df, rolling_cov_df = apply_rolling_coverage(snp_df, cov_df, config)
-
-    # apply rolling SNP
-    show_output(
-        f"Performing rolling computation for hetSNP data of sample {sample}.")
-    rolling_snpcov_df = apply_rolling_SNP(snpcov_df, config)
-    show_output(f"Finished computations for sample {sample}.")
-    if config['na_remove']:
-        rolling_cov_df = rolling_cov_df.dropna()
-        rolling_snpcov_df = rolling_snpcov_df.dropna()
-        show_output(
-            f"Removed missing values from rolling data for sample {sample}.")
-    return cov_df, snp_df, rolling_cov_df, rolling_snpcov_df
 
 
 def get_blocks(df, col, min_size=0):
@@ -223,12 +202,10 @@ def get_CNV_blocks(df, data, config):
     # for covLLH --> lookup combine.cov.LLH_cutoff
     t = data.replace('LLH', "")
     params = config[t]
-    
+
     LLH_params = params['LLH_cutoff']
 
     col = data + "sum"
-    diff_col = data + "Diff"
-    # get the covCNV
 
     # get boolint whether LLH falls below threshold
     # fillna(1) to exclude any missing coverages
@@ -251,6 +228,11 @@ def get_CNV_blocks(df, data, config):
     # reduce data to within Diff-peaks
     df.loc[:, f'{t}Centercore'] = ((df[f'{t}Center'] > 0) & (
         df[f'{t}LLHsumDiff'] < LLH_params['max_diff'])).astype(int)
+
+    # core expanding
     # get the window_size for core expanding
     window_size = params['rolling_data'][data]['sum']
+    diff_col = data + "Diff"
+    # get the covCNV
+
     return df
