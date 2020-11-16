@@ -1,32 +1,87 @@
 {\rtf1\ansi\ansicpg1252\cocoartf1671\cocoasubrtf600
 {\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 Menlo-Regular;\f2\fnil\fcharset0 Menlo-Bold;
 }
-{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
-{\*\expandedcolortbl;;\csgray\c0;}
-\margl1440\margr1440\vieww21620\viewh19280\viewkind0
+{\colortbl;\red255\green255\blue255;\red64\green11\blue217;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c32308\c18668\c88227;\csgray\c0;}
+\margl1440\margr1440\vieww14180\viewh19380\viewkind0
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
 \f0\fs24 \cf0 conda a# create the sep file\
+\
+\
+cd 
+\f1\fs22 \cf2 \CocoaLigature0 ~/work/downloads/annoDBs\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\cf3 export VCF=../../utils/mawktools/vcf/vcf2csv.mawk\
+export EXP=../../utils/mawktools/misc/expandDBSNP.mawk\
+export FILTER=../../utils/mawktools/filter/filterBed.mawk\
+export BED=/fast/groups/ag_damm/work/ref/bed_files/PMBLtarget/hg19/PMBLtarget.bed\
+\
+gunzip < dbSNP154.ln.vcf.gz | $VCF | $EXP | pigz -p 8 > dbSNP154.sep.txt.gz\
+\
+# split the file to chroms\
+gunzip < dbSNP154.sep.txt.gz | awk 'NR==1\{i="1";c="chr" i;file="split/dbSNP154." c ".txt";h=$0;print(h)>>file;next;\}$1==c\{print($0)>>file;\}$1!=c\{c="chr" i++;print(c)>>"/dev/stderr";file="split/dbSNP154." c ".txt";print(h)>>file;print($0)>>file\}'\
+gunzip < dbSNP154.sep.txt.gz | $FILTER $BED 0 1| head\
+\
+\cf2 \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \CocoaLigature1 \
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
 
-\f1\fs22 \cf2 \CocoaLigature0 gunzip < dbsnp153.hg38.ln.vcf.gz | vcf2csv | expandDBSNP | gzip > dbsnp153.hg38.ln.sep.csv.gz
+\f1\fs22 \cf3 \CocoaLigature0 gunzip < dbsnp153.hg38.ln.vcf.gz | vcf2csv | expandDBSNP | gzip > dbsnp153.hg38.ln.sep.csv.gz
 \f0\fs24 \cf0 \CocoaLigature1 \
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf0 \
+\
+\
+\
+\
+\
+\
+\
 # create the anno file\
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
 
-\f1\fs22 \cf2 \CocoaLigature0 gunzip < dbsnp153.hg38.ln.sep.csv.gz | coords2annovar | pigz -p 5 > dbsnp153.hg38.anno.txt.gz
+\f1\fs22 \cf3 \CocoaLigature0 gunzip < dbsnp153.hg38.ln.sep.csv.gz | coords2annovar | pigz -p 5 > dbsnp153.hg38.anno.txt.gz
 \f0\fs24 \cf0 \CocoaLigature1 \
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 \cf0 \
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
 # bedFilter the separate file\
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
 
-\f1\fs22 \cf2 \CocoaLigature0 gunzip < dbsnp153.hg38.ln.sep.csv.gz | filterBed $BED | pigz -p 5 > bedFiltered/dbsnp153.hg38.SS_HAEv7.csv.gz\
+\f1\fs22 \cf3 \CocoaLigature0 gunzip < dbsnp153.hg38.ln.sep.csv.gz | filterBed $BED | pigz -p 5 > bedFiltered/dbsnp153.hg38.SS_HAEv7.csv.gz\
 \
 # bedFilter the annoFile\
 gunzip < dbsnp153.hg38.anno.txt.gz | filterBed $BED | pigz -p 5 > bedFiltered/dbsnp153.hg38.SS_HAEv7.anno.txt.gz\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
 \
 # filter the bedFiltered csv for SNP with VAF > 0.005\
 gunzip < dbsnp153.hg38.SS_HAEv7.csv.gz | mawk 'length($3) == length($4) && $7 > 0 \{print length($4);\}' > dbsnp153.hg38.SS_HAEv7.SNP.csv.gz\
