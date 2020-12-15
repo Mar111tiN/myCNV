@@ -8,12 +8,12 @@
   },
   "get_coverage": {
     "t": "00:35",
-    "mem": 200,
+    "mem": 500,
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
   "chrom_coverage": {
     "t": "00:15",
-    "mem": 200,
+    "mem": 500,
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
   "combine_PON_coverage": {
@@ -23,7 +23,7 @@
   },
   "hetero_SNP": {
     "t": "01:30",
-    "mem": 200,
+    "mem": 500,
     "partition": "short",
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"
   },
@@ -35,13 +35,13 @@
   },
   "combine_CNV": {
     "t": "00:05",
-    "mem": 500,
+    "mem": 2500,
     "partition": "debug",
     "name": "{rule}:{wildcards.sample}"
   },
   "rolling_cov": {
     "t": "00:10",
-    "mem": 100,
+    "mem": 2500,
     "partition": "debug",
     "name": "{rule}:{wildcards.sample}"
   }

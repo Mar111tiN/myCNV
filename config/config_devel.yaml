@@ -18,12 +18,14 @@ ref:
     bed_file_pad: bed_files/SureSelect/hg38/SS_HAEv7_hg38_Padded.bed
     PONcov: PoN/HAEv7_hg38_NovaSeq/chromCov
 cleanup: False
+chrom_with_chr: true # whether bam files contain chr in name
 # RULES
 CNV:
     coverage:
         threads: 6
         MAPQ: 20
         rollingWindowSize: 100  # size of the averager for the coverage tool
+        drop_duplicates: true
     PONcoverage:
         normCov: 100 # to what value are coverages normalized#
         stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
