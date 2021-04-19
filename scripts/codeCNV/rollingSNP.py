@@ -153,7 +153,7 @@ def apply_rolling_SNP(snp_df, config):
                 if not 'log2' in col and not 'cov' in col and not 'off' in col]
     rolling_snp_df = snp_df[base_cols + snp_cols]
     cluster_cols = ['log2ratio', 'log2ratiomean',
-                    'VAF', 'absVAF', 'absVAFmean']
+                    'VAF', 'absVAF', 'absVAFmean', 'snpLLHsum']
     cluster_cols += [col for col in snp_df.columns if 'Center' in col or 'CNV' in col]
     cluster_df = snp_df[base_cols + cluster_cols]
     return rolling_snp_df, cluster_df
