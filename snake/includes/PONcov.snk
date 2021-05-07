@@ -1,0 +1,25 @@
+rule chrom_coverage:
+    input:
+        bam = get_pon_bam_path
+    output: 
+        bedCov = "bedCov/{sample}.{chrom}.bedCov"
+    threads:
+        config['CNV']['coverage']['threads']
+    conda:
+        f"../env/myCNV-CentOS-env.yml"
+    script: 
+        "../scripts/coversnake.py"
+
+
+rule combine_PON_coverage:
+    input: expand("bedCov/{sample}.{chrom}.bedCov", chrom=chrom_list, sample=pon_df['sample'])
+    output: 
+        fullCov = expand("chromCov/{chrom}.full.csv.gz", chrom=chrom_list),
+        filterCov = expand("chromCov/{chrom}.filtered.csv.gz", chrom=chrom_list)
+    params:
+        bedCov_path = os.path.join(config['workdir'], "bedCov"),
+        chromCov_path = os.path.join(config['workdir'], "chromCov")
+    threads:
+        1
+    script: 
+        "../scripts/pon_coverage_snake.py"
