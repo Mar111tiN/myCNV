@@ -22,7 +22,7 @@
     "name": "{rule}"
   },
   "hetero_SNP": {
-    "t": "01:30",
+    "t": "02:45",
     "mem": 500,
     "partition": "short",
     "name": "{rule}:{wildcards.sample}.{wildcards.chrom}"

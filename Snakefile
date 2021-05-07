@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 # ############ SETUP ##############################
-configfile: "config/config_P559CNV.yaml"
+configfile: "config/config_NHLCNV.yaml"
 # configfile: "configs/config.json"
 workdir: config['workdir']
 
@@ -17,7 +17,6 @@ chrom_list = get_chrom_list(config)
 sample_sheet = os.path.join(config['snakedir'], config['sample_sheet'])
 sample_df = get_bam_files(config['bam_folder'], sample_sheet)
 print(sample_df)
-
 
 # ############ INCLUDES ##############################  
 include: "includes/CNV.snk"
