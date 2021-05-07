@@ -2,9 +2,9 @@
 import os
 import numpy as np
 import pandas as pd
-from script_utils import show_output
-from codeCNV.rollingCov import apply_rolling_coverage
-from codeCNV.rollingSNP import apply_rolling_SNP
+from script_utils_CNV import show_output
+from rollingCov import apply_rolling_coverage
+from rollingSNP import apply_rolling_SNP
 
 chrom_list = [f"chr{chrom + 1}" for chrom in range(22)] + ["chrX"]
 

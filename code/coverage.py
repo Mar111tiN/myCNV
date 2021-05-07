@@ -1,8 +1,6 @@
-from io import StringIO
 import os
 import pandas as pd
-from subprocess import PIPE, run
-from script_utils import show_output, show_command
+from script_utils_CNV import cmd2df
 
 # get the coverage on a given chromosome
 # filter out duplicates
@@ -23,26 +21,25 @@ from script_utils import show_output, show_command
 # make the command run in memory using stringIO
 
 
-def get_coverage(bam_file, chrom='', config={}):
-    '''
+def get_coverage(bam_file, chrom="", config={}):
+    """
     creates a coverage_df for a bam file on a given chromosome
-    '''
+    """
 
-    # unwrap the tools with s function
-    s = config['run_shell']
+    # PARAMS
+    # mawk tool unwrapper
+    def mawk(tool):
+        return os.path.join(config["mawk_path"], f"{tool}.mawk")
 
-    run("pwd", shell=True)
     # if chromosome has no chr, do not add it to region
-    bam_chrom = chrom if config['chrom_with_chr'] else chrom.replace(
-        'chr', '')
+    bam_chrom = chrom if config["chrom_with_chr"] else chrom.replace("chr", "")
     # the -F 1024 flag is neccessary in order to remove duplicate reads
-    drop_dups = " -F 1024" if config['drop_duplicates'] else ""
+    drop_dups = " -F 1024" if config["drop_duplicates"] else ""
     view_cmd = f"samtools view{drop_dups} -q {config['q']} {bam_file} {bam_chrom}"
-    cov_cmd = f"{s('bamCoverage.mawk')} | {s('rollingCoverage.mawk')} {config['rollingWindowSize']} | "
+    cov_cmd = f"{mawk('bamCoverage')} | {mawk('rollingCoverage')} {config['rollingWindowSize']} | "
     # the 1 at the end is the option for the filterbed tool to output exonic coords
-    cov_cmd += f"{s('filterBed.mawk')} {config['bedfile']} {chrom} 1"
+    cov_cmd += f"{mawk('filterBed')} {config['bedfile']} -c {chrom} -x"
     cmd = f"{view_cmd} | {cov_cmd}"
-    show_command(cmd, multi=False)
-    cov_df = pd.read_csv(StringIO(
-        run(cmd, stdout=PIPE, check=True, shell=True).stdout.decode('utf-8')), sep='\t')
+
+    cov_df = cmd2df(cmd, show=True, multi=False)
     return cov_df
