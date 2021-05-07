@@ -7,6 +7,6 @@ __pycache__
 slogs
 .ipynb_checkpoints/
 .vscode
-snake/config/
+snake/config/*
 !snake/config/config_devel.yaml
 !snake/config/cluster.json
