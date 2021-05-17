@@ -16,7 +16,7 @@ def get_heteroSNP(bam_file, chrom, config):
     split_genome = os.path.join(config["genome_split_path"], f"{chrom}.fa")
     snp_bed = os.path.join(config["SNPdb_path"], f"{config['SNPdb']}.{chrom}.snp")
 
-    pileup_cmd = f"samtools mpileup -f {split_genome} -q {config['q']} -Q {config['Q']} -r {chrom} -l {snp_bed} {bam_file}"
+    pileup_cmd = f"samtools mpileup -f {split_genome} -q {config['MAPQ']} -Q {config['Q']} -r {chrom} -l {snp_bed} {bam_file}"
     snp_cmd = f"{mawk('cleanSNP')} | {mawk('snpVAF')}  {config['minVAF']} | {mawk('filterBed')} {config['bedfile']} -c {chrom} -x"
     cmd = f"{pileup_cmd} | {snp_cmd}"
 

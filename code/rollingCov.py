@@ -1,7 +1,6 @@
 import pandas as pd
-import numpy as np
 
-from ollingCNV import llh, rolling_data, get_CNV_blocks, interpolate
+from rollingCNV import llh, rolling_data, get_CNV_blocks, interpolate
 from script_utils_CNV import show_output
 
 
@@ -12,7 +11,6 @@ def compute_coverage_llh(df, config):
 
     # get config params
     params = config["cov"]["LLH"]
-
     min_log2ratio, max_log2ratio = params["center_range"]
     # get the sigma and mean of the center band log2ratio
     center_logs = df.query("@min_log2ratio < log2ratio < @max_log2ratio")["log2ratio"]
@@ -35,7 +33,6 @@ def rolling_coverage(cov_df, config):
     params = config["cov"]
     filter_params = params["filter"]
     data_params = params["rolling_data"]
-
     # get the params for filtering
     min_cov = filter_params["min_cov"]
     min_PON_cov = filter_params["min_PON_cov"]
@@ -105,7 +102,7 @@ def mergeSNPnCov(cov_df, snp_df):
     return snpcov_df, cov_df
 
 
-def apply_rolling_coverage(snp_df, cov_df, config):
+def apply_rolling_coverage(snp_df, cov_df, config={}):
     """
     master function for rolling coverage
     """
@@ -113,12 +110,13 @@ def apply_rolling_coverage(snp_df, cov_df, config):
     cov_df = cov_df.query("log2ratio == log2ratio")
 
     # compute llh
-    show_output(f"Computing covCenter log-likelihood.")
+    show_output("Computing covCenter log-likelihood.")
     cov_df = compute_coverage_llh(cov_df, config)
     # compute llh
-    show_output(f"Performing rolling coverage.")
+    show_output("Performing rolling coverage.")
     cov_df = rolling_coverage(cov_df, config)
-    show_output(f"Identifying CNV blocks.")
+    show_output("Identifying CNV blocks.")
     cov_df = get_CNV_blocks(cov_df, "covLLH", config)
     snpcov_df, rolling_cov_df = mergeSNPnCov(cov_df, snp_df)
+
     return snpcov_df, rolling_cov_df

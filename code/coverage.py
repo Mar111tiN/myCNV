@@ -31,11 +31,9 @@ def get_coverage(bam_file, chrom="", config={}):
     def mawk(tool):
         return os.path.join(config["mawk_path"], f"{tool}.mawk")
 
-    # if chromosome has no chr, do not add it to region
-    bam_chrom = chrom if config["chrom_with_chr"] else chrom.replace("chr", "")
     # the -F 1024 flag is neccessary in order to remove duplicate reads
     drop_dups = " -F 1024" if config["drop_duplicates"] else ""
-    view_cmd = f"samtools view{drop_dups} -q {config['q']} {bam_file} {bam_chrom}"
+    view_cmd = f"samtools view{drop_dups} -q {config['MAPQ']} {bam_file} {chrom}"
     cov_cmd = f"{mawk('bamCoverage')} | {mawk('rollingCoverage')} {config['rollingWindowSize']} | "
     # the 1 at the end is the option for the filterbed tool to output exonic coords
     cov_cmd += f"{mawk('filterBed')} {config['bedfile']} -c {chrom} -x"

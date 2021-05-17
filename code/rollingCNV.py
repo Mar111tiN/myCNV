@@ -97,7 +97,14 @@ def one_col_rolling(
     #####################
 
     R_margin = df["R"].last_valid_index() + 1
-    df.loc[R_margin:, "R"] = df["L"]
+    try:
+        df.loc[R_margin:, "R"] = df["L"]
+    except:
+        R_margin -= 1
+        ##### DEBUG ###########
+        print("<DEBUG> ADJUSTING R_MARGIN")
+        #######################
+        df.loc[R_margin:, "R"] = df["L"]
 
     # get the Diff
     df.loc[:, diff_name] = np.abs(df["R"] - df["L"])
@@ -146,7 +153,9 @@ def rolling_data(df, filter_df, expand=0.25, ddof=0, debug=False, data_params={}
                 if len(filter_chrom_df.index) < 2 * window_size:
                     continue
                 expand_limit = int(expand * window_size)
-                # show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}")
+                # show_output(
+                #     f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}"
+                # )
                 chrom_df = one_col_rolling(
                     chrom_df,
                     filter_chrom_df,
@@ -255,3 +264,34 @@ def get_CNV_blocks(df, data, config):
     # get the covCNV
 
     return df
+
+
+####################### LEGACY #############################################
+def rollingCNV(sample, sample_cnv_path, pon_cov_path, config):
+    """
+    combines all the hetSNP and coverage data per sample and
+    performs rolling computations for clustering
+    returns the combined raw data and the (optionally na_removed) rolling data
+    """
+
+    # combine the chromosome data and associate coverage data with pon coverage
+    snp_df, cov_df = get_covNsnp(
+        sample,
+        sample_cnv_path=sample_cnv_path,
+        pon_cov_path=pon_cov_path,
+        verbose=config["debug"],
+    )
+
+    # apply rolling coverage
+    show_output(f"Performing rolling coverage computation for sample {sample}.")
+    snpcov_df, rolling_cov_df = apply_rolling_coverage(snp_df, cov_df, config)
+
+    # apply rolling SNP
+    show_output(f"Performing rolling computation for hetSNP data of sample {sample}.")
+    rolling_snpcov_df, cluster_df = apply_rolling_SNP(snpcov_df, config)
+    show_output(f"Finished computations for sample {sample}.")
+    if config["na_remove"]:
+        rolling_cov_df = rolling_cov_df.dropna()
+        rolling_snpcov_df = rolling_snpcov_df.dropna()
+        show_output(f"Removed missing values from rolling data for sample {sample}.")
+    return cov_df, snp_df, rolling_cov_df, rolling_snpcov_df, cluster_df
