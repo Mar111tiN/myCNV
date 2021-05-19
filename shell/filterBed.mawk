@@ -1,5 +1,5 @@
 #!/bin/sh
-
+#v1.0.1
 # file with genomic pos in Pos (!MUST HAVE HEADER!!) | filterBed <bedfile> [-x ..useExonicCoords] [-c chrom ..which chrom to use; default all]
 # filters any position-based file to positions included in a bed file
 # takes bedfile and as parameter
@@ -83,9 +83,9 @@ BEGIN {
 
 readBed {
     # print(filterChrom);
-    if  ($0 !~ "Chr\t") {  # detect HEADER of input file by "Chr    ??"
+    if  ($0 !~ "Chr\t") { # reading bedFile line with right chromosome
         # store the bed regions as blocks in BEDSTART and BEDEND
-        if ( $0 !~ filterChrom ) { # reading bedFile line with right chromosome
+        if ( $0 !~ filterChrom ) {
             next;
         }
         bedCount++;

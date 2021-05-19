@@ -8,14 +8,14 @@
 # 	Chr	Start	Ref	Cov1	Read1	Cov2	Read2	...	CovN	ReadN	[ ExonPos ]	
 
 # USAGE: 
-# samtools mpileup -f $HG38 -q 20 -Q 25 -l $BED -r chr? | cleanpileup | filterBed $BED 1 chr? | pile2CNV
+# samtools mpileup -f $HG38 -q 20 -Q 25 -l $BED -r chr? | cleanpileup | filterBed $BED -x -c chr? | pile2CNV
 # [     -m | --min-coverage]        <INT=0>                     minimum (rolling) coverage for output   ]
 # [     -x | --keep-exon-pos        <Flag=False>                if exonPos should be used               ]
 # [     -w | --coverage-window-size <Int=100>                   size of rolling window for coverage     ]
 # [     -s | --step-size            <INT=10>                    distance of adjacent windows            ]
 # [     -o | --output-snp-file      <path to snp file>          snp_file for the heteroSNP output       ]
 # [     -v|--min-vaf|--min-VAF      <INT=0>                     minimum normal VAF for heteroSNP output ]
-# [     -V|--max-vaf|--max-VAF      <INT=0>                     maximum normal VAF for heteroSNP output ]
+# [     -V|--max-vaf|--max-VAF      <FLOAT=0.75>                maximum normal VAF for heteroSNP output ]
 # [     -d|--min-depth              <INT=10>                    minimum depth (of any sample) heteroSNP ]                
 
 # OUTPUT
@@ -118,8 +118,8 @@ snpFile=${snpFile-"test.snp"};
 covWindow=${covWindow-100};
 minCov=${minCov-0};
 stepSize=${stepSize-10};
-minVAF=${minVAF-0};
-maxVAF=${maxVAF-1};
+minVAF=${minVAF-0.2};
+maxVAF=${maxVAF-0.8};
 minDepth=${minDepth-10};
 
 ### DEBUG ######
@@ -152,7 +152,7 @@ NR == 1 {  ### GET/WRITE HEADER
     maxVAF='${maxVAF}';
     minDepth='${minDepth}'
     printf("<pile2CNV> Rolling coverage: WindowSize=%s | stepSize=%s | minCoverage=%s\n", covWindow, stepSize, '$minCov') >> "/dev/stderr";
-    printf("<pile2CNV> heteroSNP: minDepth=%s | %s <= VAF <= %s\n", minDepth, minVAF, maxVAF) >> "/dev/stderr";
+    printf("<pile2CNV> heteroSNP: minDepth=%s | %s <= normalVAF <= %s\n", minDepth, minVAF, maxVAF) >> "/dev/stderr";
 
     # detect XPos
     hasExonPos = ($NF == "ExonPos");
@@ -163,7 +163,11 @@ NR == 1 {  ### GET/WRITE HEADER
     samples = (NF-3-hasExonPos)/2;
     print("<pile2CNV> ", samples, "samples detected") > "/dev/stderr"
 
-    NormalCol=NF-hasExonPos;
+    # set the normal col
+    # varcan needs normal_bam tumor_bam input,
+    # so normal col should be after Chr/Start/Ref at Pos 4 and 5 (Depth and Read)
+    NormalDepth=$4;
+    NormalRead=$5;
 
     ##### DEBUG #########
     # print("normal", NormalCol);
@@ -200,8 +204,8 @@ NR == 1 {  ### GET/WRITE HEADER
 
 #############################################
 ############# VAFDATA #######################
-
-$NormalCol ~ /[AaCcTtGgDdI]/ {  
+# only look at rows where the normal has a mutation
+$NormalRead ~ /[AaCcTtGgDdI]/ {  
 
     ##### DEBUG #########
     # print($0) >> snpFile;
@@ -285,8 +289,6 @@ function output(step, doReset) {
 
 #############################################
 ############# COV DATA ######################
-
-
 NR == 2 {  ##### COV FIRST ROW :: INSPECT DATA COLS --> INIT
 
     ## get the exonShift 
@@ -356,4 +358,10 @@ NR == 2 {  ##### COV FIRST ROW :: INSPECT DATA COLS --> INIT
         # update
         lastStep=currentStep;
     }
-}' | mawk 'BEGIN{minCov='$minCov'} NR==1 || ($NF>minCov) || ($(NF-1)>minCov)'
+}' | mawk '
+BEGIN{
+    minCov='$minCov'
+    } 
+# filter for minimum coverage
+NR==1 || ($NF>minCov) || ($(NF-1)>minCov)
+'
