@@ -3,7 +3,7 @@ import pandas as pd
 from subprocess import PIPE, run
 from io import StringIO
 from datetime import datetime as dt
-
+from yaml import CLoader as Loader, load
 
 ansii_colors = {
     "magenta": "[1;35;2m",
@@ -70,3 +70,14 @@ def cmd2df(cmd, show=False, **kwargs):
         sep="\t",
     )
     return cmd_df
+
+
+def get_CNVconfig(config_file="", local_config={}):
+    """
+    load the global CNVconfig updated with local config
+    """
+
+    with open(config_file, "r") as stream:
+        added_config = load(stream, Loader=Loader)["CNV"]
+        added_config.update(local_config)
+    return added_config
