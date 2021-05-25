@@ -28,13 +28,13 @@ def get_rawCNV(
     cc = config["coverage"]
 
     # create the basic command and unpack required params
-    ###### FILTERBED
+    # ##### FILTERBED
     filter_cmd = f"{mawk('filterBed')} {config['bed_file']} -x -c {chrom}"
 
     if not SNP_output:
         show_output("Output file for heteroSNP is missing!", color="warning")
         return
-    ###### PILE2CNV
+    # ##### PILE2CNV
     cnv_cmd = f"{mawk('pile2CNV')} -x -o {SNP_output} -v {sc['normalVAF'][0]} -V {sc['normalVAF'][1]} -d {sc['minDepth']} -c {cc['minCov']}"
 
     # combine
