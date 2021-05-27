@@ -1,5 +1,5 @@
 #!/bin/sh
-# v1.0
+# v1.0.1
 # computes coverages and SNP output from pileup for multiple samples
 
 # INPUT
@@ -269,10 +269,15 @@ function outputCov(  s) {
         ########### OUTPUT LAST BIN AND UPDATE ##########
         if (lastBin > 0) {
             outputCov()
-        } else { # get the positions for first bin
+        } else { # first line
+            # get the positions for first bin
+            binPos=thisBin * binSize;
             if (keepExonPos) {
-                binPos=thisBin * binSize;
                 exonPos=$NF-(pos%binSize);
+            }
+            # store first line
+            for (s=0; s++ < samples;) {
+                COVSUM[s] = $COL[s];
             }
         }
         lastBin=thisBin;

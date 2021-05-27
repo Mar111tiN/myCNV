@@ -1,5 +1,4 @@
 import os
-import pandas as pd
 from script_utils_CNV import show_output, cmd2df
 
 
@@ -68,10 +67,11 @@ def get_rawCNV(
         cov_df = cmd2df(cmd, show=True, multi=False)
         if cov_df.empty:
             show_output(f"shell command returned empty data frame!", color="warning")
-        return cmd
+            return
+        return cov_df
     except Exception as e:
         show_output(f"There was an error using shell command <<{e}>>", color="warning")
-        return cmd
+        return
 
 
 def get_heteroSNP(bam_file, chrom, config):
