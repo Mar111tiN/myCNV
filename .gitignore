@@ -6,7 +6,7 @@ __pycache__
 .snakemake
 slogs
 .ipynb_checkpoints/
-.vscode
+.vscode/
 snake/config/*
 !snake/config/config_devel.yaml
 !snake/config/cluster.json
