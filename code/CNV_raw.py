@@ -9,7 +9,6 @@ def get_rawCNV(
     tumor_bams=[],
     TN_pileup_file="",  # mpileup from normalbam, tumorbam(s)
     clean_TN_pileup_file="",  # mpileup from normalbam, tumorbam(s) with cleanpileup.mawk already done
-    pileup_is_clean=True,
     chrom="",
     config={},
     SNP_output="",
@@ -67,9 +66,11 @@ def get_rawCNV(
             cmd = f"{pileup_cmd} | {cmd}"
     try:
         cov_df = cmd2df(cmd, show=True, multi=False)
-        return cov_df
-    except:
-        show_output("There was an error using shell command", color="warning")
+        if cov_df.empty:
+            show_output(f"shell command returned empty data frame!", color="warning")
+        return cmd
+    except Exception as e:
+        show_output(f"There was an error using shell command <<{e}>>", color="warning")
         return cmd
 
 
