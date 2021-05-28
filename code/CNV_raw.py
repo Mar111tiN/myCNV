@@ -149,7 +149,7 @@ def TN2CNV(
         # reload snp_df from temp file
         show_output(f"Reloading raw heteroSNP data from {SNP_output}")
         snp_df = pd.read_csv(SNP_output, sep="\t")
-        cov_df, snp_df = addGenmap(cov_df, snp_df, chrom="chr7", genmap_path=genmap_path)
+        cov_df, snp_df = addGenmap(cov_df, snp_df, chrom=chrom, genmap_path=genmap_path)
         # resave snp_df
         show_output(f"Resaving annotated heteroSNP data to {SNP_output}")
         snp_df.to_csv(SNP_output, index=False, sep="\t")
@@ -211,7 +211,7 @@ def PON2CNV(
         # reload snp_df from temp file
         show_output(f"Reloading PONSNP data from {SNP_file}")
         snp_df = pd.read_csv(SNP_file, sep="\t")
-        cov_df, snp_df = addGenmap(cov_df, snp_df, chrom="chr7", genmap_path=genmap_path)
+        cov_df, snp_df = addGenmap(cov_df, snp_df, chrom=chrom, genmap_path=genmap_path)
         # resave snp_df
         show_output(f"Resaving annotated heteroSNP data to {SNP_file}.gz")
         snp_df.to_csv(f"{SNP_file}.gz", index=False, sep="\t", compression="gzip")
