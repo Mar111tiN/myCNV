@@ -12,7 +12,7 @@
 
 # USAGE: 
 # samtools mpileup -f $HG38 -q 20 -Q 25 -l $BED -r chr? | cleanpileup | filterBed $BED -x -c chr? | pile2CNV
-# [     -m | --min-coverage]        <INT=0>                     minimum (binned) coverage for output    ]
+# [     -c | --min-coverage]        <INT=0>                     minimum (binned) coverage for output    ]
 # [     -x | --keep-exon-pos        <Flag=False>                if exonPos should be used               ]
 # [     -b | --bin-size             <INT=10>                    size of the bin for summed coverage     ]
 # [     -o | --output-snp-file      <path to snp file>          snp_file for the heteroSNP output       ]
@@ -22,9 +22,9 @@
 
 # OUTPUT
 #   SNP
-#       Chr Start [ExonPos] Ref Depth1 VAF1 Depth2	VAF2...
+#       Chr Pos [ExonPos] Ref Depth1 VAF1 Depth2	VAF2...
 #   COV
-#       Chr Start [ExonPos] Cov1 Cov2
+#       Chr Pos [ExonPos] Cov1 Cov2
 
 
 ####### ARGPARSE ##################
@@ -151,7 +151,7 @@ NR == 1 {  ### GET/WRITE HEADER
 
     ###### HEADER
     # print headers to stream and to SNP output file
-    baseHeader = (keepExonPos) ? "Chr\tStart\tExonPos" : "Chr\tStart"
+    baseHeader = (keepExonPos) ? "Chr\tPos\tExonPos" : "Chr\tPos"
 
     printf(baseHeader);
     printf(baseHeader) > snpFile;

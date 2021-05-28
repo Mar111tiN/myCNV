@@ -17,9 +17,9 @@
 
 # OUTPUT
 #   SNP
-#       Chr Start [ExonPos] Depth VAF               Depth and VAF are for aggregated over all samples
+#       Chr Pos [ExonPos] Depth VAF               Depth and VAF are for aggregated over all samples
 #   COV
-#       Chr Start [ExonPos] Cov1 Cov2..CovN
+#       Chr Pos [ExonPos] Cov1 Cov2..CovN
 
 
 ####### ARGPARSE ##################
@@ -105,7 +105,6 @@ NR == 1 {  ### GET/WRITE HEADER
     hasExonPos = ($NF == "ExonPos");
     # keepExonPos only if Exon positions are there
     keepExonPos = (hasExonPos && '${keepExonPos-0}')
-
     # COV
     minCov='${minCov-0}';
     binSize='${binSize-10}';
@@ -114,6 +113,8 @@ NR == 1 {  ### GET/WRITE HEADER
     printf("<PON2CNV> Bin coverage: binSize=%s | minCoverage=%s\n", binSize, '$minCov') >> "/dev/stderr";
 
     # SNP
+    VAFPRECISION=4;
+    PREC=10^VAFPRECISION;
     minVAF='${minVAF-0.25}';
     minDepth='${minDepth-50}'
     printf("<PON2CNV> heteroSNP: minDepth=%s | totalVAF <= %s\n", minDepth, minVAF) >> "/dev/stderr";
@@ -124,16 +125,18 @@ NR == 1 {  ### GET/WRITE HEADER
 
 
     ###### HEADER
-    baseHeader = (keepExonPos) ? "Chr\tStart\tExonPos" : "Chr\tStart"
+    baseHeader = (keepExonPos) ? "Chr\tPos\tExonPos" : "Chr\tPos"
     printf(baseHeader);
     printf(baseHeader) > snpFile;
-
+    
+    printf("\tVAF\tDepth\n") >> snpFile;
     # detect DEPTH column in fields
     for (f=0; f++<NF;) {
         if ($f == "Depth") DEPTHCOL=f;
     }
     # reset lastBin;
     lastBin=0;
+
     next;
 }
 
@@ -141,21 +144,37 @@ NR == 2 { # detect the sample count in the first data line and output the data H
     split($DEPTHCOL, SPLIT, "=");
     samples = gsub(/\|/, "", SPLIT[1]) + 1;
     print("<PON2CNV> ", samples, "samples detected") > "/dev/stderr"
-    # output data col header and init the COVSUM array and create zero-string
+    # output data col header and create zero-string
     zero="0";
+    
     for (s=0; s++ < samples;) {
         printf("\tCov%s", s);
         # make zero-string
         if (s > 1) {
             zero = zero "|0";
         }
-        # INIT COVSUM
-        COVSUM[s] = 0;
+        # init POS, NEG arrays for use as global vars in function
+        POS[s]=0;
+        NEG[s]=0;
     }
     zero=zero "=" zero;
-
     ### NEWLINE #####
     printf("\n");
+
+    ### VAF #######
+    totalDEPTH=0;
+}
+
+function aggString(col,  SPLIT, sum) {
+    # aggregate all values for one data col
+    sum=0;
+    split(col, SPLIT, "=");
+    split(SPLIT[1], POS, "|");
+    split(SPLIT[2], NEG, "|");
+    for (s=0; s++<samples;) {
+        sum+=POS[s] + NEG[s];
+    }
+    return sum;
 }
 
 
@@ -202,12 +221,31 @@ function outputCov(  s) {
 
 #############################################
 ############# DATA ######################
-$DEPTHCOL != zero {   ####### COV detection ###############
+$DEPTHCOL != zero { # skip absolute zero lines
     pos=$2;
-    # split the data to POS and NEG Array
-    split($DEPTHCOL, SPLIT, "=");
-    split(SPLIT[1], POS, "|");
-    split(SPLIT[2], NEG, "|");
+
+    ##### VAF ##################
+    # get the total ALT values
+    totalAlt=0;
+    for (col=3; ++col<DEPTHCOL;) {
+        # skip zero strings
+        if ($col == zero) continue;
+        # get the split data arrays
+        totalAlt += aggString($col);
+    }
+    # get the total Depths and fill POS and NEG with Depth values
+    # ..for use in coverage 
+    totalDepth=aggString($DEPTHCOL)
+    totalVAF=int((totalAlt / totalDepth) * PREC) / PREC;
+    if ((totalVAF > minVAF) && (totalDepth >= minDepth)) {
+        # build up the output string
+        outstring=$1 "\t" pos;
+        if (keepExonPos) outstring = outstring "\t" $NF;
+        outstring = outstring "\t" totalVAF "\t" totalDepth;
+        print(outstring) >> snpFile;
+    }
+
+    ##### COV #################
     # get the current bin
     thisBin=int((pos) / binSize);
 
@@ -228,6 +266,7 @@ $DEPTHCOL != zero {   ####### COV detection ###############
             # store first line
             for (s=0; s++ < samples;) {
                 COVSUM[s] = POS[s] + NEG[s];
+                totalDepth += COVSUM[s];
             }
         }
         lastBin=thisBin;
@@ -236,19 +275,6 @@ $DEPTHCOL != zero {   ####### COV detection ###############
     ####### DEBUG ########
     # print("pos, exonPos, thisBin", pos, exonPos, thisBin)
     ####### DEBUG ########
-}
-$DEPTHCOL == zero {
-    if (minCount) next;
-    printf("%s\t%s", $1, binPos);
-    if (keepExonPos) {
-        printf("\t%s", exonPos);
-        exonPos=$NF-(pos%binSize);
-    }
-    for (s=0; s++ < samples;) {
-        printf("\t0");
-    }
-    # NEWLINE
-    printf("\n");    
 }
 END {
     outputCov();
