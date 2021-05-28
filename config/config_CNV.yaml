@@ -11,6 +11,9 @@ CNV:
         minPONcov: 50
         maxPONstd: 50
     PONcoverage:
+        minCov: 0 # start with no coverage to 
+        minVAF: 0.25
+        minDepth: 50
         normCov: 100 # to what value are coverages normalized#
         stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
         verbose_output: false

@@ -158,6 +158,69 @@ def TN2CNV(
     return cov_df, snp_df
 
 
+def PON2CNV(
+    chrom="",
+    config={}
+):
+    """
+    wrapper around CLI chain around the core tool PON2CNV.mawk
+
+    """
+
+    # PARAMS
+    # unwrap mawk tools
+    def mawk(tool):
+        return os.path.join(config["mawk_path"], f"{tool}.mawk")
+
+    pon_path = config['PON_path']
+    c = config["PONcoverage"]
+
+    # ####BUILD COMMAND #########
+    # ### READ PONMATRIX
+    matrix_file = os.path.join(pon_path, f"matrix/{chrom}.pon.gz")
+    if not os.path.isfile(matrix_file):
+        show_output(f"PON matrix file {matrix_file} not found! Exiting.", color="warning")
+        return
+    read_cmd = f"gunzip < {matrix_file}"
+
+    # ### FILTERBED
+    filter_cmd = f"{mawk('filterBed')} {config['bed_file']} -x -c {chrom}"
+
+    # ##### PON2CNV
+    SNP_file = os.path.join(pon_path, f"snp/{chrom}.snp")
+
+    cnv_cmd = f"{mawk('PON2CNV')} -x -o {SNP_file} -v {c['minVAF']} -d {c['minDepth']} -c {c['minCov']}"
+
+    # combine
+    cmd = f"{read_cmd} | {filter_cmd} | {cnv_cmd}"
+
+    try:
+        cov_df = cmd2df(cmd, show=True, multi=False)
+    except Exception as e:
+        show_output(f"There was an error using shell command <<{e}>>", color="warning")
+        return cmd
+
+    # add GC
+    if "gc_split_path" in config and os.path.isdir(gc_path := config['gc_split_path']):
+        cov_df = addGCratio(cov_df, chrom=chrom, gc_path=gc_path)
+    else:
+        show_output(f"Could not find GC path {gc_path}", color="warning")
+
+    # add genmap data to both cov and snp data
+    if "genmap_split_path" in config and os.path.isdir(genmap_path := config['genmap_split_path']):
+        # reload snp_df from temp file
+        show_output(f"Reloading PONSNP data from {SNP_file}")
+        snp_df = pd.read_csv(SNP_file, sep="\t")
+        cov_df, snp_df = addGenmap(cov_df, snp_df, chrom="chr7", genmap_path=genmap_path)
+        # resave snp_df
+        show_output(f"Resaving annotated heteroSNP data to {SNP_file}.gz")
+        snp_df.to_csv(f"{SNP_file}.gz", index=False, sep="\t", compression="gzip")
+        os.remove(SNP_file)
+    else:
+        show_output(f"Could not find genmap path {genmap_path}", color="warning")
+    return cov_df, snp_df
+
+
 def get_heteroSNP(bam_file, chrom, config):
     """
     LEGACY
