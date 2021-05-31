@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import re
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from matplotlib.patches import Rectangle
@@ -582,4 +581,23 @@ def plot_3d(df, xcol, ycol, zcol, df2=pd.DataFrame(), figsize=(10, 10)):
     _ = ax.set_xlim(get_lims(xcol))
     _ = ax.set_ylim(get_lims(ycol))
     _ = ax.set_zlim(get_lims(zcol))
+    return fig, ax
+
+
+def make_GC_plot(cov_df, sample="", agg="mean", max_plots=99):
+    '''
+    create GC plot for the coverages
+    '''
+    cov_cols = [col for col in cov_df.columns if col.startswith("Cov")][:max_plots]
+    # create the agg dictionary
+    cov_agg = {col: agg for col in cov_cols}
+    # make the agg
+    df = cov_df.loc[cov_df["map50_0"] > 0.5, :].loc[cov_df["map30_0"] > 0.5, :].loc[cov_df["map75_1"] > 0.5, :].groupby("GCratio").agg(cov_agg)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    for col in cov_cols:
+        _ = ax.plot(df.index, df[col], alpha=0.4)
+    _ = ax.set_xlabel("GCratio", fontsize=14)
+    _ = ax.set_ylabel("Coverage", fontsize=14)
+    if sample:
+        _ = ax.set_title(f"Sample {sample} | GCratio vs coverage", fontsize=20)
     return fig, ax
