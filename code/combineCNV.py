@@ -307,8 +307,44 @@ def log2ratio(df, cov_col, pon_cov_col="PONcov_mean"):
     return df.loc[:, out_cols]
 
 
+def filter_cov(cov_df, config={}):
+    """
+    takes the config and applies pre-filtering for rolling computation
+    """
+
+    c = config["filter"]
+
+    # coverage
+    ccov = c["cov"]
+    minGC, maxGC = ccov["GCrange"]
+    minPONcov = ccov["minPONcov"]
+    maxPONstd = ccov["maxPONstd"]
+    cov_df = cov_df.query(
+        "(@minGC < GCratio < @maxGC) and PONcov_mean >= @minPONcov and PONcov_std < @maxPONstd"
+    )
+    return cov_df
+
+
+def filter_snp(snp_df, config={}):
+    """
+    takes the config and applies pre-filtering for rolling computation
+    """
+
+    c = config["filter"]
+
+    csnp = c["snp"]
+    # minDepth = csnp['minDepth']
+    # minVAF = csnp['minVAF']
+    maxPONVAF = csnp["maxPONVAF"]
+    minPONDepth = csnp["minPONDepth"]
+
+    snp_df = snp_df.query("@minPONDepth <= PONDepth and PONVAF < @maxPONVAF")
+
+    return snp_df
+
+
 def combine_sample_CNV(sample, config={}):
-    '''
+    """
     combined snp and cov sample data
     adds FullExonPos to both files
 
@@ -318,7 +354,7 @@ def combine_sample_CNV(sample, config={}):
     SNP:
         adds PON VAF to sample SNP data for filtering
 
-    '''
+    """
 
     # ## LOAD
     show_output(f"Loading data for sample {sample}")
@@ -328,40 +364,48 @@ def combine_sample_CNV(sample, config={}):
 
     # ## NORMALIZE
     # get config
-    if (config['coverage']['GCnormalize']):
+    if config["coverage"]["GCnormalize"]:
         show_output("Normalizing coverage using GCratio segmentation")
         cov_df = normalize_GC(cov_df)
         # use GC PON
-        PON_cov_file = os.path.join(config['PON_path'], "CNV/pon.cov.filterGC.gz")
+        PON_cov_file = os.path.join(config["PON_path"], "CNV/pon.cov.filterGC.gz")
     else:
         cov_df = normalize(cov_df)
         # use nonGC PON
-        PON_cov_file = os.path.join(config['PON_path'], "CNV/pon.cov.filter.gz")
+        PON_cov_file = os.path.join(config["PON_path"], "CNV/pon.cov.filter.gz")
 
     # ## INCLUDE PON
     if os.path.isfile(PON_cov_file):
         show_output(f"Loading PON coverage from {PON_cov_file}")
-        pon_cov_df = pon_cov_df = pd.read_csv(PON_cov_file, sep="\t", compression="gzip")
+        pon_cov_df = pon_cov_df = pd.read_csv(
+            PON_cov_file, sep="\t", compression="gzip"
+        )
     else:
         show_output(f"PON coverage file {PON_cov_file} not found!", color="warning")
         return
 
     show_output("Adding FullExonPos from PON coverage to coverage and snp data.")
     cov_df, snp_df = get_full_exon_pos(cov_df, snp_df, pon_cov_df=pon_cov_df)
-    show_output("Merging coverage with PON coverage and performing log2ratio computation.")
+    show_output(
+        "Merging coverage with PON coverage and performing log2ratio computation."
+    )
     cov_df = cov_df.merge(pon_cov_df)
 
     del pon_cov_df
     for col in cov_df.columns:
-        if col.startswith("Cov"):     
+        if col.startswith("Cov"):
             cov_df = log2ratio(cov_df, col)
     show_output("log2ratio computation finished.", color="success")
 
     # PON snp
-    PON_snp_file = os.path.join(config['PON_path'], "CNV/pon.snp.gz")
+    PON_snp_file = os.path.join(config["PON_path"], "CNV/pon.snp.gz")
     if os.path.isfile(PON_snp_file):
-        show_output(f"Loading PON SNP from {PON_cov_file} and merging into sample SNP data.")
-        pon_snp_df = pon_snp_df = pd.read_csv(PON_snp_file, sep="\t", compression="gzip")
+        show_output(
+            f"Loading PON SNP from {PON_cov_file} and merging into sample SNP data."
+        )
+        pon_snp_df = pon_snp_df = pd.read_csv(
+            PON_snp_file, sep="\t", compression="gzip"
+        )
     else:
         show_output(f"PON snp file {PON_snp_file} not found!", color="warning")
         return

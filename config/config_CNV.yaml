@@ -16,3 +16,41 @@ CNV:
         minVAF: 0.05 # min total VAF to be stored in PON snp file
         minDepth: 50
         stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
+    filter:
+        cov:
+            GCrange: [0.2, 0.8] # range of GCratios
+            minPONcov: 30
+            maxPONstd: 15
+        snp:
+            # minDepth: 15    # for VAF SNP
+            # minVAF: 0.05
+            maxPONVAF: 0.25
+            minPONDepth: 800
+    rolling:
+        cov:
+            normalize: False
+            debug: True # show more output and include L and R columns
+            diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
+            ddof: 0     # set the degree of freedom (0 seems better)
+            LLH:
+                center_range: [-0.5, 0.5]   # the mean of the gaussian is taken from log2ratios within center range
+                sigma_factor: 0.9     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
+            data:  # list the cols you want to perform rolling window computation on
+                log2ratio:
+                    mean: 250    # list the aggregation function and the window size
+                covLLH:
+                    sum: 250
+        snp:
+            normalize: False
+            debug: True # show more output and include L and R columns
+            diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
+            ddof: 0     # set the degree of freedom (0 seems better)
+            LLH:
+                center_range: [-0.5, 0.5]   # the mean of the gaussian is taken from log2ratios within center range
+                sigma_factor: 0.9     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
+            data:  # list the cols you want to perform rolling window computation on
+                log2ratio:
+                    mean: 250    # list the aggregation function and the window size
+                covLLH:
+                    sum: 250
+
