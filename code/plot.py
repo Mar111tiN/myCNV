@@ -226,7 +226,7 @@ def plot_genomic(
     label_size=12,
 ):
 
-    #### DATA MANGELING ##########
+    # ### DATA MANGLING ##########
     # get cols for rearranging
     org_cols = list(df.columns)
 

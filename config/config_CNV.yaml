@@ -10,8 +10,9 @@ CNV:
         minCov: 0
         minPONcov: 50
         maxPONstd: 50
+        GCnormalize: True
     PONcoverage:
         minCov: 0 # start with no coverage to 
-        minVAF: 0.25
+        minVAF: 0.05 # min total VAF to be stored in PON snp file
         minDepth: 50
         stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
