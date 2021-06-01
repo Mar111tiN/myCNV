@@ -107,7 +107,7 @@ def normalize(cov_df):
     """
     for col in cov_df.columns:
         if col.startswith("Cov"):
-            show_output(f"Normalizing GC ratio for {col}.")
+            show_output(f"Normalizing coverage for {col}.")
             cov_df.loc[:, col] = cov_df[col] / cov_df[col].mean() * 100
     return cov_df
 
@@ -225,10 +225,10 @@ def make_PON_coverage(
         covGC_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
 
         # filtered
-        PON_cov_file = os.path.join(pon_path, f"CNV/pon.cov.filtered.gz")
+        PON_cov_file = os.path.join(pon_path, f"CNV/pon.cov.filter.gz")
         show_output(f"Saving filtered PON coverage file {PON_cov_file}.")
         filter_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
-        PON_cov_file = PON_cov_file.replace("filtered", "filteredGC")
+        PON_cov_file = PON_cov_file.replace("filter", "filterGC")
         show_output(f"Saving filtered PON coverage file {PON_cov_file}.")
         filterGC_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
 
@@ -308,7 +308,7 @@ def log2ratio(df, cov_col, pon_cov_col="PONcov_mean"):
 
 
 def combine_sample_CNV(sample, config={}):
-    """
+    '''
     combined snp and cov sample data
     adds FullExonPos to both files
 
@@ -318,50 +318,52 @@ def combine_sample_CNV(sample, config={}):
     SNP:
         adds PON VAF to sample SNP data for filtering
 
-    """
+    '''
 
+    # ## LOAD
     show_output(f"Loading data for sample {sample}")
     # combine chrom SNP and COV data for that sample
     cov_df, snp_df = combine_chrom_cnv(sample, config=config)
-    show_output(f"Finished", color="success")
-    show_output("Normalizing coverage using GCratio segmentation")
-    cov_df = normalize_GC(cov_df)
+    show_output("Finished", color="success")
 
-    # PON coverage
-    PON_cov_file = os.path.join(config["PON_path"], "CNV/pon.cov.filter.gz")
+    # ## NORMALIZE
+    # get config
+    if (config['coverage']['GCnormalize']):
+        show_output("Normalizing coverage using GCratio segmentation")
+        cov_df = normalize_GC(cov_df)
+        # use GC PON
+        PON_cov_file = os.path.join(config['PON_path'], "CNV/pon.cov.filterGC.gz")
+    else:
+        cov_df = normalize(cov_df)
+        # use nonGC PON
+        PON_cov_file = os.path.join(config['PON_path'], "CNV/pon.cov.filter.gz")
+
+    # ## INCLUDE PON
     if os.path.isfile(PON_cov_file):
         show_output(f"Loading PON coverage from {PON_cov_file}")
-        pon_cov_df = pon_cov_df = pd.read_csv(
-            PON_cov_file, sep="\t", compression="gzip"
-        )
+        pon_cov_df = pon_cov_df = pd.read_csv(PON_cov_file, sep="\t", compression="gzip")
     else:
         show_output(f"PON coverage file {PON_cov_file} not found!", color="warning")
         return
 
     show_output("Adding FullExonPos from PON coverage to coverage and snp data.")
     cov_df, snp_df = get_full_exon_pos(cov_df, snp_df, pon_cov_df=pon_cov_df)
-    show_output(
-        "Merging coverage with PON coverage and performing log2ratio computation."
-    )
+    show_output("Merging coverage with PON coverage and performing log2ratio computation.")
     cov_df = cov_df.merge(pon_cov_df)
 
     del pon_cov_df
     for col in cov_df.columns:
-        if col.startswith("Cov"):
+        if col.startswith("Cov"):     
             cov_df = log2ratio(cov_df, col)
     show_output("log2ratio computation finished.", color="success")
 
     # PON snp
-    PON_snp_file = os.path.join(config["PON_path"], "CNV/pon.snp.gz")
+    PON_snp_file = os.path.join(config['PON_path'], "CNV/pon.snp.gz")
     if os.path.isfile(PON_snp_file):
-        show_output(
-            f"Loading PON SNP from {PON_cov_file} and merging into sample SNP data."
-        )
-        pon_snp_df = pon_snp_df = pd.read_csv(
-            PON_snp_file, sep="\t", compression="gzip"
-        )
+        show_output(f"Loading PON SNP from {PON_cov_file} and merging into sample SNP data.")
+        pon_snp_df = pon_snp_df = pd.read_csv(PON_snp_file, sep="\t", compression="gzip")
     else:
-        show_output(f"PON snpe file {PON_snp_file} not found!", color="warning")
+        show_output(f"PON snp file {PON_snp_file} not found!", color="warning")
         return
     snp_df = snp_df.merge(pon_snp_df, how="left")
     show_output(f"Finished combining data for sample {sample}")
