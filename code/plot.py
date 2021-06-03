@@ -52,7 +52,7 @@ def plot_cov(
     new_cols = org_cols[:4] + ["PlotPos"] + org_cols[4:]
     df = df.loc[:, new_cols]
 
-    ######## PLOTTING #######
+    # ####### PLOTTING #######
     # plot the figure
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -72,7 +72,7 @@ def plot_cov(
         ax, chrom_df, color_chroms, ylimits=ax.get_ylim(), colormap=colormap
     )
 
-    ######## LABELS ###################
+    # ####### LABELS ###################
     # set the axis labels
     _ = ax.set_xlabel("genomic coords", fontsize=1.25 * label_size)
     # quick fix for one y-label
@@ -194,7 +194,7 @@ def plot_snp2(
 ):
 
     MAXLOG2RATIO = 2.5
-    #### DATA MANGELING ##########
+    # ### DATA MANGELING ##########
     # get cols for rearranging
     org_cols = list(df.columns)
 
@@ -215,8 +215,8 @@ def plot_snp2(
     new_cols = org_cols[:4] + ["PlotPos"] + org_cols[4:]
     df = df.loc[:, new_cols]
 
-    #########################
-    ######## PLOTTING #######
+    # ########################
+    # ####### PLOTTING #######
     # plot the figure
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -249,7 +249,7 @@ def plot_snp2(
                         pa["s"] = df[pa["s"]] * 20 + 1
                 plot = ax.scatter(df["PlotPos"], df[plot["data"]], **pa)
 
-    ######## plot the SNP graphs #######
+    # ####### plot the SNP graphs #######
     for plot in snp_plots:
         if plot["plot_type"] == "line":
             plot = ax.plot(df["PlotPos"], df[plot["data"]], **plot["plot_args"])
@@ -269,7 +269,7 @@ def plot_snp2(
         ax, chrom_df, color_chroms, ylimits=ax.get_ylim(), colormap=colormap
     )
 
-    ######## LABELS ###################
+    # ####### LABELS ###################
     # set the axis labels
     _ = ax.set_xlabel("genomic coords", fontsize=1.25 * label_size)
     # quick fix for one y-label
