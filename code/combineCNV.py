@@ -216,7 +216,7 @@ def make_PON_coverage(
 
     # save dataframes
     if save:
-        PON_cov_file = os.path.join(pon_path, f"CNV/pon.cov.full.gz")
+        PON_cov_file = os.path.join(pon_path, "CNV/pon.cov.full.gz")
         show_output(f"Saving combined PON coverage file {PON_cov_file}.")
         cov_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
         # GC variant
@@ -225,7 +225,7 @@ def make_PON_coverage(
         covGC_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
 
         # filtered
-        PON_cov_file = os.path.join(pon_path, f"CNV/pon.cov.filter.gz")
+        PON_cov_file = os.path.join(pon_path, "CNV/pon.cov.filter.gz")
         show_output(f"Saving filtered PON coverage file {PON_cov_file}.")
         filter_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
         PON_cov_file = PON_cov_file.replace("filter", "filterGC")

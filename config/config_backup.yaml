@@ -66,8 +66,6 @@ CNV:
                     std: 30
                 snpLLH: 
                     sum: 20
-                hsnpLLH:
-                    sum: 40
 
             LLH:    # parameters for llh computation
                 center_range: [0.4, 0.6]   # the mean of the gaussian is taken from log2ratios within center range

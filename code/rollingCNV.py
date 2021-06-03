@@ -64,12 +64,12 @@ def one_col_rolling(df, col, aggr="mean", window_size=200, roll_config={}):
             show_output(f"Aggregating custom function {aggr.__name__}")
         df.loc[:, "L"] = df[col].rolling(window_size).apply(aggr)
         # pass the function name for ensuing column naming
-        col_name = aggr.__name__.replace("_", "")
+        col_name = aggr.__name__
     else:
         # get the right computation by passing aggr to .agg()
         # only this allows passing methods as string
         df.loc[:, "L"] = df[col].rolling(window_size).agg(aggr, ddof=ddof)
-        col_name = col + aggr
+        col_name = col + "_"+  aggr
 
     # ###### ROLLING RIGHT
     # rolling right by shifting the L column
@@ -126,55 +126,46 @@ def one_col_rolling(df, col, aggr="mean", window_size=200, roll_config={}):
     return df.loc[:, out_cols]
 
 
-def rolling_data(df, filter_df, expand=0.25, ddof=0, debug=False, data_params={}):
-    """
+def rolling_data(snp_df, data_params={}, roll_config={}):
+    '''
     cycles through the data params (rolling_data object from config dict)
     and performs rolling computations for these params
-    generic function to be used by rolling_coverage and rolling_SNP
-    """
-
+    '''
     # now do global normalization for sum aggregations:
-    # cycle through rolling_data
-    for data_col in data_params.keys():
-        for agg in data_params[data_col].keys():
-            # cycle through the chroms
-            chrom_dfs = []
-            for chrom in df["Chr"].unique():
-                # get the chrom_dfs
-                chrom_df = df.query("Chr == @chrom").sort_values("FullExonPos")
-                filter_chrom_df = filter_df.query("Chr == @chrom").sort_values(
-                    "FullExonPos"
-                )
-                window_size = data_params[data_col][agg]
-                if len(filter_chrom_df.index) < 2 * window_size:
-                    continue
-                expand_limit = int(expand * window_size)
-                # show_output(
-                #     f"Computing rolling window for {agg} of {data_col} with window size {window_size} on {chrom}"
-                # )
-                chrom_df = one_col_rolling(
-                    chrom_df,
-                    filter_chrom_df,
-                    data_col,
-                    agg,
-                    window_size=window_size,
-                    expand_limit=expand_limit,
-                    ddof=ddof,
-                )
-                chrom_dfs.append(chrom_df)
-            # combine the chrom_dfs
-            df = pd.concat(chrom_dfs).sort_values("FullExonPos")
+    # cycle through the data_types
+    df = snp_df.copy()
+    for data_type in data_params.keys():
+        # cycle through the cols for that data_type
+        for data_col in df.columns:
+            if not data_col.startswith(data_type):
+                continue
+            # cycle through the aggs for that data_type
+            for agg in data_params[data_type].keys():
+                # get params
+                window_size = data_params[data_type][agg]
+                agg_name =  agg.__name__ if callable(agg) else agg
 
-            # Normalization
+                show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size}")
+                # run the rolling window
+                df = one_col_rolling(
+                     df, 
+                     col=data_col,
+                     aggr=agg,
+                     window_size=window_size,
+                     roll_config=roll_config
+                 )
+                
+            
+            #### Normalization
             # only do normalization for sum aggregations
             if not agg == "sum":
                 continue
-            print(f"Normalizing {data_col} {agg}")
+            show_output(f"Normalizing {data_col} {agg}")
             # get the columns for normalization
-            col_name = data_col + agg
+            col_name = data_col + "_" + agg
             cols = [col_name]
-            if debug:
-                cols += [f"{col_name}L", f"{col_name}R"]
+            if roll_config['debug']:
+                cols += [f'{col_name}L', f'{col_name}R']
             for c in cols:
                 _min = df[c].min()
                 _max = df[c].max()

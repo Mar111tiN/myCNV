@@ -24,13 +24,16 @@ CNV:
         snp:
             # minDepth: 15    # for VAF SNP
             # minVAF: 0.05
-            maxPONVAF: 0.25
-            minPONDepth: 800
+            maxPONVAF: 0.1
+            map30_0: 0
+            map50_0: 0.3
+            map75_1: 0.3
+            map100_2: 0.5
     rolling:
         cov:
             normalize: False
-            debug: True # show more output and include L and R columns
-            diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
+            debug: False # show more output and include L and R columns
+            diff_exp: 4  # the exponent for the diff function --> higher values make steeper Diff peaks
             ddof: 0     # set the degree of freedom (0 seems better)
             LLH:
                 center_range: [-0.5, 0.5]   # the mean of the gaussian is taken from log2ratios within center range
@@ -41,16 +44,15 @@ CNV:
                 covLLH:
                     sum: 250
         snp:
-            normalize: False
-            debug: True # show more output and include L and R columns
-            diff_exp: 4  # the exponent for the diff function --> higher values make steeper peaks
+            normalize: True
+            debug: False # show more output and include L and R columns
+            diff_exp: 4  # the exponent for the diff function --> higher values make steeper Diff peaks
             ddof: 0     # set the degree of freedom (0 seems better)
             LLH:
                 center_range: [-0.5, 0.5]   # the mean of the gaussian is taken from log2ratios within center range
                 sigma_factor: 0.9     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
             data:  # list the cols you want to perform rolling window computation on
                 log2ratio:
-                    mean: 250    # list the aggregation function and the window size
+                    mean: 250    # list the aggregation functions and the window size
                 covLLH:
                     sum: 250
-
