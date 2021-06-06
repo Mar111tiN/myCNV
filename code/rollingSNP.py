@@ -175,18 +175,12 @@ def remergeCNV(snp_df, cov_df):
 
     base_cols = ["Chr", "Pos", "ExonPos", "FullExonPos"]
     snp_cols = [col for col in snp_df.columns if col.startswith("VAF")]
-    log2_pat = re.compile(r"log2ratio[0-9]+_mean$")
+    log2_pat = re.compile(r"log2ratio[0-9]+(_mean)?$")
     cov_cols = [col for col in cov_df.columns if re.match(log2_pat, col)]
     snp_df = snp_df.loc[:, base_cols + snp_cols]
     cov_df = cov_df.loc[:, base_cols + cov_cols]
-    cov_rename = {
-        col: col.replace("_mean", "")
-        for col in cov_df.columns
-        if col.startswith("log2ratio")
-    }
     cnv_df = (
         snp_df.merge(cov_df, how="outer")
-        .rename(cov_rename, axis=1)
         .sort_values("FullExonPos")
         .reset_index(drop=True)
     )
