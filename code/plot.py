@@ -307,6 +307,7 @@ def plot_snp2(
     return fig, ax, df, chrom_df
 
 
+############## CLUSTER FIGURES ##########################################
 def plot_2d(df, xcol, ycol, df2=pd.DataFrame(), figsize=(5, 5)):
     fig, ax = plt.subplots(figsize=figsize)
     _ = ax.scatter(df[xcol], df[ycol], s=0.1)
