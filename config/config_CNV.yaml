@@ -18,17 +18,20 @@ CNV:
         stdFactor: 2  # only exonPositions straighing within std_factor * std around meanCoverage are kept
     filter:
         cov:
-            GCrange: [0.2, 0.8] # range of GCratios
+            GCrange: [0.15, 0.85] # range of GCratios
             minPONcov: 30
-            maxPONstd: 15
+            maxPONstd: 35
         snp:
             # minDepth: 15    # for VAF SNP
             # minVAF: 0.05
-            maxPONVAF: 0.1
+            maxPONVAF: 0.45
             map30_0: 0
             map50_0: 0.3
             map75_1: 0.3
             map100_2: 0.5
+            maxFallSNP: 0.01
+            maxSNPdensity: 0.02
+            # minoffVAF: 0
     rolling:
         cov:
             normalize: False
@@ -52,6 +55,7 @@ CNV:
                 center_range: [-0.5, 0.5]   # the mean of the gaussian is taken from log2ratios within center range
                 sigma_factor: 0.9     # determines the spread of the center gaussian - sigma of center gaussian is std * sigma_factor
             data:  # list the cols you want to perform rolling window computation on
+                SNPdensity: 5    # this is a custom function 
                 log2ratio:
                     mean: 250    # list the aggregation functions and the window size
                 covLLH:

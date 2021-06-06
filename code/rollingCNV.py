@@ -69,7 +69,7 @@ def one_col_rolling(df, col, aggr="mean", window_size=200, roll_config={}):
         # get the right computation by passing aggr to .agg()
         # only this allows passing methods as string
         df.loc[:, "L"] = df[col].rolling(window_size).agg(aggr, ddof=ddof)
-        col_name = col + "_"+  aggr
+        col_name = col + "_" + aggr
 
     # ###### ROLLING RIGHT
     # rolling right by shifting the L column
@@ -127,10 +127,10 @@ def one_col_rolling(df, col, aggr="mean", window_size=200, roll_config={}):
 
 
 def rolling_data(snp_df, data_params={}, roll_config={}):
-    '''
+    """
     cycles through the data params (rolling_data object from config dict)
     and performs rolling computations for these params
-    '''
+    """
     # now do global normalization for sum aggregations:
     # cycle through the data_types
     df = snp_df.copy()
@@ -143,20 +143,21 @@ def rolling_data(snp_df, data_params={}, roll_config={}):
             for agg in data_params[data_type].keys():
                 # get params
                 window_size = data_params[data_type][agg]
-                agg_name =  agg.__name__ if callable(agg) else agg
+                agg_name = agg.__name__ if callable(agg) else agg
 
-                show_output(f"Computing rolling window for {agg} of {data_col} with window size {window_size}")
+                show_output(
+                    f"Computing rolling window for {agg_name} of {data_col} with window size {window_size}"
+                )
                 # run the rolling window
                 df = one_col_rolling(
-                     df, 
-                     col=data_col,
-                     aggr=agg,
-                     window_size=window_size,
-                     roll_config=roll_config
-                 )
-                
-            
-            #### Normalization
+                    df,
+                    col=data_col,
+                    aggr=agg,
+                    window_size=window_size,
+                    roll_config=roll_config,
+                )
+
+            # ### Normalization
             # only do normalization for sum aggregations
             if not agg == "sum":
                 continue
@@ -164,8 +165,8 @@ def rolling_data(snp_df, data_params={}, roll_config={}):
             # get the columns for normalization
             col_name = data_col + "_" + agg
             cols = [col_name]
-            if roll_config['debug']:
-                cols += [f'{col_name}L', f'{col_name}R']
+            if roll_config["debug"]:
+                cols += [f"{col_name}L", f"{col_name}R"]
             for c in cols:
                 _min = df[c].min()
                 _max = df[c].max()
