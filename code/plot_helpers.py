@@ -37,22 +37,25 @@ def make_color_chroms(
 
     # set the cmap from provided argument
     cmap = plt.cm.get_cmap(colormap, 23)
-
+    chrom_list = [f"chr{i+1}" for i in range(22)] + ["chrX"]
     # build the rects
     rects = []
     # set the height and ymin beyond the ylimits so borders are not seen
     ymin = ylimits[0] * 1.1
     height = (ylimits[1] - ymin) * 1.1
 
-    for chrom in chrom_df.index:
-        row = chrom_df.loc[chrom]
-        rect = Rectangle(
-            (row["min"], ymin), width=row["max"] - row["min"], height=height
-        )
-        rects.append(rect)
-
+    for chrom in chrom_list:
+        if chrom in chrom_df.index:
+            row = chrom_df.loc[chrom]
+            rect = Rectangle(
+                (row["min"], ymin), width=row["max"] - row["min"], height=height
+            )
+            rects.append(rect)
+        else:
+            rect = Rectangle((0, 1), width=0.1, height=height)
+            rects.append(rect)
     if color_chroms:
-        rect_kwargs = dict(alpha=0.6, ec="none")
+        rect_kwargs = dict(alpha=0.4, ec="none")
     else:
         rect_kwargs = dict(alpha=1, fc="none", ec="darkgray", lw=1, ls="-")
     # set the rectangle collection with colormap
@@ -61,16 +64,20 @@ def make_color_chroms(
     rect_collection.set_array(
         chrom_df.index.str.replace("chr", "").str.replace("X", "23").astype(int)
     )
+
+    # setting clim allows fixing the color for individual chroms
+    # https://stackoverflow.com/questions/6028675/setting-color-range-in-matplotlib-patchcollection
+    rect_collection.set_clim([0, 23])
     return ax.add_collection(rect_collection)
 
 
 def add_chrom_labels(ax, chrom_df, ylimits=(-10, 10)):
 
     # YOFFSET is the upper-relative y-position
-    YOFFSET = 0.9
+    YOFFSET = 1
     # get the min_chrom_fraction from minimum chrom_size / whole stretch
     min_chrom_frac = (chrom_df["max"] - chrom_df["min"]).min() / chrom_df["max"].max()
-    chrom_size = min(50, max(15, 200 * min_chrom_frac))
+    chrom_size = min(25, max(15, 200 * min_chrom_frac))
     style = dict(size=chrom_size, color="#2f3832")
     # set the height and ymin beyond the ylimits so borders are not seen
     ypos = ylimits[0] + YOFFSET * (ylimits[1] - ylimits[0])
@@ -106,7 +113,7 @@ def get_tick_pos(tick_dist, chrom_df):
     ]
 
 
-def str_pos(pos, df, precision=1, print_suff=True):
+def str_pos(pos, df, precision=1):
     """
     returns string representation of base position
     on genomic coords
@@ -128,7 +135,7 @@ def str_pos(pos, df, precision=1, print_suff=True):
         suff = "b"
         base = int(base)
     # only print the suff if print_suff
-    return f"{base}{suff}" if print_suff else base
+    return f"{base}{suff}"
 
 
 def get_precision(pos_list):
@@ -148,7 +155,7 @@ def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
     for a given tick number, set nicely spread ticks
     """
 
-    # determine optimale tick distance
+    ## determine optimale tick distance
     # get the chrom_number
     chrom_count = len(chrom_df.index)
     # get the number of bases
@@ -165,12 +172,12 @@ def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
     # only print the genomic coords below a certain base total
     if stretch < 2e7:
         precision = get_precision(major_pos)
-        print_suff = precision < 3
         major_labels = [
-            str_pos(pos, df, precision=precision, print_suff=print_suff)
-            for pos in major_pos
+            str_pos(pos, df, precision=precision) for pos in major_pos  ###############
         ]
         ax.xaxis.set_major_formatter(plt.FixedFormatter(major_labels))
+        # set the axis labels
+        ax.set_xlabel("genomic coords", fontsize=1.25 * label_size)
     else:
         ax.xaxis.set_major_formatter(plt.NullFormatter())
     ax.xaxis.set_minor_locator(plt.FixedLocator(minor_pos))

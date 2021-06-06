@@ -14,11 +14,13 @@ def mergeCov2SNP(snp_df, cov_df):
     # get the columns
     snp_cols = list(snp_df.columns)
     base_cols = snp_cols[:4]
+
+    log2_pat = re.compile(r"log2ratio[0-9]+(_mean)?$")
     cov_cols = [
         col
         for col in cov_df.columns
-        if col.endswith("mean") or col.endswith("sum") or col == "GCratio"
-    ]
+        if col.startswith("PON") or re.match(log2_pat, col)
+    ] + ["GCratio"]
     # reduce cols of cov_df
     cov_df = cov_df.loc[:, base_cols + cov_cols]
     # PONVAF and PONDepth have to be filled to zero
@@ -132,7 +134,7 @@ def filter_snp(snp_df, config={}):
 
     snp_query = f"{PON_query} and {map_query} and {Fall_query}"
     show_output(f'Filtering SNP data using {snp_query.replace("@", "")}')
-    df = df.query(snp_query)
+    df = df.query(snp_query).reset_index(drop=True)
 
     return df
 
@@ -177,12 +179,10 @@ def remergeCNV(snp_df, cov_df):
     snp_cols = [col for col in snp_df.columns if col.startswith("VAF")]
     log2_pat = re.compile(r"log2ratio[0-9]+(_mean)?$")
     cov_cols = [col for col in cov_df.columns if re.match(log2_pat, col)]
-    snp_df = snp_df.loc[:, base_cols + snp_cols]
+    snp_df = snp_df.loc[:, base_cols + snp_cols + cov_cols]
     cov_df = cov_df.loc[:, base_cols + cov_cols]
     cnv_df = (
-        snp_df.merge(cov_df, how="outer")
-        .sort_values("FullExonPos")
-        .reset_index(drop=True)
+        pd.concat([snp_df, cov_df]).sort_values("FullExonPos").reset_index(drop=True)
     )
     return cnv_df
 
