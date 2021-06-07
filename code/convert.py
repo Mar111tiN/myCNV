@@ -37,7 +37,7 @@ def write_ASCAT(cnv_df, sample="", outpath="", mock_germline=True):
     mock_df.loc[:, "VAF1"] = 0.5
     mock_df.loc[:, "log2ratio1_mean"] = 0
 
-    ##### VAF
+    # #### VAF
 
     vaf_cols = [col for col in cnv_df.columns if col.startswith("VAF")]
 
