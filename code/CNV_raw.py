@@ -4,10 +4,10 @@ from script_utils_CNV import show_output, cmd2df
 
 
 def addGCratio(cov_df, chrom="", gc_path="", mode="100-10"):
-    '''
+    """
     adds the GCdata to the coverage data
     gc_path is path to chrom-split gc-data
-    '''
+    """
 
     # load genmap data for that chromosome
     gc_file = os.path.join(gc_path, f"{chrom}.gc{mode}.gz")
@@ -18,18 +18,23 @@ def addGCratio(cov_df, chrom="", gc_path="", mode="100-10"):
                 {"GC/AT": "GCratio", "Start": "Pos"}, axis=1
             )
         except Exception as e:
-            show_output(f"{e}: Could not load GC data for {chrom} from {gc_file}", color="warning")
+            show_output(
+                f"{e}: Could not load GC data for {chrom} from {gc_file}",
+                color="warning",
+            )
             return
         # gc data has columns Start -> GC/AT
-        cov_df = cov_df.merge(gc_df, on="Pos", how="left")
-
+        if "Chr" in gc_df.columns:
+            cov_df = cov_df.merge(gc_df, on=["Chr", "Pos"], how="left")
+        else:
+            cov_df = cov_df.merge(gc_df, on="Pos", how="left")
         return cov_df
     else:
         show_output(f"Could not find GC file {gc_file}", color="warning")
 
 
 def addGenmap(*dfs, chrom="", genmap_path="", modes=["30_0", "50_0", "75_1", "100_2"]):
-    '''
+    """
     adds the genmap data to the coverage data
     selects only the columns that are given in modes
     choose from [
@@ -39,7 +44,7 @@ def addGenmap(*dfs, chrom="", genmap_path="", modes=["30_0", "50_0", "75_1", "10
         '100_0', '100_1', '100_2', '100_4',
         '150_0','150_1', '150_2', '150_4']
 
-    '''
+    """
 
     # load genmap data for that chromosome
     genmap_file = os.path.join(genmap_path, f"hg38_genmap.HAEv7.{chrom}.txt.gz")
@@ -47,22 +52,32 @@ def addGenmap(*dfs, chrom="", genmap_path="", modes=["30_0", "50_0", "75_1", "10
     if os.path.isfile(genmap_file):
         try:
             cols = ["Chr", "Pos"] + modes
-            genmap_df = pd.read_csv(genmap_file, sep="\t", compression="gzip").loc[:, cols].fillna(method="ffill")
+            genmap_df = (
+                pd.read_csv(genmap_file, sep="\t", compression="gzip")
+                .loc[:, cols]
+                .fillna(method="ffill")
+            )
             # rename the mappability cols
             mode_rename = {mode: "map" + mode for mode in modes}
             genmap_df = genmap_df.rename(mode_rename, axis=1)
             show_output(f"Loading mappability data for {chrom} from {genmap_file}")
         except Exception as e:
-            show_output(f"{e}: Could not load mappability data for {chrom} from {genmap_file}", color="warning")
+            show_output(
+                f"{e}: Could not load mappability data for {chrom} from {genmap_file}",
+                color="warning",
+            )
             return
         map_dfs = []
         for df in dfs:
             df = df.merge(genmap_df, on=["Chr", "Pos"], how="left")
             # save cols
             cols = df.columns
-            base_cols = [col for col in cols if col in [
-                "Chr", "Start", "Pos", "ExonPos", "GCratio"
-            ] or col.startswith("map")]
+            base_cols = [
+                col
+                for col in cols
+                if col in ["Chr", "Start", "Pos", "ExonPos", "GCratio"]
+                or col.startswith("map")
+            ]
             data_cols = [col for col in cols if col not in base_cols]
             df = df.loc[:, base_cols + data_cols]
             map_dfs.append(df)
@@ -139,13 +154,15 @@ def TN2CNV(
         return cmd
 
     # add GC
-    if "gc_split_path" in config and os.path.isdir(gc_path := config['gc_split_path']):
+    if "gc_split_path" in config and os.path.isdir(gc_path := config["gc_split_path"]):
         cov_df = addGCratio(cov_df, chrom=chrom, gc_path=gc_path)
     else:
         show_output(f"Could not find GC path {gc_path}", color="warning")
 
     # add genmap data to both cov and snp data
-    if "genmap_split_path" in config and os.path.isdir(genmap_path := config['genmap_split_path']):
+    if "genmap_split_path" in config and os.path.isdir(
+        genmap_path := config["genmap_split_path"]
+    ):
         # reload snp_df from temp file
         show_output(f"Reloading raw heteroSNP data from {SNP_output}")
         snp_df = pd.read_csv(SNP_output, sep="\t")
@@ -158,10 +175,7 @@ def TN2CNV(
     return cov_df, snp_df
 
 
-def PON2CNV(
-    chrom="",
-    config={}
-):
+def PON2CNV(chrom="", config={}):
     """
     wrapper around CLI chain around the core tool PON2CNV.mawk
 
@@ -172,14 +186,16 @@ def PON2CNV(
     def mawk(tool):
         return os.path.join(config["mawk_path"], f"{tool}.mawk")
 
-    pon_path = config['PON_path']
+    pon_path = config["PON_path"]
     c = config["PONcoverage"]
 
     # ####BUILD COMMAND #########
     # ### READ PONMATRIX
     matrix_file = os.path.join(pon_path, f"matrix/{chrom}.pon.gz")
     if not os.path.isfile(matrix_file):
-        show_output(f"PON matrix file {matrix_file} not found! Exiting.", color="warning")
+        show_output(
+            f"PON matrix file {matrix_file} not found! Exiting.", color="warning"
+        )
         return
     read_cmd = f"gunzip < {matrix_file}"
 
@@ -201,13 +217,15 @@ def PON2CNV(
         return cmd
 
     # add GC
-    if "gc_split_path" in config and os.path.isdir(gc_path := config['gc_split_path']):
+    if "gc_split_path" in config and os.path.isdir(gc_path := config["gc_split_path"]):
         cov_df = addGCratio(cov_df, chrom=chrom, gc_path=gc_path)
     else:
         show_output(f"Could not find GC path {gc_path}", color="warning")
 
     # add genmap data to both cov and snp data
-    if "genmap_split_path" in config and os.path.isdir(genmap_path := config['genmap_split_path']):
+    if "genmap_split_path" in config and os.path.isdir(
+        genmap_path := config["genmap_split_path"]
+    ):
         # reload snp_df from temp file
         show_output(f"Reloading PONSNP data from {SNP_file}")
         snp_df = pd.read_csv(SNP_file, sep="\t")
@@ -220,6 +238,8 @@ def PON2CNV(
         show_output(f"Could not find genmap path {genmap_path}", color="warning")
     return cov_df, snp_df
 
+
+# ############## LEGACY
 
 def get_heteroSNP(bam_file, chrom, config):
     """
