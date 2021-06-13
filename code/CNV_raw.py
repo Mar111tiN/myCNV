@@ -47,7 +47,7 @@ def addGenmap(*dfs, chrom="", genmap_path="", modes=["30_0", "50_0", "75_1", "10
     """
 
     # load genmap data for that chromosome
-    genmap_file = os.path.join(genmap_path, f"hg38_genmap.HAEv7.{chrom}.txt.gz")
+    genmap_file = os.path.join(genmap_path, f"hg38_genmap.{chrom}.txt.gz")
 
     if os.path.isfile(genmap_file):
         try:
@@ -240,6 +240,7 @@ def PON2CNV(chrom="", config={}):
 
 
 # ############## LEGACY
+
 
 def get_heteroSNP(bam_file, chrom, config):
     """
