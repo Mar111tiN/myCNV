@@ -10,7 +10,7 @@ CNV:
         minCov: 0
         minPONcov: 50
         maxPONstd: 50
-        GCnormalize: True
+        GCnormalize: False
     PONcoverage:
         minCov: 0 # start with no coverage to 
         minVAF: 0.05 # min total VAF to be stored in PON snp file
