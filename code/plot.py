@@ -372,3 +372,23 @@ def make_GC_plot(cov_df, sample="", agg="mean", max_plots=99):
     if sample:
         _ = ax.set_title(f"Sample {sample} | GCratio vs coverage", fontsize=20)
     return fig, ax
+
+
+def make_SNP_plot(sample, cnv_df):
+
+    df = cnv_df.loc[:, [c for c in cnv_df.columns if c.startswith("VAF")]]
+    fig, ax = plt.subplots(figsize=(10, 10))
+    _ = ax.scatter(df["VAF1"], df["VAF2"], s=0.25, alpha=0.4)
+    _ = ax.set_xlabel("NVAF", fontsize=20)
+    _ = ax.set_ylabel("TVAF", fontsize=20)
+
+    # calculate offRate
+    df0 = df[(df > 0.1).any(axis=1)]
+    n = len(df0.index)
+    df1 = df0[np.abs(df0["VAF1"] - df0["VAF2"]) > 0.25]
+    m = len(df1.index)
+    off_ratio = m / n * 100
+    _ = ax.set_title(
+        f"{sample} |  Tumor vs Normal - offRate {round(off_ratio, 1)}", fontsize=30
+    )
+    return fig, off_ratio
