@@ -245,7 +245,14 @@ def combine_chrom_cnv(sample, config={}):
 
     cov_dfs = []
     snp_dfs = []
-    chrom_list = [f"chr{c + 1}" for c in range(22)] + ["chrX"]
+    
+    # if no chrom_list is passed in configs, assume one
+    # possible:>> get chroms from file list
+    if len(config.get("chrom_list", [])):
+        chrom_list = config['chrom_list']
+    else:
+        chrom_list = [f"chr{c + 1}" for c in range(22)] + ["chrX"]
+        
     for chrom in chrom_list:
         cov_file = os.path.join(config["cov_path"], f"{sample}.{chrom}.cov.gz")
         snp_file = os.path.join(config["snp_path"], f"{sample}.{chrom}.snp")
