@@ -55,7 +55,7 @@ def addGenmap(*dfs, chrom="", genmap_path="", modes=["30_0", "50_0", "75_1", "10
             genmap_df = (
                 pd.read_csv(genmap_file, sep="\t", compression="gzip")
                 .loc[:, cols]
-                .fillna(method="ffill")
+                .fillna(method="ffill").fillna(method="bfill")
             )
             # rename the mappability cols
             mode_rename = {mode: "map" + mode for mode in modes}
