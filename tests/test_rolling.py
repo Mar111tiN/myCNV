@@ -159,3 +159,18 @@ def test_global_steps_stay_global():
     val = out["log2ratio1_mean"]
     assert val.min() == pytest.approx(0) and val.max() == pytest.approx(1)  # min-max over both chromosomes
     assert val[out["Chr"] == "chr21"].max() < 0.5
+
+
+@needs_restricted
+def test_rolling_two_chromosomes_documented_deltas(legacy_config):
+    """NHL1 chr7 + chr21 slice vs main (review 2026-11-22): main's SNPs are all kept, a few more pass because the
+    SNP-density min-max normalisation no longer sees main's cross-chromosome windows; non-rolled columns equal."""
+    snp, _, _ = _run("chr7_21", legacy_config)
+    old = read(f"{RLEGACY}/rolling_chr7_21.cnv.snp.gz")
+    m = snp.merge(old, on=["Chr", "Pos"], suffixes=("", "_old"), how="outer", indicator=True)
+    assert (m["_merge"] != "right_only").all()
+    assert (m["_merge"] == "left_only").sum() <= 0.2 * len(old)
+    shared = m.loc[m["_merge"] == "both"]
+    for col in ["VAF1", "VAF2", "Depth1", "Depth2", "PONVAF", "ExonPos", "map30_0", "map100_2"]:
+        assert np.allclose(shared[col], shared[col + "_old"], equal_nan=True), col
+    assert (shared["SNPdensity"] - shared["SNPdensity_old"]).abs().max() < 0.01

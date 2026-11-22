@@ -203,3 +203,24 @@ def test_too_few_pon_bins_fail(tmp_path, pons):
     res = cli("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED, "--gc", GC, "--genmap", GENMAP,
               "--ponmatrix", small, "--sample", "S1_T-N", "-o", tmp_path / "out", check=False)
     assert res.returncode != 0 and "have a PON bin" in res.stderr
+
+
+def test_pon2cnv_fixed_bin_values_from_the_stream(tmp_path):
+    """PON2CNV: Pos = 10 * floor(first base / 10), Cov = per-sample (+ and - strand) depth sum / 10; rows without
+    coverage in every normal are skipped."""
+    snp = tmp_path / "p.snp"
+    filt = f"gunzip -c {SYNTH}/matrix/chr7.pon.gz | {mawk('filterBed')} {BED} -x"
+    st = pd.read_csv(StringIO(sh(filt).stdout), sep="\t")
+    cov = pd.read_csv(StringIO(sh(f"{filt} | {mawk('PON2CNV')} -x -o {snp}").stdout), sep="\t")
+    depth = st["Depth"].str.split("=", expand=True)
+    d = depth[0].str.split("|", expand=True).astype(int) + depth[1].str.split("|", expand=True).astype(int)
+    keep = d.sum(axis=1) > 0
+    st, d = st.loc[keep].reset_index(drop=True), d.loc[keep].reset_index(drop=True)
+    d.columns = [f"Cov{i + 1}" for i in d.columns]
+    d["Pos"] = st["Start"] // 10 * 10
+    g = d.groupby("Pos", sort=False)
+    exp = (g.sum() / 10).reset_index()
+    assert np.array_equal(cov["Pos"], exp["Pos"])
+    assert np.array_equal(cov["ExonPos"], st.groupby(d["Pos"], sort=False)["ExonPos"].first().to_numpy())
+    cols = [c for c in cov.columns if c.startswith("Cov")]
+    assert np.allclose(cov[cols], exp[cols])
