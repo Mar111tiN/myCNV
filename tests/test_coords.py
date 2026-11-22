@@ -136,7 +136,7 @@ def pons(tmp_path_factory):
 def test_thinned_sample_keeps_every_bin_through_the_cli(tmp_path, pons):
     pile = thinned_pileup(tmp_path / "thin.cpile")
     cli("sample", "--pileup", pile, "--bed", BED, "--gc", GC, "--genmap", GENMAP, "--pon-dir", pons["fixed"],
-        "--sample", "S1_T-N", "--out-dir", tmp_path / "out")
+        "--sample", "S1_T-N", "--out-dir", tmp_path / "out", "--allow-empty")
     raw = read(tmp_path / "out" / "raw" / "S1_T-N.cov.gz")
     cov, _ = tn2cnv(str(pile), BED, gc=GC, genmap=GENMAP)
     pon = read(pons["fixed"] / "CNV" / "pon.cov.filterGC.gz")

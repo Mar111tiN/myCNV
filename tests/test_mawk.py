@@ -7,7 +7,10 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 
-from conftest import DATA, LEGACY, RESTRICTED, RLEGACY, SYNTH, needs_restricted, read
+from conftest import (
+    DATA, LEGACY, RESTRICTED, RLEGACY, SYNTH, assert_frames_close, expected_het_snps, has_reverse_insertion,
+    needs_restricted, read,
+)
 from mycnv.tools import mawk
 
 
@@ -23,10 +26,35 @@ def pile2cnv(tmp_path, legacy: bool):
     return pd.read_csv(StringIO(cov), sep="\t", dtype=str), pd.read_csv(snp, sep="\t", dtype=str)
 
 
+def _stream(legacy: bool) -> pd.DataFrame:
+    flag = " -L" if legacy else ""
+    return pd.read_csv(StringIO(run(f"{mawk('filterBed')} {SYNTH}/multi.bed -x{flag} < {SYNTH}/multi.cpile")), sep="\t")
+
+
 def test_pile2cnv_legacy_mode_equals_legacy_per_chromosome(tmp_path):
     cov, snp = pile2cnv(tmp_path, legacy=True)
     pd.testing.assert_frame_equal(cov, read(f"{LEGACY}/pile2cnv_multi.cov", dtype=str))
-    pd.testing.assert_frame_equal(snp, read(f"{LEGACY}/pile2cnv_multi.snp", dtype=str))
+    old = read(f"{LEGACY}/pile2cnv_multi.snp", dtype=str)
+    # het SNPs: identical to main except at sites with reverse-strand insertion reads ("i"), which main did not count
+    stream = _stream(legacy=True)
+    rev = set(stream.loc[has_reverse_insertion(stream), "Start"].astype(str))
+    pd.testing.assert_frame_equal(snp.loc[~snp["Pos"].isin(rev)].reset_index(drop=True),
+                                  old.loc[~old["Pos"].isin(rev)].reset_index(drop=True))
+    assert snp["Pos"].isin(rev).any()  # the fixture exercises the fix
+    exp = expected_het_snps(stream)
+    got = snp.astype({"Pos": int, "ExonPos": int, "Depth1": int, "Depth2": int, "VAF1": float, "VAF2": float})
+    assert_frames_close(got, exp, rtol=1e-5)
+
+
+def test_pile2cnv_counts_reverse_strand_insertions(tmp_path):
+    rows = ["Chr\tStart\tRef\tDepth1\tRead1\tDepth2\tRead2"]
+    for pos, reads in [(100, "IIIIIiiiii.........."), (101, "AAAAAaaaaa.........."), (102, "iiiiiiiiii..........")]:
+        rows.append(f"chr1\t{pos}\tG\t20\t{reads}\t20\t{reads}")
+    path = tmp_path / "indel.cpile"
+    path.write_text("\n".join(rows) + "\n")
+    run(f"{mawk('pile2CNV')} -o {tmp_path}/indel.snp < {path} > /dev/null")
+    snp = read(tmp_path / "indel.snp")
+    assert snp["Pos"].tolist() == [100, 101, 102] and np.allclose(snp["VAF1"], 0.5)  # main: 0.25, 0.5, no row
 
 
 def test_pile2cnv_fixed_bins_and_exonpos(tmp_path):
@@ -43,6 +71,8 @@ def test_pile2cnv_fixed_bins_and_exonpos(tmp_path):
         assert c["Pos"].is_monotonic_increasing and c["ExonPos"].is_monotonic_increasing
     # het-SNP rows are unchanged apart from ExonPos, which is contiguous and increasing per chromosome
     pd.testing.assert_frame_equal(snp.drop(columns="ExonPos"), leg_snp.drop(columns="ExonPos"))
+    exp = expected_het_snps(_stream(legacy=False))
+    assert np.array_equal(snp["ExonPos"].astype(int), exp["ExonPos"])
     for _, s in snp.astype({"ExonPos": int}).groupby("Chr"):
         assert (np.diff(s["ExonPos"].to_numpy()) > 0).all()
 

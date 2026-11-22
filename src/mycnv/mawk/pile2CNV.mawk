@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pile2CNV v2.0.0 (myCNV kumodev)
+# pile2CNV v2.1.0 (myCNV kumodev)
 # Computes binned coverage and het-SNP data from a clean T/N pileup with depth columns.
 #
 # INPUT (cleanpileup -d, optionally | filterBed -x), first sample = normal:
@@ -31,6 +31,8 @@
 #     so mycnv (raw.tn2cnv / raw.pon2cnv) replaces it with the ExonPos of the bin's first BED base
 #     (mycnv.bed.bin_exon_pos), which samples and PONs share. -L restores both v1.0.1 labels, e.g. to merge with PON
 #     coverage files built by the legacy tools.
+#   - v2.1.0: het-SNP alt reads include reverse-strand insertions (cleanpileup "i"); v1.0.1 counted A/C/G/T, D/d and
+#     only the forward-strand "I", so het insertions got about half their VAF (in both bin modes)
 
 keepExonPos=0
 legacyBins=0
@@ -95,11 +97,11 @@ NR == 1 {  ### HEADER
     next;
 }
 
-############# het SNPs: rows where the normal (sample 1) has a non-ref read #############
-$5 ~ /[AaCcTtGgDdI]/ {
+############# het SNPs: rows where the normal (sample 1) has a non-ref read (SNV, insertion I/i, deletion D/d) #####
+$5 ~ /[AaCcTtGgDdIi]/ {
     isGood = 1;
     for (s = 0; s++ < samples;) {
-        alt = gsub(/[AaCcTtGgDdI]/, "", $COL["Read" s]);
+        alt = gsub(/[AaCcTtGgDdIi]/, "", $COL["Read" s]);
         DEPTH[s] = $COL[s];
         if (DEPTH[s] < minDepth) { isGood = 0; break; }
         VAF[s] = (DEPTH[s]) ? alt / DEPTH[s] : -1;

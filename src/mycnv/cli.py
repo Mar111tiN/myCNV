@@ -110,6 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-gc-normalize", action="store_true")
     p.add_argument("--no-mock-germline", action="store_true")
     p.add_argument("--plots", action="store_true", help="write the legacy JPG plots into plots/")
+    p.add_argument("--allow-empty", action="store_true", help="write the ASCAT tables even if no SNP is left")
     return parser
 
 
@@ -234,6 +235,7 @@ def main(argv=None) -> int:
             args.pileup, args.bed, args.pon_dir, args.sample, args.out_dir, cfg, gc=args.gc, genmap=args.genmap,
             tumor=args.tumor, normal=args.normal, clean=not args.raw_pileup,
             legacy_coords=args.legacy_coords, plots=args.plots, mock_germline=not args.no_mock_germline,
+            allow_empty=args.allow_empty,
         )
         return 0
     return 1

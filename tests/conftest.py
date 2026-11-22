@@ -48,3 +48,27 @@ def study_config():
     from mycnv.config import load_config
 
     return load_config(STUDY_CONFIG)
+
+
+ALT = "[AaCcTtGgDdIi]"  # pile2CNV v2.1.0 alt classes (v1.0.1 lacked the reverse-strand insertion "i")
+
+
+def expected_het_snps(stream: pd.DataFrame, normal_vaf=(0.2, 0.8), min_depth=15) -> pd.DataFrame:
+    """pile2CNV's het-SNP table recomputed from a clean pileup stream (Chr Start Ref Depth1 Read1 Depth2 Read2
+    [ExonPos]): normal read has an alt, every sample depth >= min_depth, normal VAF within the range."""
+    reads = [c for c in stream.columns if c.startswith("Read")]
+    cand = stream.loc[stream["Read1"].str.contains(ALT)].copy()
+    keep = np.ones(len(cand), bool)
+    out = cand[["Chr", "Start"] + (["ExonPos"] if "ExonPos" in cand.columns else [])].rename(columns={"Start": "Pos"})
+    for k, read in enumerate(reads, 1):
+        depth = cand[f"Depth{k}"].astype(int)
+        alt = cand[read].str.count(ALT)
+        keep &= (depth >= min_depth).to_numpy()
+        out[f"Depth{k}"] = depth
+        out[f"VAF{k}"] = np.where(depth > 0, alt / depth.where(depth > 0, 1), -1)
+    keep &= ((out["VAF1"] >= normal_vaf[0]) & (out["VAF1"] <= normal_vaf[1])).to_numpy()
+    return out.loc[keep].reset_index(drop=True)
+
+
+def has_reverse_insertion(stream: pd.DataFrame) -> pd.Series:
+    return stream[[c for c in stream.columns if c.startswith("Read")]].apply(lambda s: s.str.contains("i")).any(axis=1)

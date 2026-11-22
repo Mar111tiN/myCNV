@@ -31,7 +31,7 @@ def test_pon_and_sample_chain(tmp_path):
         assert (pon / "CNV" / f"pon.cov.{name}.gz").is_file()
     out = tmp_path / "pair"
     run("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", bed, "--gc", GC, "--genmap", GENMAP, "--pon-dir", pon,
-        "--sample", "S1_T-N", "--out-dir", out)
+        "--sample", "S1_T-N", "--out-dir", out, "--allow-empty")
     raw = pd.read_csv(out / "raw" / "S1_T-N.cov.gz", sep="\t")
     assert len(raw) > 150 and {"log2ratio1", "log2ratio2", "PONcov_mean", "FullExonPos"} <= set(raw.columns)
     assert raw["log2ratio1"].notna().mean() > 0.9  # sample and PON bins share coordinates
