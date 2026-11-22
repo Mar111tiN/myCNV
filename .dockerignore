@@ -1,0 +1,14 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache
+**/.ipynb_checkpoints
+build
+nb
+R
+info
+cluster.R
+*.rtf
