@@ -232,7 +232,7 @@ def main(argv=None) -> int:
     if args.cmd == "sample":
         pl.run_sample(
             args.pileup, args.bed, args.pon_dir, args.sample, args.out_dir, cfg, gc=args.gc, genmap=args.genmap,
-            tumor=args.tumor, normal=args.normal, chrom=args.chrom, clean=not args.raw_pileup,
+            tumor=args.tumor, normal=args.normal, clean=not args.raw_pileup,
             legacy_coords=args.legacy_coords, plots=args.plots, mock_germline=not args.no_mock_germline,
         )
         return 0

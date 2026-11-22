@@ -6,7 +6,7 @@ Diff = |R - L| / max, value = R * Diff + L * (1 - Diff), optional min-max normal
 
 Fixes vs main (CHANGELOG.md):
 - windows, interpolation and margin filling run per chromosome (main rolled across chromosome boundaries);
-  a chromosome with fewer rows than the window gets partial (trailing L / leading R) windows
+  a chromosome with fewer rows than 2 * (window - 10) - 1 gets partial (trailing L / leading R) windows
 - the config key `diff_exp` is read (main read `diffexp` and always used 2; `diffexp` is still accepted)
 - `ddof` is passed only to std/var (pandas >= 2 rejects it for mean/sum)
 - the debug-mode normalisation of L/R no longer calls a bool
@@ -21,6 +21,7 @@ import pandas as pd
 from .tools import log
 
 _DDOF_AGGS = {"std", "var", "sem"}
+LR_INTERP_LIMIT = 10  # rows interpolated into the L/R margins (main: expand_limit=10)
 
 
 def interpolate(df: pd.DataFrame, data_col: str, ref_col: str = "FullExonPos", expand_limit: int = 20) -> pd.DataFrame:
@@ -55,8 +56,13 @@ def _roll(series: pd.Series, aggr, window: int, ddof: int, min_periods: int | No
 
 
 def _left_right(group: pd.DataFrame, col: str, aggr, window_size: int, ddof: int) -> pd.DataFrame:
-    """L and R windows for one chromosome, interpolated and margin-filled within the chromosome."""
-    if len(group) >= window_size:
+    """L and R windows for one chromosome, interpolated and margin-filled within the chromosome.
+
+    Full windows need at least 2 * (window_size - LR_INTERP_LIMIT) - 1 rows: below that, the interpolated L and R
+    ranges do not meet and the rows between them got neither (n = window_size left 229 NaN rows at window 250).
+    Such chromosomes, like those shorter than the window, get partial (trailing L / leading R) windows.
+    """
+    if len(group) >= max(window_size, 2 * (window_size - LR_INTERP_LIMIT) - 1):
         L = _roll(group[col], aggr, window_size, ddof)
         R = L.shift(-window_size + 1)
     else:
@@ -66,7 +72,7 @@ def _left_right(group: pd.DataFrame, col: str, aggr, window_size: int, ddof: int
         R = _roll(group[col][::-1], aggr, window_size, ddof, min_periods=mp)[::-1]
     df = pd.DataFrame({"L": L.to_numpy(), "R": R.to_numpy(), "FullExonPos": group["FullExonPos"].to_numpy()})
     for c in ["L", "R"]:
-        df = interpolate(df, c, expand_limit=10)
+        df = interpolate(df, c, expand_limit=LR_INTERP_LIMIT)
     L, R = df["L"].to_numpy(copy=True), df["R"].to_numpy(copy=True)
     valid_L = np.flatnonzero(~np.isnan(L))
     valid_R = np.flatnonzero(~np.isnan(R))

@@ -71,7 +71,14 @@ def get_fall_snp(snp_df: pd.DataFrame, config: dict) -> pd.DataFrame:
     params = {"FullExonPos": {make_get_density(window): window}}
     df = rolling_data(snp_df, data_params=params, roll_config=c)
     df["fallSNP"] = df["SNPdensity"] * df["PONVAF"]
-    df["fallSNP"] = df["fallSNP"] / df["fallSNP"].max()
+    top = df["fallSNP"].max()
+    if top > 0:
+        df["fallSNP"] = df["fallSNP"] / top
+    else:
+        # main divided by 0 (NaN everywhere), so the fallSNP filter dropped every SNP; PONVAF 0 = no PON artefact
+        log.warning("No SNP has a PON VAF: fallSNP set to 0 (are the sample and the PON on the same BED and "
+                    "coordinates?)")
+        df["fallSNP"] = 0.0
     return df
 
 

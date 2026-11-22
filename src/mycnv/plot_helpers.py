@@ -159,13 +159,17 @@ def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
     chrom_count = len(chrom_df.index)
     # get the number of bases
     stretch = chrom_df["max"].iloc[-1]
-    # set the number of desired ticks
-    major_tick_dist = int(stretch / (ticks + 1))
-    minor_tick_dist = int(stretch / ((ticks * 2) + 1))
+    # set the number of desired ticks (at least 1 base apart: a track of one or a few SNPs spans < ticks bases)
+    major_tick_dist = max(1, int(stretch / (ticks + 1)))
+    minor_tick_dist = max(1, int(stretch / ((ticks * 2) + 1)))
 
     # feed tick distance into chrom_df to get chrom-specific coords
     major_pos = get_tick_pos(major_tick_dist, chrom_df)
     minor_pos = [pos - minor_tick_dist for pos in major_pos]
+    if len(major_pos) < 2:
+        # too short a track for genomic tick labels
+        ax.xaxis.set_major_formatter(plt.NullFormatter())
+        return ax
 
     ax.xaxis.set_major_locator(plt.FixedLocator(major_pos))
     # only print the genomic coords below a certain base total

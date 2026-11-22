@@ -16,7 +16,7 @@ import pandas as pd
 
 from . import combine as cmb
 from .bed import read_bed, region_digest
-from .convert import split_sample_name, write_ascat
+from .convert import resolve_names, write_ascat
 from .ponmeta import combine_cov_meta, write_cov_meta, write_pon_meta
 from .raw import pon2cnv, tn2cnv
 from .rolling_cov import rolling_coverage
@@ -154,15 +154,18 @@ def sample_paths(out_dir: str, sample: str) -> dict[str, str]:
 
 
 def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, config: dict, gc=None, genmap=None,
-               tumor=None, normal=None, chrom=None, clean=True, legacy_coords=False, plots=False,
-               mock_germline=True, min_pon_match: float = 0.9, tmp_dir=None) -> dict[str, str]:
-    """Whole per-sample chain: tn2cnv -> combine -> rolling -> ASCAT input (one task per sample, plan D16)."""
-    if tumor is None or normal is None:
-        tumor, normal = split_sample_name(sample)
+               tumor=None, normal=None, clean=True, legacy_coords=False, plots=False, mock_germline=True,
+               min_pon_match: float = 0.9, allow_empty: bool = False, tmp_dir=None) -> dict[str, str]:
+    """Whole per-sample chain: tn2cnv -> combine -> rolling -> ASCAT input (one task per sample, plan D16).
+
+    Always the whole sample: GC normalisation and the log2ratio levels need every chromosome (a per-chromosome
+    split stops after tn2cnv; `combine` then takes all its outputs).
+    """
+    tumor, normal = resolve_names(sample, tumor, normal)
     p = sample_paths(out_dir, sample)
     sc, cc = config["hetSNP"], config["coverage"]
     cov_df, snp_df = tn2cnv(
-        pileup, bed, gc=gc, genmap=genmap, chrom=chrom, normal_vaf=sc["normalVAF"], min_depth=sc["minDepth"],
+        pileup, bed, gc=gc, genmap=genmap, normal_vaf=sc["normalVAF"], min_depth=sc["minDepth"],
         min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords, tmp_dir=tmp_dir,
     )
     regions = read_bed(bed)
@@ -176,9 +179,11 @@ def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, c
     roll_snp, cnv_df, _ = rolling_step(cov_df, snp_df, config)
     write_tsv(roll_snp, p["cnv_snp"], compression="gzip")
     write_tsv(cnv_df, p["cnv"], compression="gzip")
+    # ASCAT input before the optional plots, so a plot problem cannot cost the main output
+    write_ascat(roll_snp, sample, p["pre"], tumor=tumor, normal=normal, mock_germline=mock_germline,
+                allow_empty=allow_empty)
     if plots:
         cnv_plots(roll_snp, cnv_df, sample, tumor, normal, p["plots"])
-    write_ascat(roll_snp, sample, p["pre"], tumor=tumor, normal=normal, mock_germline=mock_germline)
     return p
 
 

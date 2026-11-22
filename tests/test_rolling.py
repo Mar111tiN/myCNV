@@ -104,3 +104,58 @@ def test_rolling_chromosome_order_does_not_matter(legacy_config):
         df.loc[df["Chr"] == "chr21", "FullExonPos"] += 10**8
     b, _, _ = rolling_step(cov, snp, legacy_config)
     assert_frames_close(a, b, exclude=("FullExonPos",))
+
+
+@pytest.mark.parametrize("n", [250, 300, 400, 478, 479])
+def test_rolling_mid_size_chromosome_has_no_gap(n):
+    """w <= n < 2w-21 left rows with neither L nor R (n=250: 229 NaN rows at window 250)."""
+    df = pd.DataFrame({"Chr": ["chr21"] * n, "Pos": np.arange(n) * 10, "FullExonPos": np.arange(n) * 10,
+                       "log2ratio1": np.sin(np.arange(n) / 10)})
+    out = one_col_rolling(df, "log2ratio1", "mean", 250, {"normalize": False, "diff_exp": 2})
+    assert out["log2ratio1_mean"].notna().all()
+
+
+def test_merge_cov_to_snp_interpolates_within_each_chromosome():
+    """SNPs after the last bin of chr7 and before the first bin of chr21 take their own chromosome's edge values."""
+    from mycnv.rolling_snp import merge_cov_to_snp
+
+    cov = pd.DataFrame({"Chr": ["chr7"] * 3 + ["chr21"] * 3, "Pos": [0, 10, 20, 0, 10, 20],
+                        "ExonPos": [1, 11, 21, 6, 16, 26], "FullExonPos": [1, 11, 21, 1015, 1025, 1035],
+                        "log2ratio1": [0, 0, 0, 1, 1, 1.0], "PONcov_mean": 50.0, "GCratio": 0.5})
+    snp = pd.DataFrame({"Chr": ["chr7", "chr21"], "Pos": [25, 5], "ExonPos": [26, 1], "FullExonPos": [26, 1010],
+                        "VAF1": [0.5, 0.5], "PONVAF": [0.0, 0.0], "PONDepth": [0, 0]})
+    out = merge_cov_to_snp(snp, cov)
+    assert out["log2ratio1"].tolist() == [0.0, 1.0]
+
+
+def test_fallsnp_without_pon_vaf_keeps_snps(study_config):
+    from mycnv.rolling_snp import get_fall_snp
+
+    n = 40
+    df = pd.DataFrame({"Chr": "chr1", "Pos": np.arange(n) * 1000, "ExonPos": np.arange(n) * 100,
+                       "FullExonPos": np.arange(n) * 100 + np.r_[np.zeros(n - 5), np.arange(5) * -95],
+                       "PONVAF": 0.0})
+    out = get_fall_snp(df.sort_values("FullExonPos").reset_index(drop=True), study_config)
+    assert (out["fallSNP"] == 0).all()  # main: 0/0 = NaN, so every SNP failed fallSNP < maxFallSNP
+
+
+def test_global_steps_stay_global():
+    """VAF centring, Diff scaling and the SNP-density normalisation run over the whole sample (as in main)."""
+    from mycnv.rolling_snp import center_vaf
+
+    snp = pd.DataFrame({"Chr": ["chr7"] * 50 + ["chr21"] * 50, "VAF1": np.r_[np.full(50, 0.45), np.full(50, 0.6)]})
+    out = center_vaf(snp)
+    assert np.allclose(out["VAF1"], snp["VAF1"] + 0.5 - snp["VAF1"].mean())
+
+    rng = np.random.default_rng(1)
+    n = 600
+    df = pd.DataFrame({"Chr": ["chr7"] * n + ["chr21"] * n, "Pos": np.r_[np.arange(n), np.arange(n)] * 10,
+                       "FullExonPos": np.arange(2 * n) * 10,
+                       "log2ratio1": np.r_[np.where(np.arange(n) < n // 2, 0, 1.0), rng.normal(0, 0.01, n)]})
+    out = one_col_rolling(df, "log2ratio1", "mean", 50, {"normalize": True, "diff_exp": 1})
+    diff = out["log2ratio1_meanDiff"]
+    assert diff.max() == pytest.approx(1)  # scaled by the global max (the step on chr7)
+    assert diff[out["Chr"] == "chr21"].max() < 0.1  # chr21 is not rescaled to its own max
+    val = out["log2ratio1_mean"]
+    assert val.min() == pytest.approx(0) and val.max() == pytest.approx(1)  # min-max over both chromosomes
+    assert val[out["Chr"] == "chr21"].max() < 0.5
