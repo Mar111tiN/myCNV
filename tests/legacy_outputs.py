@@ -1,9 +1,12 @@
-"""Produce the legacy "before" outputs in tests/data/legacy/ with the unmodified main code (run once; committed).
+"""Produce the legacy "before" outputs with the unmodified main code (run once; the public ones are committed).
 
 Run in the `somvar-legacy` env (py3.9, pandas 1.5.2) against a worktree of main:
-  git -C <myCNV> worktree add /tmp/myCNV-main main --detach
-  conda run -n somvar-legacy python tests/legacy_outputs.py /tmp/myCNV-main
+  git -C <myCNV> worktree add --detach <scratch>/myCNV-main main
+  conda run -n somvar-legacy python tests/legacy_outputs.py <scratch>/myCNV-main
 The legacy mawk tools run per chromosome, as somVarWES ran them (pile2CNV/PON2CNV need -c 0 there).
+Public outputs (tests/data/legacy/, from tests/data/synth/): pile2CNV, TN2CNV, PON2CNV, PON combine, sample combine,
+rolling and ASCAT. Restricted outputs (tests/data/restricted/legacy/, git-ignored): the same steps on the
+patient-derived slices, only if tests/data/restricted/ exists.
 """
 
 import os
@@ -59,6 +62,54 @@ def sh(cmd):
     subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True, stderr=subprocess.DEVNULL)
 
 
+def pon2cnv_synth_outputs():
+    """Legacy filterBed | PON2CNV on the synthetic chr7 PONmatrix (covered BED)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        snp = os.path.join(tmp, "chr7.snp")
+        sh(f"gunzip -c {SYNTH}/matrix/chr7.pon.gz | bash {SHELL}/filterBed.mawk {DATA}/haev7_covered_chr7.bed -x -c chr7 | "
+           f"bash {SHELL}/PON2CNV.mawk -x -o {snp} -v 0.05 -d 50 -c 0 > {OUT}/pon2cnv_synth_chr7.cov")
+        shutil.copy(snp, os.path.join(OUT, "pon2cnv_synth_chr7.snp"))
+
+
+SYN_CHROMS = ["chr7", "chr21", "chrX"]
+
+
+def synth_chain_outputs():
+    """main's PON combine, sample combine, rolling and ASCAT on the synthetic CNV PON + sample (tests/synth.py)."""
+    pon_out = os.path.join(OUT, "pon_synth_CNV")
+    with tempfile.TemporaryDirectory() as pon:
+        shutil.copytree(os.path.join(SYNTH, "pon", "cov"), os.path.join(pon, "cov"))
+        shutil.copytree(os.path.join(SYNTH, "pon", "snp"), os.path.join(pon, "snp"))
+        os.makedirs(os.path.join(pon, "CNV"))
+        cfg = config(PON_path=pon)
+        make_PON_coverage(config=cfg, save=True)
+        make_PON_snp(config=cfg, save=True)
+        shutil.copytree(os.path.join(pon, "CNV"), pon_out, dirs_exist_ok=True)
+    with tempfile.TemporaryDirectory() as pon:
+        shutil.copytree(pon_out, os.path.join(pon, "CNV"))
+        for gc in [True, False]:
+            cfg = config(cov_path=os.path.join(SYNTH, "sample"), snp_path=os.path.join(SYNTH, "sample"), PON_path=pon,
+                         chrom_list=SYN_CHROMS)
+            cfg["coverage"]["GCnormalize"] = gc
+            cov_df, snp_df = combine_sample_CNV("syn_T-N", config=cfg)
+            tag = "gc" if gc else "nogc"
+            cov_df.to_csv(os.path.join(OUT, f"combine_synth_{tag}.cov.gz"), sep="\t", index=False, compression="gzip")
+            snp_df.to_csv(os.path.join(OUT, f"combine_synth_{tag}.snp"), sep="\t", index=False)
+    raw_cov = pd.read_csv(os.path.join(OUT, "combine_synth_gc.cov.gz"), sep="\t")
+    raw_snp = pd.read_csv(os.path.join(OUT, "combine_synth_gc.snp"), sep="\t")
+    for tag, chroms in [("chr7", ["chr7"]), ("all", SYN_CHROMS)]:
+        cfg = config()
+        cov_df = filter_cov(raw_cov.loc[raw_cov["Chr"].isin(chroms)], config=cfg)
+        cov_df = rolling_coverage(cov_df, config=cfg)
+        snp_df = rolling_snp(raw_snp.loc[raw_snp["Chr"].isin(chroms)], cov_df, config=cfg)
+        snp_df.to_csv(os.path.join(OUT, f"rolling_synth_{tag}.cnv.snp.gz"), sep="\t", index=False, compression="gzip")
+        remergeCNV(snp_df, cov_df).to_csv(os.path.join(OUT, f"rolling_synth_{tag}.cnv.gz"), sep="\t", index=False,
+                                          compression="gzip")
+    cnv_df = pd.read_csv(os.path.join(OUT, "rolling_synth_chr7.cnv.snp.gz"), sep="\t", compression="gzip")
+    os.makedirs(os.path.join(OUT, "ascat_synth_chr7"), exist_ok=True)
+    write_ASCAT(cnv_df, sample="syn_T-N", outpath=os.path.join(OUT, "ascat_synth_chr7"))
+
+
 def mawk_outputs():
     """Legacy filterBed | pile2CNV per chromosome on the synthetic multi-chromosome pileup."""
     bed = os.path.join(SYNTH, "multi.bed")
@@ -73,6 +124,9 @@ def mawk_outputs():
             snps.append(pd.read_csv(snp, sep="\t", dtype=str))
     pd.concat(covs).to_csv(os.path.join(OUT, "pile2cnv_multi.cov"), sep="\t", index=False)
     pd.concat(snps).to_csv(os.path.join(OUT, "pile2cnv_multi.snp"), sep="\t", index=False)
+
+
+def pon2cnv_restricted_outputs():
     # PON2CNV on the chr7 PONmatrix head with the padded BED (how the stored HAEv7 PON cov/ was made)
     with tempfile.TemporaryDirectory() as tmp:
         snp = os.path.join(tmp, "chr7.snp")
@@ -149,9 +203,15 @@ def rolling_outputs():
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    os.makedirs(ROUT, exist_ok=True)
     mawk_outputs()
     tn2cnv_outputs()
+    pon2cnv_synth_outputs()
+    synth_chain_outputs()
+    if not os.path.isdir(os.path.join(RES, "pon_mini")):
+        print("public legacy outputs written to", OUT, "(no restricted fixtures)")
+        return
+    os.makedirs(ROUT, exist_ok=True)
+    pon2cnv_restricted_outputs()
     pon2cnv_py_outputs()
     pon_combine_outputs()
     # the combine step needs a PON CNV/ dir: use the legacy one just made
@@ -159,7 +219,7 @@ def main():
     combine_outputs()
     shutil.rmtree(os.path.join(ROUT, "pon_mini_legacy"))
     rolling_outputs()
-    print("legacy outputs written to", OUT)
+    print("legacy outputs written to", OUT, "and", ROUT)
 
 
 if __name__ == "__main__":
