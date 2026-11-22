@@ -1,6 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-#v1.1.1
+#v1.2.0 (myCNV kumodev): bash shebang (the argument loop is bash syntax; under dash every option was silently
+#   ignored) and -s compared as a number (v1.1.1 compared strings, so "-s 2" was ignored with >= 10 samples).
 ### cleans samtools mpileup output
 # first any end-of-read markers like ^I or ^[ will be removed
 # next, the A+12T for inserts and the T-12A for deletions will be converted to I/i and D/d
@@ -44,7 +45,7 @@ mawk '
 NR == 1 {
     printDepth="'$outputDepth'";
     samples = (NF - 3) / 3;
-    useSamples="'${useSamples:-0}'";
+    useSamples='${useSamples:-0}' + 0;
     if (useSamples > 0) {
         samples = (useSamples > samples) ? samples : useSamples;
     }

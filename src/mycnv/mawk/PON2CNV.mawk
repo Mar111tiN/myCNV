@@ -1,282 +1,157 @@
-#!/bin/sh
-# v1.0.0
-# computes coverages and SNP output from PON matrix
-
-# INPUT
-# takes PONmatrix with optional ExonPos added by filterBED (auto-detected)
-# 	Chr	Start	Ref	A	G	C	T	I	D	Depth	[ ExonPos ]	
-
-# USAGE: 
-# samtools gunzip <  chr1.pon.gz [ | filterBed $BED -x -c chr? ] | PON2CNV
-# [     -c | --min-coverage]        <INT=0>                     minimum (binned) coverage for output    ]
-# [     -x | --keep-exon-pos        <Flag=False>                if exonPos should be used               ]
-# [     -b | --bin-size             <INT=10>                    size of the bin for summed coverage     ]
-# [     -o | --output-snp-file      <path to snp file>          snp_file for the heteroSNP output       ]
-# [     -v|--min-vaf|--min-VAF      <INT=0>                     minimum total VAF for heteroSNP output  ]
-# [     -d|--min-depth              <INT=10>                    minimum total depth for heteroSNP output]                
-
+#!/usr/bin/env bash
+# PON2CNV v2.0.0 (myCNV kumodev)
+# Computes binned per-sample coverage and pooled SNP VAFs from a PONmatrix (ebscore pile2count format).
+#
+# INPUT (optionally | filterBed -x):
+#   Chr  Start  Ref  A  G  C  T  I  D  Depth  [ExonPos]      cells: s1|s2|..|sN=s1|s2|..|sN (+ strand = - strand)
+# USAGE:
+#   gunzip < matrix/chr7.pon.gz | bash filterBed.mawk covered.bed -x -c chr7 | bash PON2CNV.mawk -x -o snp/chr7.snp
+# OPTIONS
+#   -c | --min-coverage     <INT=0>      minimum (binned) coverage of any sample for coverage output
+#   -x | --keep-exon-pos                 keep the ExonPos column (if present)
+#   -b | --bin-size         <INT=10>     bin size for the mean coverage
+#   -o | --output-snp-file  <path>       SNP output file (required; ".snp" is appended if missing)
+#   -v | --min-vaf          <FLOAT=0.25> minimum pooled VAF for SNP output (exclusive)
+#   -d | --min-depth        <INT=50>     minimum pooled depth for SNP output
+#   -L | --legacy-bins                   reproduce the v1.0.0 bin labels (see pile2CNV.mawk)
 # OUTPUT
-#   SNP
-#       Chr Pos [ExonPos] Depth VAF               Depth and VAF are for aggregated over all samples
-#   COV
-#       Chr Pos [ExonPos] Cov1 Cov2..CovN
+#   coverage (stdout): Chr Pos [ExonPos] Cov1 .. CovN
+#   SNPs (-o file):    Chr Pos [ExonPos] VAF Depth            (pooled over all PON samples and both strands)
+#
+# Changes vs v1.0.0 (shell/PON2CNV.mawk on main):
+#   - bash shebang; per-chromosome binning and bin labels as in pile2CNV v2.0.0
+#   - the first base of every bin after the first is counted. v1.0.0 reset the bin sum with the undefined
+#     $COL[s] (= $0, numeric 0), so that base was lost (about 1/binSize of the coverage).
 
-
-####### ARGPARSE ##################
+keepExonPos=0
+legacyBins=0
 PARAMS=""
 while (( "$#" )); do
-    # allow for equal sign in long-format options
     [[ $1 == --*=* ]] && set -- "${1%%=*}" "${1#*=}" "${@:2}"
     case "$1" in
-        -x|--keep-exon-pos)
-        keepExonPos=1
-        shift
-        ;;
-        # snp_file output
-        -o|--output-snp-file)
-        if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-            snpFile=$2
+        -x|--keep-exon-pos) keepExonPos=1; shift ;;
+        -L|--legacy-bins) legacyBins=1; shift ;;
+        -o|--output-snp-file|-c|--min-coverage|-b|--bin-size|-v|--min-vaf|--min-VAF|-d|--min-depth)
+        if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+            case "$1" in
+                -o|--output-snp-file) snpFile=$2 ;;
+                -c|--min-coverage) minCov=$2 ;;
+                -b|--bin-size) binSize=$2 ;;
+                -v|--min-vaf|--min-VAF) minVAF=$2 ;;
+                -d|--min-depth) minDepth=$2 ;;
+            esac
             shift 2
         else
-            echo "<PON2CNV> Error: output file for heteroSNP is missing\n[-o|--output-snp-file]" >&2
+            echo "<PON2CNV> Error: argument for $1 is missing" >&2
             exit 1
         fi
         ;;
-        # minimum coverage
-        -c|--min-coverage)
-        if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-            minCov=$2
-            shift 2
-        else
-            echo "<PON2CNV> Error: Argument for $1 is missing" >&2
-            exit 1
-        fi
-        ;;
-        # bin Size
-        -b|--bin-size)
-        if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-            binSize=$2
-            shift 2
-        else
-            echo "<PON2CNV> Error: Provide size for step size [-s|--step-size (default=10)]" >&2
-            exit 1
-        fi
-        ;;
-        # minVAF
-        -v|--min-vaf|--min-VAF)
-        if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-            minVAF=$2
-            shift 2
-        else
-            echo "<PON2CNV> Error: Provide minimum VAF for heteroSNP output [-v|--min-vaf (default=0.25)]" >&2
-            exit 1
-        fi
-        ;;
-        # minDepth
-        -d|--min-depth)
-        if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-            minDepth=$2
-            shift 2
-        else
-            echo "<PON2CNV> Error: Provide minimum VAF for heteroSNP output [-d|--min-depth (default=50)]" >&2
-            exit 1
-        fi
-        ;;
-        -*|--*=) # unsupported flags
-        echo "<PON2CNV> Error: Unsupported flag $1" >&2
-        exit 1
-        ;;
-        *) # preserve positional arguments
-        PARAMS="$PARAMS $1"
-        shift
-        ;;
+        -*|--*=) echo "<PON2CNV> Error: Unsupported flag $1" >&2; exit 1 ;;
+        *) PARAMS="$PARAMS $1"; shift ;;
     esac
 done
+if [ -z "$snpFile" ]; then
+    echo "<PON2CNV> Error: SNP output file is required [-o|--output-snp-file]" >&2
+    exit 1
+fi
 
-
-
-################ MAWK #########################
-###############################################
-mawk '
-############# BEGIN #########################
-NR == 1 {  ### GET/WRITE HEADER
-    ##### ARGS
-    # detect ExonPos
+mawk -v keepExonPosArg="$keepExonPos" -v legacyBins="$legacyBins" -v minCov="${minCov-0}" -v binSize="${binSize-10}" \
+     -v minVAF="${minVAF-0.25}" -v minDepth="${minDepth-50}" -v snpFile="$snpFile" '
+BEGIN { FS = "\t"; }
+NR == 1 {  ### HEADER
     hasExonPos = ($NF == "ExonPos");
-    # keepExonPos only if Exon positions are there
-    keepExonPos = (hasExonPos && '${keepExonPos-0}')
-    # COV
-    minCov='${minCov-0}';
-    binSize='${binSize-10}';
-    # get the coverage threshold for the output function
-    if (minCov) covThresh=minCov * binSize - 1;
-    printf("<PON2CNV> Bin coverage: binSize=%s | minCoverage=%s\n", binSize, '$minCov') >> "/dev/stderr";
-
-    # SNP
-    VAFPRECISION=4;
-    PREC=10^VAFPRECISION;
-    minVAF='${minVAF-0.25}';
-    minDepth='${minDepth-50}'
-    printf("<PON2CNV> heteroSNP: minDepth=%s | totalVAF <= %s\n", minDepth, minVAF) >> "/dev/stderr";
-    snpFile="'${snpFile-"test.snp"}'";
-    if (snpFile !~ ".snp") snpFile = snpFile ".snp"
-    # setup SNP file and write its Header
-    printf("<PON2CNV> Writing snpData to %s\n", snpFile) >> "/dev/stderr";
-
-
-    ###### HEADER
-    baseHeader = (keepExonPos) ? "Chr\tPos\tExonPos" : "Chr\tPos"
-    printf(baseHeader);
-    printf(baseHeader) > snpFile;
-    
-    printf("\tVAF\tDepth\n") >> snpFile;
-    # detect DEPTH column in fields
-    for (f=0; f++<NF;) {
-        if ($f == "Depth") DEPTHCOL=f;
-    }
-    # reset lastBin;
-    lastBin=0;
-
+    keepExonPos = (hasExonPos && keepExonPosArg);
+    minCov += 0; binSize += 0; minVAF += 0; minDepth += 0;
+    if (minCov) covThresh = minCov * binSize - 1;
+    printf("<PON2CNV> Bin coverage: binSize=%s | minCoverage=%s%s\n", binSize, minCov, legacyBins ? " | legacy bin labels" : "") > "/dev/stderr";
+    VAFPRECISION = 4;
+    PREC = 10 ^ VAFPRECISION;
+    printf("<PON2CNV> heteroSNP: minDepth=%s | totalVAF > %s\n", minDepth, minVAF) > "/dev/stderr";
+    if (snpFile !~ /\.snp/) snpFile = snpFile ".snp";
+    printf("<PON2CNV> Writing snpData to %s\n", snpFile) > "/dev/stderr";
+    baseHeader = (keepExonPos) ? "Chr\tPos\tExonPos" : "Chr\tPos";
+    printf("%s", baseHeader);
+    printf("%s\tVAF\tDepth\n", baseHeader) > snpFile;
+    for (f = 0; f++ < NF;) if ($f == "Depth") DEPTHCOL = f;
+    haveBin = 0;
     next;
 }
-
-NR == 2 { # detect the sample count in the first data line and output the data HEADER
+NR == 2 {  ### sample count from the first data line, then the coverage header
     split($DEPTHCOL, SPLIT, "=");
     samples = gsub(/\|/, "", SPLIT[1]) + 1;
-    print("<PON2CNV> ", samples, "samples detected") > "/dev/stderr"
-    # output data col header and create zero-string
-    zero="0";
-    
-    for (s=0; s++ < samples;) {
+    print("<PON2CNV> ", samples, "samples detected") > "/dev/stderr";
+    zero = "0";
+    for (s = 0; s++ < samples;) {
         printf("\tCov%s", s);
-        # make zero-string
-        if (s > 1) {
-            zero = zero "|0";
-        }
-        # init POS, NEG arrays for use as global vars in function
-        POS[s]=0;
-        NEG[s]=0;
+        if (s > 1) zero = zero "|0";
+        POS[s] = 0;
+        NEG[s] = 0;
     }
-    zero=zero "=" zero;
-    ### NEWLINE #####
+    zero = zero "=" zero;
     printf("\n");
-
-    ### VAF #######
-    totalDEPTH=0;
 }
 
-function aggString(col,  SPLIT, sum) {
-    # aggregate all values for one data col
-    sum=0;
-    split(col, SPLIT, "=");
-    split(SPLIT[1], POS, "|");
-    split(SPLIT[2], NEG, "|");
-    for (s=0; s++<samples;) {
-        sum+=POS[s] + NEG[s];
-    }
+function aggString(col,   PARTS, sum, s) {
+    # sum of one cell over samples and strands; leaves the per-sample values in POS/NEG
+    sum = 0;
+    split(col, PARTS, "=");
+    split(PARTS[1], POS, "|");
+    split(PARTS[2], NEG, "|");
+    for (s = 0; s++ < samples;) sum += POS[s] + NEG[s];
     return sum;
 }
-
-
-function outputCov(  s) {
-    # get positions for thisBin
-    binPos=thisBin * binSize;
-    # check minimum coverage
+function flushBin(label,   s, noOutput) {
     if (minCov) {
-        noOutput=1;
-        for (s=0; s++ < samples;) {
-            if (COVSUM[s] > covThresh) {
-                noOutput=0;
-                break;
-            }
-        }
-
-        if (noOutput) { # do the update without print
-        ### DEBUG
-        # print("noOutput");
-        ### DEBUG
-            if (keepExonPos) exonPos=$NF-(pos%binSize);
-            for (s=0; s++ < samples;) {
-                # reset COVSUM
-                COVSUM[s] = $COL[s];
-            }
-            return;
-        }
+        noOutput = 1;
+        for (s = 0; s++ < samples;) if (COVSUM[s] > covThresh) { noOutput = 0; break; }
+        if (noOutput) return;
     }
-    printf("%s\t%s", $1, binPos);
-
-    if (keepExonPos) {
-        printf("\t%s", exonPos);
-        exonPos=$NF-(pos%binSize);
-    }
-    for (s=0; s++ < samples;) {
-        printf("\t%s", COVSUM[s] / binSize);
-        # reset COVSUM
-        COVSUM[s] = $COL[s];
-    }
-    # NEWLINE
+    printf("%s\t%s", binChr, label);
+    if (keepExonPos) printf("\t%s", binExon);
+    for (s = 0; s++ < samples;) printf("\t%s", COVSUM[s] / binSize);
     printf("\n");
 }
+function startBin(   s) {
+    # POS/NEG hold the depths of the current line
+    binChr = $1;
+    bin = thisBin;
+    # legacy: ExonPos extrapolated to the bin start; fixed: ExonPos of the first covered base (monotonic)
+    if (keepExonPos) binExon = legacyBins ? $NF - (pos % binSize) : $NF;
+    for (s = 0; s++ < samples;) COVSUM[s] = POS[s] + NEG[s];
+    haveBin = 1;
+}
 
-
-#############################################
-############# DATA ######################
-$DEPTHCOL != zero { # skip absolute zero lines
-    pos=$2;
-
-    ##### VAF ##################
-    # get the total ALT values
-    totalAlt=0;
-    for (col=3; ++col<DEPTHCOL;) {
-        # skip zero strings
+$DEPTHCOL != zero {  # skip positions without coverage in any sample
+    pos = $2;
+    ##### pooled VAF
+    totalAlt = 0;
+    for (col = 3; ++col < DEPTHCOL;) {
         if ($col == zero) continue;
-        # get the split data arrays
         totalAlt += aggString($col);
     }
-    # get the total Depths and fill POS and NEG with Depth values
-    # ..for use in coverage 
-    totalDepth=aggString($DEPTHCOL)
-    totalVAF=int((totalAlt / totalDepth) * PREC) / PREC;
+    # the Depth cell is aggregated last, so POS/NEG hold the depths below
+    totalDepth = aggString($DEPTHCOL);
+    totalVAF = int((totalAlt / totalDepth) * PREC) / PREC;
     if ((totalVAF > minVAF) && (totalDepth >= minDepth)) {
-        # build up the output string
-        outstring=$1 "\t" pos;
+        outstring = $1 "\t" pos;
         if (keepExonPos) outstring = outstring "\t" $NF;
         outstring = outstring "\t" totalVAF "\t" totalDepth;
-        print(outstring) >> snpFile;
+        print(outstring) > snpFile;
     }
-
-    ##### COV #################
-    # get the current bin
-    thisBin=int((pos) / binSize);
-
-    if (thisBin == lastBin) { # same bin --> accumulate
-        for (s=0; s++ < samples;) {
-            COVSUM[s] += POS[s] + NEG[s];
-        }
-    } else { # jump to next bin
-        ########### OUTPUT LAST BIN AND UPDATE ##########
-        if (lastBin > 0) {
-            outputCov()
-        } else { # first line
-            # get the positions for first bin
-            binPos=thisBin * binSize;
-            if (keepExonPos) { 
-                exonPos=$NF-(pos%binSize);
-            }
-            # store first line
-            for (s=0; s++ < samples;) {
-                COVSUM[s] = POS[s] + NEG[s];
-                totalDepth += COVSUM[s];
-            }
-        }
-        lastBin=thisBin;
-        
+    ##### coverage
+    thisBin = int(pos / binSize);
+    if (!haveBin) {
+        startBin();
+    } else if ($1 != binChr) {
+        flushBin(bin * binSize);
+        startBin();
+    } else if (thisBin != bin) {
+        flushBin(legacyBins ? thisBin * binSize : bin * binSize);
+        startBin();
+    } else {
+        for (s = 0; s++ < samples;) COVSUM[s] += POS[s] + NEG[s];
     }
-    ####### DEBUG ########
-    # print("pos, exonPos, thisBin", pos, exonPos, thisBin)
-    ####### DEBUG ########
 }
 END {
-    outputCov();
-}
-'
+    if (haveBin) flushBin(bin * binSize);
+}'
