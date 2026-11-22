@@ -35,16 +35,26 @@ def _pon_files(pon_dir: str, sub: str, suffix: str, chroms) -> list[str]:
     return files
 
 
+def _concat(dfs: list[pd.DataFrame]) -> pd.DataFrame:
+    """pd.concat without the header-only frames: pandas 3 no longer ignores empty frames when it picks the result
+    dtypes, so one empty per-chromosome file turned every column into object."""
+    full = [d for d in dfs if len(d)]
+    return pd.concat(full, ignore_index=True) if full else dfs[0].copy()
+
+
 def make_pon_snp(pon_dir: str, chroms=PRIMARY_CHROMS) -> pd.DataFrame:
     """Concatenate snp/{chrom}.snp.gz into one table with PONVAF / PONDepth."""
     dfs = [read_tsv(f) for f in _pon_files(pon_dir, "snp", "snp.gz", chroms)]
-    snp_df = pd.concat(dfs, ignore_index=True).rename(columns={"VAF": "PONVAF", "Depth": "PONDepth"})
+    snp_df = _concat(dfs).rename(columns={"VAF": "PONVAF", "Depth": "PONDepth"})
     return snp_df
 
 
 def combine_pon_coverage(pon_dir: str, chroms=PRIMARY_CHROMS) -> pd.DataFrame:
     dfs = [read_tsv(f) for f in _pon_files(pon_dir, "cov", "cov.gz", chroms)]
-    return set_chrom_categorical(pd.concat(dfs, ignore_index=True), chroms)
+    cov_df = _concat(dfs)
+    if cov_df.empty:
+        raise ValueError(f"the PON coverage files in {pon_dir}/cov are empty")
+    return set_chrom_categorical(cov_df, chroms)
 
 
 def normalize_gc_col(cov_df: pd.DataFrame, col: str) -> pd.DataFrame:
@@ -162,7 +172,7 @@ def write_pon(pon_dir: str, tables: dict, snp_df: pd.DataFrame) -> list[str]:
 # ##################### SAMPLE ########################################################
 def concat_tables(paths) -> pd.DataFrame:
     """Concatenate per-chromosome (or whole-sample) tables in natural chromosome order."""
-    df = pd.concat([read_tsv(p) for p in paths], ignore_index=True)
+    df = _concat([read_tsv(p) for p in paths])
     return set_chrom_categorical(df).sort_values(["Chr", "Pos"], kind="stable").reset_index(drop=True)
 
 

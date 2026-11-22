@@ -82,7 +82,12 @@ def filter_snp(snp_df: pd.DataFrame, config: dict) -> pd.DataFrame:
     for col in ["PONVAF", "PONDepth"]:
         df[col] = df[col].fillna(0)
     keep = (df["PONVAF"] < c["maxPONVAF"]) & (df["fallSNP"] < c["maxFallSNP"]) & (df["SNPdensity"] < c["maxSNPdensity"])
-    for key in [k for k in c if k.startswith("map")]:
+    map_keys = [k for k in c if k.startswith("map")]
+    no_map = df[map_keys].isna().any(axis=1) if map_keys else pd.Series(False, index=df.index)
+    if no_map.any():
+        log.warning("%d of %d SNPs have no mappability value (gaps in the genmap track): the SNP filter drops them",
+                    int(no_map.sum()), len(df))
+    for key in map_keys:
         keep &= df[key] >= c[key]
     log.info("SNP filter keeps %d of %d SNPs", int(keep.sum()), len(df))
     return df.loc[keep].reset_index(drop=True)

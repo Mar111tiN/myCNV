@@ -10,6 +10,9 @@ LEGACY = os.path.join(DATA, "legacy")
 SYNTH = os.path.join(DATA, "synth")
 GC = os.path.join(DATA, "tracks", "gc")
 GENMAP = os.path.join(DATA, "tracks", "genmap")
+# synthetic tracks for synth/multi.bed (chr7, chr21, chrX)
+SGC = os.path.join(SYNTH, "tracks", "gc")
+SGENMAP = os.path.join(SYNTH, "tracks", "genmap")
 STUDY_CONFIG = os.path.join(HERE, "study_config_CNV.yaml")
 # Patient-derived fixtures (real PON normals, NHL1 study SNPs) and the legacy outputs made from them. Git-ignored
 # (plan D14); recreate with tests/make_fixtures.py + tests/synth.py + tests/legacy_outputs.py from the dev-space data.

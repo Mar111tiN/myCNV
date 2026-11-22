@@ -5,7 +5,7 @@ import sys
 
 import pandas as pd
 
-from conftest import DATA, GC, GENMAP, SYNTH
+from conftest import DATA, GC, GENMAP, SGC, SGENMAP, SYNTH
 
 MYCNV = [sys.executable, "-m", "mycnv.cli"]
 
@@ -44,11 +44,12 @@ def test_pon_and_sample_chain(tmp_path):
 def test_split_runs_equal_whole_sample(tmp_path):
     """tn2cnv per chromosome + combine == the whole-sample run (optional split, plan D16)."""
     bed = f"{SYNTH}/multi.bed"
-    run("tn2cnv", "--pileup", f"{SYNTH}/multi.cpile", "--bed", bed, "--out-cov", tmp_path / "all.cov",
+    tracks = ["--gc", SGC, "--genmap", SGENMAP]
+    run("tn2cnv", "--pileup", f"{SYNTH}/multi.cpile", "--bed", bed, *tracks, "--out-cov", tmp_path / "all.cov",
         "--out-snp", tmp_path / "all.snp")
     parts = []
     for chrom in ["chr7", "chr21", "chrX"]:
-        run("tn2cnv", "--pileup", f"{SYNTH}/multi.cpile", "--bed", bed, "--chrom", chrom,
+        run("tn2cnv", "--pileup", f"{SYNTH}/multi.cpile", "--bed", bed, *tracks, "--chrom", chrom,
             "--out-cov", tmp_path / f"{chrom}.cov", "--out-snp", tmp_path / f"{chrom}.snp")
         parts.append(pd.read_csv(tmp_path / f"{chrom}.cov", sep="\t"))
     whole = pd.read_csv(tmp_path / "all.cov", sep="\t")

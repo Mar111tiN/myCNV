@@ -135,5 +135,6 @@ def pon2cnv(
         snp_df = pd.read_csv(snp_file, sep="\t")
     cov_df = _fix_bins(cov_df, regions, bin_size, legacy_coords, matrix)
     cov_df = add_gc(cov_df, gc)
-    cov_df, snp_df = add_genmap(cov_df, snp_df, track=genmap)
+    # the CNV PON does not use the map columns: genmap is optional here
+    cov_df, snp_df = add_genmap(cov_df, snp_df, track=genmap, required=False, names=("PON bins", "PON SNPs"))
     return cov_df, snp_df
