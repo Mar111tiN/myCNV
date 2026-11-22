@@ -126,17 +126,17 @@ def pons(tmp_path_factory):
     root = tmp_path_factory.mktemp("pons")
     out = {}
     for name, bed, extra in [("fixed", BED, []), ("legacy", BED, ["--legacy-coords"]), ("padded", PADDED, [])]:
-        cli("pon-coverage", "--matrix-dir", f"{SYNTH}/matrix", "--bed", bed, "--gc", GC, "--genmap", GENMAP,
-            "--out-dir", root / name, *extra)
-        cli("pon-combine", "--pon-dir", root / name, "--chroms", "chr7")
+        cli("pon-coverage", "--ponmatrix", SYNTH, "--bed", bed, "--gc", GC, "--genmap", GENMAP,
+            "-o", root / name, *extra)
+        cli("pon-combine", "--ponmatrix", root / name, "-o", root / name, "--chrom", "chr7")
         out[name] = root / name
     return out
 
 
 def test_thinned_sample_keeps_every_bin_through_the_cli(tmp_path, pons):
     pile = thinned_pileup(tmp_path / "thin.cpile")
-    cli("sample", "--pileup", pile, "--bed", BED, "--gc", GC, "--genmap", GENMAP, "--pon-dir", pons["fixed"],
-        "--sample", "S1_T-N", "--out-dir", tmp_path / "out", "--allow-empty")
+    cli("sample", "--pileup", pile, "--bed", BED, "--gc", GC, "--genmap", GENMAP, "--ponmatrix", pons["fixed"],
+        "--sample", "S1_T-N", "-o", tmp_path / "out", "--allow-empty")
     raw = read(tmp_path / "out" / "raw" / "S1_T-N.cov.gz")
     cov, _ = tn2cnv(str(pile), BED, gc=GC, genmap=GENMAP)
     pon = read(pons["fixed"] / "CNV" / "pon.cov.filterGC.gz")
@@ -159,7 +159,7 @@ def test_pon_records_its_coordinates(pons):
 ])
 def test_mixed_coordinates_or_beds_fail(tmp_path, pons, pon, extra, message):
     res = cli("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED, "--gc", GC, "--genmap", GENMAP,
-              "--pon-dir", pons[pon], "--sample", "S1_T-N", "--out-dir", tmp_path / "out", *extra, check=False)
+              "--ponmatrix", pons[pon], "--sample", "S1_T-N", "-o", tmp_path / "out", *extra, check=False)
     assert res.returncode != 0 and message in res.stderr
     assert not (tmp_path / "out" / "raw").exists()
 
@@ -177,7 +177,7 @@ def test_mismatch_without_pon_metadata_is_caught_by_the_data(tmp_path, pons, pon
     shutil.copytree(pons[pon] / "CNV", bare / "CNV")
     (bare / "CNV" / "pon.json").unlink()
     res = cli("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED, "--gc", GC, "--genmap", GENMAP,
-              "--pon-dir", bare, "--sample", "S1_T-N", "--out-dir", tmp_path / "out", *extra, check=False)
+              "--ponmatrix", bare, "--sample", "S1_T-N", "-o", tmp_path / "out", *extra, check=False)
     assert res.returncode != 0 and re.search(message, res.stderr)
 
 
@@ -188,7 +188,7 @@ def test_legacy_sample_against_fixed_pon_without_metadata_fails(tmp_path, pons):
     shutil.copytree(pons["fixed"] / "CNV", bare / "CNV")
     (bare / "CNV" / "pon.json").unlink()
     res = cli("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED, "--gc", GC, "--genmap", GENMAP,
-              "--pon-dir", bare, "--sample", "S1_T-N", "--out-dir", tmp_path / "out", "--legacy-coords", check=False)
+              "--ponmatrix", bare, "--sample", "S1_T-N", "-o", tmp_path / "out", "--legacy-coords", check=False)
     assert res.returncode != 0 and "have a PON bin" in res.stderr
 
 
@@ -201,5 +201,5 @@ def test_too_few_pon_bins_fail(tmp_path, pons):
     df = read(path)
     df.iloc[: len(df) // 2].to_csv(path, sep="\t", index=False, compression="gzip")
     res = cli("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED, "--gc", GC, "--genmap", GENMAP,
-              "--pon-dir", small, "--sample", "S1_T-N", "--out-dir", tmp_path / "out", check=False)
+              "--ponmatrix", small, "--sample", "S1_T-N", "-o", tmp_path / "out", check=False)
     assert res.returncode != 0 and "have a PON bin" in res.stderr

@@ -1,10 +1,9 @@
 # mycnv default parameters. Source: somVarWES configs/general/config_CNV.yaml, the CNV config the NHL, DLBCL and
 # AMLMono7 study runs used (GCnormalize: True). Override any key with `--config my.yaml` (same structure; a top-level
-# `CNV:` section, as in the legacy files, is accepted) or with the CLI options.
+# `CNV:` section, as in the legacy files, is accepted) or with the CLI options. Keys mycnv does not read are reported
+# and ignored. Not here: the pileup filters (MAPQ 20, Q 25: `ebscore pileup --min-mapq/--min-baseq`) and the ASCAT
+# parameters (gender XX, penalties 25/75, gamma 1: the ASCAT step of the pipeline).
 CNV:
-    pileup:
-        MAPQ: 20
-        Q: 25
     hetSNP:
         normalVAF: [0.2, 0.8]
         minDepth: 15
@@ -50,7 +49,3 @@ CNV:
             ddof: 0
             data:
                 SNPdensity: 5
-    ascat:
-        gender: XX
-        ascat_penalty: [25, 75]
-        gamma: 1

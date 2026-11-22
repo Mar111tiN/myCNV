@@ -35,9 +35,23 @@ def find_matrix_files(matrix_dir: str, chroms=None) -> dict[str, str]:
     return dict(sorted(found.items(), key=lambda kv: chrom_key(kv[0])))
 
 
+def matrix_files_from_paths(paths, chroms=None) -> dict[str, str]:
+    """{chrom: path} for explicitly given matrix files named {chrom}.pon[.gz]."""
+    files = {}
+    for path in paths:
+        m = re.match(r"^(.+)\.pon(\.gz)?$", os.path.basename(path))
+        if not m:
+            raise ValueError(f"PONmatrix file {path} is not named {{chrom}}.pon.gz")
+        if chroms is None or m.group(1) in chroms:
+            if m.group(1) in files:
+                raise ValueError(f"two PONmatrix files for {m.group(1)}: {files[m.group(1)]}, {path}")
+            files[m.group(1)] = path
+    return dict(sorted(files.items(), key=lambda kv: chrom_key(kv[0])))
+
+
 def _pon_coverage_one(args) -> tuple[str, int, int]:
-    chrom, matrix, out_dir, kw, verbose = args
-    setup_logging(verbose)
+    chrom, matrix, out_dir, kw, verbose, quiet = args
+    setup_logging(verbose, quiet)
     cov_df, snp_df = pon2cnv(matrix, chrom=chrom, **kw)
     write_tsv(cov_df, os.path.join(out_dir, "cov", f"{chrom}.cov.gz"), compression="gzip")
     write_tsv(snp_df, os.path.join(out_dir, "snp", f"{chrom}.snp.gz"), compression="gzip")
@@ -47,9 +61,10 @@ def _pon_coverage_one(args) -> tuple[str, int, int]:
     return chrom, len(cov_df), len(snp_df)
 
 
-def pon_coverage(matrix_files: dict[str, str], out_dir: str, threads: int = 1, verbose: bool = False, **kw):
+def pon_coverage(matrix_files: dict[str, str], out_dir: str, threads: int = 1, verbose: bool = False,
+                 quiet: bool = False, **kw):
     """PON2CNV for every chromosome (one job per chromosome, `threads` in parallel). kw: pon2cnv arguments."""
-    jobs = [(chrom, path, out_dir, kw, verbose) for chrom, path in matrix_files.items()]
+    jobs = [(chrom, path, out_dir, kw, verbose, quiet) for chrom, path in matrix_files.items()]
     if threads > 1 and len(jobs) > 1:
         with ProcessPoolExecutor(max_workers=threads) as pool:
             results = list(pool.map(_pon_coverage_one, jobs))

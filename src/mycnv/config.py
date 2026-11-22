@@ -7,6 +7,8 @@ from importlib import resources
 
 import yaml
 
+from .tools import log
+
 
 def _deep_update(base: dict, new: dict) -> dict:
     for key, value in new.items():
@@ -26,12 +28,53 @@ def default_config() -> dict:
     return _section(yaml.safe_load(text))
 
 
+# subtrees whose keys are free (column prefixes / aggregations of the rolling step)
+_FREE = {("rolling", "cov", "data"), ("rolling", "snp", "data")}
+_ALIASES = {"diffexp"}  # legacy spelling of rolling.*.diff_exp
+
+
+def unknown_keys(new: dict, defaults: dict, path: tuple = ()) -> list[str]:
+    """Dotted paths of keys in `new` that the defaults (= the keys mycnv reads) do not have."""
+    out = []
+    for key, value in new.items():
+        sub = path + (key,)
+        if key not in defaults:
+            if key not in _ALIASES:
+                out.append(".".join(sub))
+        elif isinstance(value, dict) and isinstance(defaults[key], dict) and sub not in _FREE:
+            out += unknown_keys(value, defaults[key], sub)
+    return out
+
+
+def _known(new: dict, defaults: dict, path: tuple = ()) -> dict:
+    """`new` without the keys reported by unknown_keys."""
+    out = {}
+    for key, value in new.items():
+        sub = path + (key,)
+        if key not in defaults:
+            if key in _ALIASES:
+                out[key] = value
+        elif isinstance(value, dict) and isinstance(defaults[key], dict) and sub not in _FREE:
+            out[key] = _known(value, defaults[key], sub)
+        else:
+            out[key] = value
+    return out
+
+
 def load_config(path: str | None = None, overrides: dict | None = None) -> dict:
-    """Defaults, then the YAML file at `path` (top-level `CNV:` optional), then `overrides`."""
+    """Defaults, then the YAML file at `path` (top-level `CNV:` optional), then `overrides`.
+
+    Keys that mycnv does not read (e.g. the legacy `pileup`, `ascat`, `threads` entries, or a misspelt key) are
+    reported with a warning and ignored.
+    """
     cfg = default_config()
     if path:
         with open(path) as fh:
-            _deep_update(cfg, _section(yaml.safe_load(fh) or {}))
+            user = _section(yaml.safe_load(fh) or {})
+        extra = unknown_keys(user, cfg)
+        if extra:
+            log.warning("Config %s: ignoring keys mycnv does not use: %s", path, ", ".join(extra))
+        _deep_update(cfg, _known(user, cfg))
     if overrides:
         _deep_update(cfg, copy.deepcopy(overrides))
     return normalize_keys(cfg)

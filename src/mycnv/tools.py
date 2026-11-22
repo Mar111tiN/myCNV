@@ -18,13 +18,18 @@ log = logging.getLogger("mycnv")
 PRIMARY_CHROMS = [f"chr{c}" for c in range(1, 23)] + ["chrX"]
 
 
-def setup_logging(verbose: bool = False) -> None:
-    """Log to stderr; data goes to files."""
+def setup_logging(verbose: bool = False, quiet: bool = False) -> None:
+    """Log to stderr; data goes to files. quiet: warnings and errors only."""
     logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
+        level=logging.DEBUG if verbose else logging.WARNING if quiet else logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
+
+
+def unique(values) -> list:
+    """Values in first-appearance order without duplicates (e.g. a repeated --chrom)."""
+    return list(dict.fromkeys(values or []))
 
 
 def mawk_tool(name: str) -> Path:
