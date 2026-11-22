@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shlex
 import subprocess
 from importlib import resources
 from io import StringIO
@@ -36,7 +37,7 @@ def mawk_tool(name: str) -> Path:
 
 def mawk(name: str) -> str:
     """Shell snippet that runs a packaged mawk tool with bash (the tools use bash-only argument parsing)."""
-    return f"bash {mawk_tool(name)}"
+    return f"bash {shlex.quote(str(mawk_tool(name)))}"
 
 
 def _bash(cmd: str, **kwargs) -> subprocess.CompletedProcess:
@@ -58,7 +59,7 @@ def cmd2df(cmd: str, **read_kwargs) -> pd.DataFrame:
 def cat_cmd(path: str | os.PathLike) -> str:
     """Shell snippet that streams a plain or gzipped file to stdout."""
     path = str(path)
-    return f"gunzip -c {path}" if path.endswith(".gz") else f"cat {path}"
+    return f"gunzip -c {shlex.quote(path)}" if path.endswith(".gz") else f"cat {shlex.quote(path)}"
 
 
 def read_tsv(path: str | os.PathLike, **kwargs) -> pd.DataFrame:

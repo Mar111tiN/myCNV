@@ -26,9 +26,11 @@
 #     under the next chromosome's name and could merge bins of two chromosomes with the same bin index
 #   - Pos is the start of the bin that holds the coverage. v1.0.1 labelled every bin with the start of the next
 #     bin it met (the last bin of a chromosome with its own start, which could duplicate the label before it).
-#     The bin ExonPos is the ExonPos of the first covered base in the bin (v1.0.1: that value minus pos % binSize,
-#     which is not monotonic at region starts). -L restores both, e.g. to merge with PON coverage files built by
-#     the legacy tools.
+#     The bin ExonPos is the ExonPos of the first base of the bin that the stream holds (v1.0.1: that value minus
+#     pos % binSize, which is not monotonic at region starts). That value depends on which bases the stream holds,
+#     so mycnv (raw.tn2cnv / raw.pon2cnv) replaces it with the ExonPos of the bin's first BED base
+#     (mycnv.bed.bin_exon_pos), which samples and PONs share. -L restores both v1.0.1 labels, e.g. to merge with PON
+#     coverage files built by the legacy tools.
 
 keepExonPos=0
 legacyBins=0

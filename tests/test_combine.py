@@ -24,7 +24,8 @@ def pon_dir(tmp_path):
 def test_combine_matches_main_except_fullexonpos(pon_dir, gc):
     cov = concat_tables(sorted(glob.glob(f"{RESTRICTED}/sample_mini/*.cov.gz")))
     snp = concat_tables(sorted(glob.glob(f"{RESTRICTED}/sample_mini/*.snp")))
-    new_cov, new_snp = combine_sample(cov, snp, pon_dir, gc_normalize=gc)
+    # sample_mini/pon_mini are in the legacy coordinates (the stored HAEv7 PON)
+    new_cov, new_snp = combine_sample(cov, snp, pon_dir, gc_normalize=gc, legacy_coords=True)
     tag = "gc" if gc else "nogc"
     old_cov, old_snp = read(f"{RLEGACY}/combine_{tag}.cov.gz"), read(f"{RLEGACY}/combine_{tag}.snp")
     assert_frames_close(new_cov, old_cov, exclude=("FullExonPos",))

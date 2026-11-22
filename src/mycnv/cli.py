@@ -77,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out-cov", required=True)
     p.add_argument("--out-snp", required=True)
     p.add_argument("--no-gc-normalize", action="store_true", help="mean-normalise instead of GC-normalise")
+    p.add_argument("--legacy-coords", action="store_true", help="the tn2cnv outputs were made with --legacy-coords")
     _plot_opts(p)
 
     p = sub.add_parser("rolling", help="raw tables -> data/{s}.cnv.snp.gz + data/{s}.cnv.gz (filter + rolling windows)")
@@ -186,7 +187,7 @@ def main(argv=None) -> int:
         return 0
 
     if args.cmd == "pon-combine":
-        pl.pon_combine(args.pon_dir, args.out_dir, std_factor=cfg["PONcoverage"]["stdFactor"], chroms=args.chroms,
+        pl.pon_combine(args.pon_dir, args.out_dir or args.pon_dir, std_factor=cfg["PONcoverage"]["stdFactor"], chroms=args.chroms,
                        legacy=args.legacy)
         return 0
 
@@ -205,7 +206,8 @@ def main(argv=None) -> int:
     if args.cmd == "combine":
         from .combine import concat_tables
 
-        cov_df, snp_df = pl.combine_step(concat_tables(args.cov), concat_tables(args.snp), args.pon_dir, cfg)
+        cov_df, snp_df = pl.combine_step(concat_tables(args.cov), concat_tables(args.snp), args.pon_dir, cfg,
+                                         legacy_coords=args.legacy_coords)
         write_tsv(cov_df, args.out_cov)
         write_tsv(snp_df, args.out_snp)
         if args.plots_dir:

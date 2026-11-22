@@ -15,7 +15,10 @@ import os
 import numpy as np
 import pandas as pd
 
-from .tools import PRIMARY_CHROMS, chrom_str, log, natural_chroms, read_tsv, set_chrom_categorical, write_tsv
+from .ponmeta import check_sample_against_pon, read_pon_meta
+from .tools import (
+    PRIMARY_CHROMS, chrom_key, chrom_str, log, natural_chroms, read_tsv, set_chrom_categorical, write_tsv,
+)
 
 
 # ##################### PON ###########################################################
@@ -57,9 +60,14 @@ def normalize_gc_col(cov_df: pd.DataFrame, col: str) -> pd.DataFrame:
 
 
 def normalize_gc(cov_df: pd.DataFrame) -> pd.DataFrame:
+    n = len(cov_df)
     for col in [c for c in cov_df.columns if c.startswith("Cov")]:
         log.info("Normalizing GC ratio for %s", col)
         cov_df = normalize_gc_col(cov_df, col)
+    if n and cov_df.empty:
+        raise ValueError(f"GC normalisation left none of {n} bins: no bin has a GCratio (missing or wrong GC track)")
+    if len(cov_df) < n:
+        log.info("GC normalisation drops %d of %d bins without a GCratio of the autosomes", n - len(cov_df), n)
     return cov_df.reset_index(drop=True).sort_values(["Chr", "Pos"])
 
 
@@ -190,24 +198,88 @@ def log2ratio(df: pd.DataFrame, cov_col: str, pon_cov_col: str = "PONcov_mean") 
     return df.loc[:, cols[:i] + [log_col] + cols[i:]]
 
 
-def combine_sample(cov_df: pd.DataFrame, snp_df: pd.DataFrame, pon_dir: str, gc_normalize: bool = True):
+def _merge_pon_coverage(cov_df: pd.DataFrame, pon_cov_df: pd.DataFrame, legacy_coords: bool,
+                        min_pon_match: float) -> pd.DataFrame:
+    """Inner-join the sample bins with the PON stats and check that they share one coordinate system.
+
+    Fixed coordinates: bins are keyed by (Chr, Pos) (the bin start, unique per chromosome) and the BED-derived bin
+    ExonPos must agree on every shared bin; a difference means another BED or coordinate mode. Legacy coordinates:
+    the legacy labels are not unique, so the join stays on (Chr, Pos, ExonPos) as in main.
+    In both modes at least `min_pon_match` of the sample bins must find a PON bin.
+    """
+    n = len(cov_df)
+    if legacy_coords:
+        merged = cov_df.merge(pon_cov_df, on=["Chr", "Pos", "ExonPos"])
+    else:
+        dup = pon_cov_df.duplicated(["Chr", "Pos"])
+        if dup.any():
+            raise ValueError(f"the CNV PON has {int(dup.sum())} duplicate bin labels (Chr, Pos): it was built with "
+                             "--legacy-coords (or by the legacy tools); run the sample with --legacy-coords")
+        merged = cov_df.merge(pon_cov_df.rename(columns={"ExonPos": "PONExonPos"}), on=["Chr", "Pos"])
+        differ = merged["ExonPos"] != merged["PONExonPos"]
+        if differ.any():
+            first = merged.loc[differ].iloc[0]
+            raise ValueError(
+                f"{int(differ.sum())} of {len(merged)} bins have another ExonPos in the CNV PON (first "
+                f"{first['Chr']}:{first['Pos']}: sample {first['ExonPos']}, PON {first['PONExonPos']}): the sample and "
+                "the PON were binned with different BEDs or coordinate modes (--legacy-coords), or the PON was built "
+                "by an older mycnv; use the PON's BED and mode or rebuild the CNV PON"
+            )
+        merged = merged.drop(columns="PONExonPos")
+    frac = len(merged) / n if n else 0
+    log.info("%d of %d sample bins (%.1f%%) have a PON bin", len(merged), n, 100 * frac)
+    if frac < min_pon_match:
+        raise ValueError(
+            f"only {len(merged)} of {n} sample bins ({100 * frac:.1f}%, minimum {100 * min_pon_match:.0f}%) have a PON "
+            "bin: the sample and the PON were binned with different BEDs or coordinate modes (--legacy-coords), or "
+            "the PON is for another kit"
+        )
+    return merged
+
+
+def combine_sample(cov_df: pd.DataFrame, snp_df: pd.DataFrame, pon_dir: str, gc_normalize: bool = True,
+                   legacy_coords: bool = False, min_pon_match: float = 0.9, allow_missing_chroms: bool = False,
+                   bed_md5: dict | None = None):
     """Sample coverage/SNPs + PON -> raw tables (main: combine_sample_CNV).
 
     cov_df: Chr Pos ExonPos GCratio map* Cov1 Cov2 (tn2cnv); snp_df: Chr Pos ExonPos map* Depth1 VAF1 Depth2 VAF2.
+    pon_dir: the CNV PON folder (with CNV/). legacy_coords: the sample was binned with --legacy-coords.
+    The sample must be complete (every PON chromosome), because GC normalisation and the log2ratio levels are
+    relative to the whole sample; `allow_missing_chroms` turns that check off.
     """
+    check_sample_against_pon(read_pon_meta(pon_dir), legacy_coords, bed_md5=bed_md5)
+    pon_file = os.path.join(pon_dir, "CNV", "pon.cov.filterGC.gz" if gc_normalize else "pon.cov.filter.gz")
+    log.info("Loading PON coverage %s", pon_file)
+    pon_cov_df = read_tsv(pon_file)
+    if pon_cov_df.empty:
+        raise ValueError(f"the CNV PON table {pon_file} is empty")
+    pon_chroms = set(pon_cov_df["Chr"].astype(str))
+    cov_df, snp_df = chrom_str(cov_df), chrom_str(snp_df)
+    # main normalised over chr1..chr22, chrX only: bins on other contigs (chrY, alts) must not enter the GC classes
+    extra = sorted(set(cov_df["Chr"]) - pon_chroms, key=chrom_key)
+    if extra:
+        log.info("Dropping %d bins on chromosomes without PON coverage (%s)", int(cov_df["Chr"].isin(extra).sum()),
+                 ", ".join(extra))
+        cov_df = cov_df.loc[~cov_df["Chr"].isin(extra)]
+        snp_df = snp_df.loc[snp_df["Chr"].isin(pon_chroms)]
+    missing = sorted(pon_chroms - set(cov_df["Chr"]), key=chrom_key)
+    if missing and not allow_missing_chroms:
+        raise ValueError(
+            f"the sample has no bins on {len(missing)} of {len(pon_chroms)} PON chromosomes ({', '.join(missing[:5])}"
+            f"{', ...' if len(missing) > 5 else ''}): GC normalisation and log2ratio need the whole sample, so pass "
+            "every per-chromosome tn2cnv output to one `combine` (or --allow-missing-chroms)"
+        )
+    if not (~cov_df["Chr"].isin(["chrX", "chrY"])).any():
+        raise ValueError("the sample has no autosomal bins: GC normalisation uses the autosomes")
     cov_df = set_chrom_categorical(cov_df)
     if gc_normalize:
         log.info("Normalizing sample coverage by GC ratio")
         cov_df = normalize_gc(cov_df)
-        pon_file = os.path.join(pon_dir, "CNV", "pon.cov.filterGC.gz")
     else:
         cov_df = normalize(cov_df)
-        pon_file = os.path.join(pon_dir, "CNV", "pon.cov.filter.gz")
-    log.info("Loading PON coverage %s", pon_file)
-    pon_cov_df = read_tsv(pon_file)
     cov_df, snp_df = chrom_str(cov_df), chrom_str(snp_df)
     cov_df, snp_df = get_full_exon_pos(cov_df, snp_df, pon_cov_df=pon_cov_df)
-    cov_df = cov_df.merge(pon_cov_df)
+    cov_df = _merge_pon_coverage(cov_df, pon_cov_df, legacy_coords, min_pon_match)
     del pon_cov_df
     for col in [c for c in cov_df.columns if c.startswith("Cov")]:
         cov_df = log2ratio(cov_df, col)
@@ -218,6 +290,9 @@ def combine_sample(cov_df: pd.DataFrame, snp_df: pd.DataFrame, pon_dir: str, gc_
     pon_snp = read_tsv(pon_snp_file)
     pon_snp = pon_snp.drop(columns=[c for c in pon_snp.columns if c.startswith("map")])
     snp_df = snp_df.merge(pon_snp, on=["Chr", "Pos", "ExonPos"], how="left")
+    if len(snp_df) and snp_df["PONVAF"].isna().all():
+        log.warning("None of the %d sample SNPs is in the PON SNP table %s (PONVAF 0 for all): check that the "
+                    "sample and the PON use the same BED and coordinates", len(snp_df), pon_snp_file)
     cov_df = set_chrom_categorical(cov_df).sort_values(["Chr", "Pos"], kind="stable").reset_index(drop=True)
     snp_df = set_chrom_categorical(snp_df).sort_values(["Chr", "Pos"], kind="stable").reset_index(drop=True)
     return chrom_str(cov_df), chrom_str(snp_df)

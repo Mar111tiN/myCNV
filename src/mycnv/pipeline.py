@@ -1,6 +1,8 @@
 """High-level steps used by the CLI (and usable from notebooks). Output layout follows somVarWES:
 
-PON dir:    cov/{chrom}.cov.gz  snp/{chrom}.snp.gz  CNV/pon.cov.{full,fullGC,filter,filterGC}.gz  CNV/pon.snp.gz
+PON dir:    matrix/{chrom}.pon.gz (input, from ebscore)
+            cov/{chrom}.cov.gz  cov/{chrom}.cov.json  snp/{chrom}.snp.gz          (pon-coverage)
+            CNV/pon.cov.{full,fullGC,filter,filterGC}.gz  CNV/pon.snp.gz  CNV/pon.json   (pon-combine)
 sample dir: raw/{s}.cov.gz  raw/{s}.snp  data/{s}.cnv.snp.gz  data/{s}.cnv.gz  pre/{s}_*_{baf,logr}.tsv  plots/*.jpg
 """
 
@@ -13,7 +15,9 @@ from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 
 from . import combine as cmb
+from .bed import read_bed, region_digest
 from .convert import split_sample_name, write_ascat
+from .ponmeta import combine_cov_meta, write_cov_meta, write_pon_meta
 from .raw import pon2cnv, tn2cnv
 from .rolling_cov import rolling_coverage
 from .rolling_snp import remerge_cnv, rolling_snp
@@ -37,11 +41,14 @@ def _pon_coverage_one(args) -> tuple[str, int, int]:
     cov_df, snp_df = pon2cnv(matrix, chrom=chrom, **kw)
     write_tsv(cov_df, os.path.join(out_dir, "cov", f"{chrom}.cov.gz"), compression="gzip")
     write_tsv(snp_df, os.path.join(out_dir, "snp", f"{chrom}.snp.gz"), compression="gzip")
+    bed = kw["bed"]
+    write_cov_meta(out_dir, chrom, kw.get("legacy_coords", False), kw.get("bin_size", 10), bed,
+                   region_digest(read_bed(bed, [chrom]), chrom))
     return chrom, len(cov_df), len(snp_df)
 
 
 def pon_coverage(matrix_files: dict[str, str], out_dir: str, threads: int = 1, verbose: bool = False, **kw):
-    """PON2CNV for every chromosome (one job per chromosome, `threads` in parallel)."""
+    """PON2CNV for every chromosome (one job per chromosome, `threads` in parallel). kw: pon2cnv arguments."""
     jobs = [(chrom, path, out_dir, kw, verbose) for chrom, path in matrix_files.items()]
     if threads > 1 and len(jobs) > 1:
         with ProcessPoolExecutor(max_workers=threads) as pool:
@@ -53,11 +60,16 @@ def pon_coverage(matrix_files: dict[str, str], out_dir: str, threads: int = 1, v
     return results
 
 
-def pon_combine(pon_dir: str, out_dir: str | None = None, std_factor: float = 2, chroms=PRIMARY_CHROMS,
+def pon_combine(pon_dir: str, out_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS,
                 legacy: bool = False) -> list[str]:
+    """PON cov/ + snp/ in pon_dir -> CNV/ in out_dir (the input folder is only read)."""
+    used = [c for c in chroms if os.path.isfile(os.path.join(pon_dir, "cov", f"{c}.cov.gz"))]
+    meta = combine_cov_meta(pon_dir, used)
     tables = cmb.make_pon_coverage(pon_dir, std_factor=std_factor, chroms=chroms, legacy=legacy)
     snp_df = cmb.make_pon_snp(pon_dir, chroms=chroms)
-    return cmb.write_pon(out_dir or pon_dir, tables, snp_df)
+    files = cmb.write_pon(out_dir, tables, snp_df)
+    files.append(write_pon_meta(out_dir, meta, used, std_factor, legacy))
+    return files
 
 
 # ##################### SAMPLE ########################################################
@@ -114,8 +126,11 @@ def _close_all():
     plt.close("all")
 
 
-def combine_step(cov_df, snp_df, pon_dir: str, config: dict):
-    return cmb.combine_sample(cov_df, snp_df, pon_dir, gc_normalize=config["coverage"]["GCnormalize"])
+def combine_step(cov_df, snp_df, pon_dir: str, config: dict, legacy_coords: bool = False, min_pon_match: float = 0.9,
+                 allow_missing_chroms: bool = False, bed_md5: dict | None = None):
+    return cmb.combine_sample(cov_df, snp_df, pon_dir, gc_normalize=config["coverage"]["GCnormalize"],
+                              legacy_coords=legacy_coords, min_pon_match=min_pon_match,
+                              allow_missing_chroms=allow_missing_chroms, bed_md5=bed_md5)
 
 
 def rolling_step(cov_df: pd.DataFrame, snp_df: pd.DataFrame, config: dict):
@@ -140,7 +155,7 @@ def sample_paths(out_dir: str, sample: str) -> dict[str, str]:
 
 def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, config: dict, gc=None, genmap=None,
                tumor=None, normal=None, chrom=None, clean=True, legacy_coords=False, plots=False,
-               mock_germline=True) -> dict[str, str]:
+               mock_germline=True, min_pon_match: float = 0.9, tmp_dir=None) -> dict[str, str]:
     """Whole per-sample chain: tn2cnv -> combine -> rolling -> ASCAT input (one task per sample, plan D16)."""
     if tumor is None or normal is None:
         tumor, normal = split_sample_name(sample)
@@ -148,9 +163,12 @@ def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, c
     sc, cc = config["hetSNP"], config["coverage"]
     cov_df, snp_df = tn2cnv(
         pileup, bed, gc=gc, genmap=genmap, chrom=chrom, normal_vaf=sc["normalVAF"], min_depth=sc["minDepth"],
-        min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords,
+        min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords, tmp_dir=tmp_dir,
     )
-    cov_df, snp_df = combine_step(cov_df, snp_df, pon_dir, config)
+    regions = read_bed(bed)
+    bed_md5 = {c: region_digest(regions, c) for c in regions}
+    cov_df, snp_df = combine_step(cov_df, snp_df, pon_dir, config, legacy_coords=legacy_coords,
+                                  min_pon_match=min_pon_match, bed_md5=bed_md5)
     write_tsv(cov_df, p["raw_cov"], compression="gzip")
     write_tsv(snp_df, p["raw_snp"])
     if plots:
