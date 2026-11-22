@@ -1,83 +1,105 @@
+"""Shared helpers: logging, mawk tool lookup, shell pipelines, table I/O and chromosome ordering."""
+
+from __future__ import annotations
+
+import logging
 import os
-import pandas as pd
-from subprocess import PIPE, run
+import re
+import subprocess
+from importlib import resources
 from io import StringIO
-from datetime import datetime as dt
-from yaml import CLoader as Loader, load
+from pathlib import Path
 
-ansii_colors = {
-    "magenta": "[1;35;2m",
-    "green": "[1;32;2m",
-    "red": "[1;31;1m",
-    "cyan": "[1;36;1m",
-    "gray": "[1;90;1m",
-    "black": "[0m",
-    "blue": "[1;94;1m",
-}
+import pandas as pd
 
-colors = {
-    "process": ansii_colors["green"],
-    "time": ansii_colors["magenta"],
-    "normal": ansii_colors["gray"],
-    "warning": ansii_colors["red"],
-    "success": ansii_colors["cyan"],
-}
+log = logging.getLogger("mycnv")
+
+PRIMARY_CHROMS = [f"chr{c}" for c in range(1, 23)] + ["chrX"]
 
 
-def show_output(text, color="normal", multi=False, time=False, **kwargs):
-    """
-    get colored output to the terminal
-    """
-    time = (
-        f"\033{colors['time']}{dt.now().strftime('%H:%M:%S')}\033[0m : " if time else ""
+def setup_logging(verbose: bool = False) -> None:
+    """Log to stderr; data goes to files."""
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
     )
-    proc = f"\033{colors['process']}Process {os.getpid()}\033[0m : " if multi else ""
-    text = f"\033{colors[color]}{text}\033[0m"
-    print(time + proc + text, **kwargs)
 
 
-def show_command(command, list=False, multi=True, **kwargs):
+def mawk_tool(name: str) -> Path:
+    """Path of a packaged mawk tool (src/mycnv/mawk/<name>.mawk)."""
+    path = resources.files("mycnv").joinpath("mawk", f"{name}.mawk")
+    if not path.is_file():
+        raise FileNotFoundError(f"mawk tool {name} not found in the mycnv package")
+    return Path(str(path))
+
+
+def mawk(name: str) -> str:
+    """Shell snippet that runs a packaged mawk tool with bash (the tools use bash-only argument parsing)."""
+    return f"bash {mawk_tool(name)}"
+
+
+def _bash(cmd: str, **kwargs) -> subprocess.CompletedProcess:
+    log.debug("$ %s", cmd)
+    return subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True, **kwargs)
+
+
+def run_cmd(cmd: str) -> None:
+    """Run a shell pipeline with bash -o pipefail; raises CalledProcessError on failure."""
+    _bash(cmd)
+
+
+def cmd2df(cmd: str, **read_kwargs) -> pd.DataFrame:
+    """Run a shell pipeline and read its tab-separated stdout (with header) into a DataFrame."""
+    out = _bash(cmd, stdout=subprocess.PIPE).stdout.decode("utf-8")
+    return pd.read_csv(StringIO(out), sep="\t", **read_kwargs)
+
+
+def cat_cmd(path: str | os.PathLike) -> str:
+    """Shell snippet that streams a plain or gzipped file to stdout."""
+    path = str(path)
+    return f"gunzip -c {path}" if path.endswith(".gz") else f"cat {path}"
+
+
+def read_tsv(path: str | os.PathLike, **kwargs) -> pd.DataFrame:
+    """Read a tab-separated table (plain or gzipped; pandas infers the compression)."""
+    return pd.read_csv(path, sep="\t", **kwargs)
+
+
+def write_tsv(df: pd.DataFrame, path: str | os.PathLike, **kwargs) -> None:
+    """Write a tab-separated table without index; gzip if the name ends with .gz."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, sep="\t", index=False, **kwargs)
+
+
+def chrom_key(chrom: str) -> tuple:
+    """Natural sort key: chr1 < chr2 < ... < chr22 < chrX < chrY < chrM < others."""
+    c = re.sub(r"^chr", "", str(chrom))
+    if c.isdigit():
+        return (0, int(c), "")
+    order = {"X": 1, "Y": 2, "M": 3, "MT": 3}
+    return (order.get(c, 4), 0, c)
+
+
+def natural_chroms(chroms) -> list[str]:
+    """Unique chromosome names in natural order."""
+    return sorted({str(c) for c in chroms}, key=chrom_key)
+
+
+def set_chrom_categorical(df: pd.DataFrame, chroms=None) -> pd.DataFrame:
+    """Make Chr an ordered categorical (natural order) so sorting and groupby follow chr1..chr22, chrX.
+
+    Uses column assignment, not df.loc[:, "Chr"] = ..., which keeps object dtype on pandas >= 2.
     """
-    prints the command line if debugging is active
-    """
-
-    proc = f"\033[92mProcess {os.getpid()}\033[0m : " if multi else ""
-    if list:
-        command = f"\033[1m$ {' '.join(command)}\033[0m"
-    else:
-        command = f"\033[1m$ {command}\033[0m"
-    print(proc + command, **kwargs)
-    return
+    chroms = natural_chroms(df["Chr"].astype(str).unique()) if chroms is None else list(chroms)
+    df = df.copy()
+    df["Chr"] = pd.Categorical(df["Chr"].astype(str), categories=chroms, ordered=True)
+    return df
 
 
-def run_cmd(cmd, show=False, **kwargs):
-    if show:
-        show_command(cmd, **kwargs)
-    exit = run(cmd, shell=True, check=True)
-    return exit == 0
-
-
-def cmd2df(cmd, show=False, **kwargs):
-    """
-    wrapper for running shell commands directly into a dataframe
-    optional output with show argument that passes kwargs to show_command
-    """
-
-    if show:
-        show_command(cmd, **kwargs)
-    cmd_df = pd.read_csv(
-        StringIO(run(cmd, stdout=PIPE, check=True, shell=True).stdout.decode("utf-8")),
-        sep="\t",
-    )
-    return cmd_df
-
-
-def get_CNVconfig(config_file="", local_config={}):
-    """
-    load the global CNVconfig updated with local config
-    """
-
-    with open(config_file, "r") as stream:
-        added_config = load(stream, Loader=Loader)["CNV"]
-        added_config.update(local_config)
-    return added_config
+def chrom_str(df: pd.DataFrame) -> pd.DataFrame:
+    """Turn a categorical Chr back into plain strings (for writing and merging)."""
+    if isinstance(df["Chr"].dtype, pd.CategoricalDtype):
+        df = df.copy()
+        df["Chr"] = df["Chr"].astype(str)
+    return df

@@ -1,11 +1,11 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # use seaborn plotting defaults
 import seaborn as sns
 
-from plot_helpers import (
+from .plot_helpers import (
     get_chrom_df,
     extract_pos,
     make_color_chroms,

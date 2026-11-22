@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mycnv"
+dynamic = ["version"]
+description = "PON-based CNV profiles (coverage log2ratio + het-SNP BAF) and ASCAT input from paired pileups"
+readme = "README.md"
+requires-python = ">=3.10"
+# conda-forge/bioconda provide the dependencies (environment.yml); mawk, bash and gzip must be on PATH
+dependencies = ["numpy", "pandas>=2", "pyyaml", "matplotlib", "seaborn"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+cluster = ["scikit-learn"]   # mycnv.cluster (GMM-caller groundwork, not used by the CLI)
+
+[project.scripts]
+mycnv = "mycnv.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "mycnv.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mycnv = ["mawk/*.mawk", "data/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

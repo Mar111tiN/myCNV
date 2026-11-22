@@ -1,12 +1,14 @@
-testpon/
-data/
-output/
+/testpon/
+/data/
+/output/
 __pycache__
+*.egg-info/
+.pytest_cache/
+build/
 .DS_Store
 .snakemake
 slogs
 .ipynb_checkpoints/
 .vscode/
-snake/config/*
-!snake/config/config_devel.yaml
-!snake/config/cluster.json
+# patient-derived test fixtures (PONmatrix/PON coverage of real normals, study SNP VAFs): never commit (plan D14)
+/tests/data/restricted/

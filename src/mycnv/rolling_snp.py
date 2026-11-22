@@ -1,80 +1,62 @@
-import pandas as pd
-import numpy as np
+"""Step G: merge rolled coverage onto het SNPs, centre the VAFs, SNP density / fallSNP, SNP filter, remerge.
+
+(main: rollingSNP.py). Per-chromosome work (interpolation, rolling) never crosses chromosomes; the global steps
+(VAF centring, normalisations, fallSNP scaling) stay global. Rows are processed in (Chr, FullExonPos) order.
+"""
+
+from __future__ import annotations
+
 import re
 
-from rollingCNV import rolling_data, one_col_rolling, interpolate
-from script_utils_CNV import show_output
+import numpy as np
+import pandas as pd
+
+from .rolling import interpolate, rolling_data
+from .tools import chrom_str, log, set_chrom_categorical
+
+LOG2_PAT = re.compile(r"log2ratio[0-9]+(_mean)?$")
 
 
-def mergeCov2SNP(snp_df, cov_df):
-    """
-    merge the columns to get all the coverage data from the rolling_coverage
-    """
+def _sort(df: pd.DataFrame) -> pd.DataFrame:
+    return set_chrom_categorical(df).sort_values(["Chr", "FullExonPos"], kind="stable").reset_index(drop=True)
 
-    # get the columns
-    snp_cols = list(snp_df.columns)
-    base_cols = snp_cols[:4]
 
-    log2_pat = re.compile(r"log2ratio[0-9]+(_mean)?$")
-    cov_cols = [
-        col
-        for col in cov_df.columns
-        if col.startswith("PON") or re.match(log2_pat, col)
-    ] + ["GCratio"]
-    # reduce cols of cov_df
+def merge_cov_to_snp(snp_df: pd.DataFrame, cov_df: pd.DataFrame) -> pd.DataFrame:
+    """Outer-merge the rolled coverage onto the SNPs, interpolate the coverage columns per chromosome over
+    FullExonPos (limit 200 rows) and keep the SNP rows (main: mergeCov2SNP)."""
+    snp_df = chrom_str(snp_df)
+    cov_df = chrom_str(cov_df)
+    base_cols = list(snp_df.columns)[:4]  # Chr Pos ExonPos FullExonPos
+    cov_cols = [c for c in cov_df.columns if c.startswith("PON") or LOG2_PAT.match(c)] + ["GCratio"]
     cov_df = cov_df.loc[:, base_cols + cov_cols]
-    # PONVAF and PONDepth have to be filled to zero
+    snp_df = snp_df.copy()
     for col in ["PONVAF", "PONDepth"]:
-        snp_df.loc[:, col] = snp_df[col].fillna(0)
-
-    snp_df = (
-        snp_df.merge(cov_df, how="outer")
-        .sort_values("FullExonPos")
-        .reset_index(drop=True)
-    )
-
-    # interpolate the data
-    for col in cov_cols:
-        show_output(f"Interpolating {col}")
-        snp_df = interpolate(snp_df, col, expand_limit=200)
-
-    # reduce to VAF values
-    snp_df = snp_df.query("PONVAF == PONVAF")
-    return snp_df
+        snp_df[col] = snp_df[col].fillna(0)
+    df = _sort(snp_df.merge(cov_df, how="outer"))
+    parts = []
+    for _, chrom_df in df.groupby("Chr", sort=False, observed=True):
+        for col in cov_cols:
+            chrom_df = interpolate(chrom_df, col, expand_limit=200)
+        parts.append(chrom_df)
+    df = pd.concat(parts) if parts else df
+    return df.loc[df["PONVAF"].notna()].reset_index(drop=True)
 
 
-def center_vaf(snp_df):
-    """
-    adjusts VAFs to 0.5
-    also includes the off-center VAF offVAF and
-    absVAF
-    """
-
+def center_vaf(snp_df: pd.DataFrame) -> pd.DataFrame:
+    """Shift every VAF<N> so that its mean is 0.5; add absVAF<N> and offVAF<N> = 2 * (VAF - 0.5)."""
     df = snp_df.copy()
-    cols = list(df.columns)
-
-    for col in df.columns:
-        if col.startswith("VAF"):
-            cols = list(df.columns)
-            insert_index = df.columns.get_loc(col) + 1
-            df.loc[:, col] = df[col] + 0.5 - df[col].mean()
-            # get additional features from VAFs
-            # get offVAF as measure of straighing from center
-            df.loc[:, f"off{col}"] = (df[col] - 0.5) * 2
-            # get absVAF as absolute measure of straighing from center
-            df.loc[:, f"abs{col}"] = np.abs(df[f"off{col}"])
-            out_cols = (
-                cols[:insert_index] + [f"abs{col}", f"off{col}"] + cols[insert_index:]
-            )
-            df = df.loc[:, out_cols]
+    for col in [c for c in df.columns if c.startswith("VAF")]:
+        cols = list(df.columns)
+        i = cols.index(col) + 1
+        df[col] = df[col] + 0.5 - df[col].mean()
+        df[f"off{col}"] = (df[col] - 0.5) * 2
+        df[f"abs{col}"] = np.abs(df[f"off{col}"])
+        df = df.loc[:, cols[:i] + [f"abs{col}", f"off{col}"] + cols[i:]]
     return df
 
 
-# get the density computer for rolling
-def make_get_density(window_size=20):
-    """
-    helper for returning a density computer for given window_size
-    """
+def make_get_density(window_size: int = 20):
+    """Rolling callback: SNPs per exonic base in the window (window_size / span of FullExonPos)."""
 
     def SNPdensity(data):
         return window_size / (data.max() - data.min())
@@ -82,282 +64,47 @@ def make_get_density(window_size=20):
     return SNPdensity
 
 
-def get_fallSNP(snp_df, config={}):
-    """
-    computes snpDensity and cumulative metrix snpFall (SNPdensity * PONVAF)
-    """
-    df = snp_df.copy()
-
+def get_fall_snp(snp_df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    """SNPdensity (rolling, normalised) and fallSNP = SNPdensity * PONVAF / max."""
     c = config["rolling"]["snp"]
-
     window = c["data"]["SNPdensity"]
-    # create the callback for rolling window computation
-    get_SNPdensity = make_get_density(window)
-
-    # make params for rolling_data function and roll custom function
-    fallSNP_params = {"FullExonPos": {get_SNPdensity: window}}
-    df = rolling_data(df, data_params=fallSNP_params, roll_config=c)
-    # compute fallSNP from density
-    df.loc[:, "fallSNP"] = df["SNPdensity"] * df["PONVAF"]
-    # normalize
-    df.loc[:, "fallSNP"] = df["fallSNP"] / df["fallSNP"].max()
+    params = {"FullExonPos": {make_get_density(window): window}}
+    df = rolling_data(snp_df, data_params=params, roll_config=c)
+    df["fallSNP"] = df["SNPdensity"] * df["PONVAF"]
+    df["fallSNP"] = df["fallSNP"] / df["fallSNP"].max()
     return df
 
 
-def filter_snp(snp_df, config={}):
-    """
-    takes the config and applies pre-filtering for rolling computation
-    """
-
-    df = snp_df.copy()
+def filter_snp(snp_df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    """Keep SNPs with PONVAF < maxPONVAF, mappability >= thresholds, low fallSNP and SNP density."""
     c = config["filter"]["snp"]
-
-    # ### build the query
-
-    # minDepth = csnp['minDepth']
-    # minVAF = csnp['minVAF']
-
-    # PONVAF and PONDepth have to be filled to zero
-    for col in ["PONVAF", "PONDepth"]:
-        df.loc[:, col] = df[col].fillna(0)
-    # pon query
-    # minoffVAF = c["minoffVAF"]
-    PON_query = f"PONVAF < {c['maxPONVAF']}"
-    # Fall_query = f"(Fall2 < {maxFall} and offVAF2_sum > {minoffVAF})"
-    Fall_query = f"fallSNP < {c['maxFallSNP']} and SNPdensity < {c['maxSNPdensity']}"
-    # map query
-    # extract map query from filter config
-    # 'map30_0 > 0.1 and map50_0 > 0.1 and map75_1 > 0.1 and map100_2 > 0.1'
-    map_query = " and ".join(
-        [f"{m} >= {c[m]}" for m in c.keys() if m.startswith("map")]
-    )
-
-    snp_query = f"{PON_query} and {map_query} and {Fall_query}"
-    show_output(f'Filtering SNP data using {snp_query.replace("@", "")}')
-    df = df.query(snp_query).reset_index(drop=True)
-
-    return df
-
-
-def rolling_snp(snp_df, roll_cov_df, config={}):
-    """
-    performs data preprocessing for CNV analysis
-    """
-
     df = snp_df.copy()
-    # get config
+    for col in ["PONVAF", "PONDepth"]:
+        df[col] = df[col].fillna(0)
+    keep = (df["PONVAF"] < c["maxPONVAF"]) & (df["fallSNP"] < c["maxFallSNP"]) & (df["SNPdensity"] < c["maxSNPdensity"])
+    for key in [k for k in c if k.startswith("map")]:
+        keep &= df[key] >= c[key]
+    log.info("SNP filter keeps %d of %d SNPs", int(keep.sum()), len(df))
+    return df.loc[keep].reset_index(drop=True)
 
-    show_output("Starting rolling SNP processing.", time=True)
 
-    show_output("Merging SNP and coverage data.")
-    df = mergeCov2SNP(df, roll_cov_df)
-
-    show_output("Centering VAFs.")
+def rolling_snp(snp_df: pd.DataFrame, roll_cov_df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    log.info("Merging SNP and coverage data")
+    df = merge_cov_to_snp(snp_df, roll_cov_df)
+    log.info("Centering VAFs")
     df = center_vaf(df)
-
-    show_output("Running fallSNP detection.")
-    # compute fallSNP
-    show_output("Removing fall SNPs.")
-    df = get_fallSNP(df, config=config)
-    # filter snp
-
-    show_output("Reducing noise...")
-    df = filter_snp(df, config=config)
-    show_output("Finished SNP processing!", time=True, color="success")
-    return df
+    log.info("SNP density and fallSNP")
+    df = get_fall_snp(df, config)
+    df = filter_snp(df, config)
+    return chrom_str(df)
 
 
-def remergeCNV(snp_df, cov_df):
-    """
-    remerge the rolling data for coverage and snp for an integrated data file
-    containing many nas
-    """
-
-    # select the right cols
-
+def remerge_cnv(snp_df: pd.DataFrame, cov_df: pd.DataFrame) -> pd.DataFrame:
+    """SNP rows and coverage rows in one track (coverage rows have empty VAFs) (main: remergeCNV)."""
     base_cols = ["Chr", "Pos", "ExonPos", "FullExonPos"]
-    snp_cols = [col for col in snp_df.columns if col.startswith("VAF")]
-    log2_pat = re.compile(r"log2ratio[0-9]+(_mean)?$")
-    cov_cols = [col for col in cov_df.columns if re.match(log2_pat, col)]
-    snp_df = snp_df.loc[:, base_cols + snp_cols + cov_cols]
-    cov_df = cov_df.loc[:, base_cols + cov_cols]
-    cnv_df = (
-        pd.concat([snp_df, cov_df]).sort_values("FullExonPos").reset_index(drop=True)
+    snp_cols = [c for c in snp_df.columns if c.startswith("VAF")]
+    cov_cols = [c for c in cov_df.columns if LOG2_PAT.match(c)]
+    cnv_df = pd.concat(
+        [chrom_str(snp_df).loc[:, base_cols + snp_cols + cov_cols], chrom_str(cov_df).loc[:, base_cols + cov_cols]]
     )
-    return cnv_df
-
-
-# ############# LEGACY ###############
-
-
-# def compute_snp_llh(df, mean=0.5, sigma=0.2):
-#     """
-#     computes the local log-likelihood of belonging to the center gaussian
-#     """
-
-#     show_output(
-#         f"Computing log-likelihood of VAF belonging to center gaussian [mean:{round(mean, 3)}, sigma:{round(sigma,3)}]"
-#     )
-#     df.loc[:, "snpLLH"] = llh(df["VAF"], mean, sigma)
-
-#     # for homoSNPs reduce the VAFs to the ones above mean
-#     upper_vafs = df.query("@mean < VAF")["VAF"]
-#     # then compute the hsnpLLH
-
-#     show_output(
-#         f"Computing log-likelihood of VAF belonging to purity100  [mean:1, sigma:{round(sigma,3)}]"
-#     )
-#     # these are called hsnp
-#     # upper_vafs only contains half the snps, the remaining have to be interpolated
-#     df.loc[:, "hsnpLLH"] = llh(upper_vafs, 1, sigma)
-#     df = interpolate(df, "hsnpLLH", expand_limit=50)
-#     return df
-
-
-# def remove_fallSNP(snp_df, mean=0.5, std=0.2, params={}):
-#     """
-#     removes the falling SNP probably caused by mismapping
-#     """
-
-#     window = params["offVAFwindow"]
-#     cutoff = params["maxFallSNP"]
-
-#     # get the density computer for rolling
-#     get_SNPdensity = make_get_density(window)
-#     # cycle through chroms
-#     chrom_dfs = []
-#     for chrom in snp_df["Chr"].unique():
-#         df = snp_df.query("Chr == @chrom").reset_index(drop=True)
-#         if len(df.index) < 10:
-#             continue
-#         # get the snp
-#         df = one_col_rolling(
-#             df,
-#             df.query("VAF < 0.95"),
-#             "ExonPos",
-#             get_SNPdensity,
-#             window_size=window,
-#             diff_exp=4,
-#         )
-#         df.loc[:, "SNPdensity"] = df["SNPdensity"] / df["SNPdensity"].mean()
-
-#         # get the offVAFsum
-#         df = one_col_rolling(
-#             df,
-#             df.query("VAF < 0.95"),
-#             "offVAF",
-#             "sum",
-#             window_size=window,
-#             normalize=True,
-#             diff_exp=4,
-#         )
-
-#         # combine both metrices
-#         df.loc[:, "fallSNP"] = df["SNPdensity"] * df["offVAFsum"]
-#         # now remove the ones below average VAFstd
-#         df = df.query("VAF > @mean - @std / 2 or fallSNP > @cutoff")
-#         chrom_dfs.append(df)
-
-#     return pd.concat(chrom_dfs).sort_values("FullExonPos").reset_index(drop=True)
-
-
-# def expand_SNPdata(snp_df, config):
-#     """
-#     retrieve a few data columns locally to use rolling windows on
-#     this needs to be done chromosome-wise in order to avoid gap effects
-#     VAF limits are also applied here
-#     """
-
-#     # split the params dict for easier access
-#     params = config["snp"]
-#     filter_params = params["filter"]
-#     # data_params = params['data']
-
-#     # reduce the snp_df using lower config limit
-#     # upper limit has to be set later as we still need the homoSNP llh
-#     VAFmin, VAFmax = filter_params["VAF"]
-#     snp_df = snp_df.query("@VAFmin < VAF")
-
-#     # get std and mean of VAF
-#     minVAF, maxVAF = params["LLH"]["center_range"]
-#     # get the sigma and mean of the center band VAF (extracted as pd.Series center_vafs)
-#     center_vafs = snp_df.query("@minVAF < VAF < @maxVAF")["VAF"]
-#     # get width of gaussian from std * sigma_factor
-#     VAFstd = center_vafs.std()
-#     VAFmean = center_vafs.mean()
-
-#     # get additional features from VAFs
-#     snp_df.loc[:, "offVAF"] = (snp_df["VAF"] - VAFmean) * 2
-#     # absolute values for cluster
-#     snp_df.loc[:, "absVAF"] = np.abs(snp_df["offVAF"])
-
-#     ########## remove fallSNP ########
-#     fs_params = params["fallSNP"]
-#     if fs_params["run"]:
-#         show_output("Removing falling SNPs")
-#         snp_df = remove_fallSNP(snp_df, mean=VAFmean, std=VAFstd, params=fs_params)
-
-#     ######## LLH  #####################
-#     # get the snpLLH and hsnpLLH
-#     # get config params
-#     sigma = VAFstd * params["LLH"]["sigma_factor"]
-#     # hsnpLLH is computed in order to rescue high absVAF that would have been filtered out
-#     # lower VAF is already removed because density of VAF ~0 is highly irregular and would confound density estimates
-#     snp_df = compute_snp_llh(snp_df, mean=VAFmean, sigma=sigma)
-#     return snp_df.query("VAF < @VAFmax").reset_index(drop=True)
-
-
-# def rolling_SNP(snp_df, config):
-#     """
-#     cycle through the chroms and perform rolling window computations of snp data set in config
-#     """
-
-#     # split the params dict for easier access
-#     params = config["snp"]
-#     filter_params = params["filter"]
-#     data_params = params["rolling_data"]
-#     debug = config["debug"]
-
-#     minDepth = filter_params["minDepth"]
-#     filter_df = snp_df.query("Depth >= @minDepth")
-#     show_output("Performing rollingSNP computations.")
-#     rolling_df = rolling_data(
-#         snp_df,
-#         filter_df,
-#         expand=params["expand"],
-#         ddof=config["ddof"],
-#         debug=debug,
-#         data_params=data_params,
-#     )
-#     return rolling_df
-
-
-# def apply_rolling_SNP(snp_df, config):
-
-#     # get extra data
-#     snp_df = expand_SNPdata(snp_df, config)
-#     # do the rolling
-#     snp_df = rolling_SNP(snp_df, config)
-#     # get the CNV and Center blocks
-#     snp_df = get_CNV_blocks(snp_df, "snpLLH", config)
-
-#     # select columns for output
-#     base_cols = list(snp_df.columns[:4])
-
-#     snp_cols = [
-#         col
-#         for col in snp_df.columns[4:]
-#         if not "log2" in col and not "cov" in col and not "off" in col
-#     ]
-#     rolling_snp_df = snp_df[base_cols + snp_cols]
-#     cluster_cols = [
-#         "log2ratio",
-#         "log2ratiomean",
-#         "VAF",
-#         "absVAF",
-#         "absVAFmean",
-#         "snpLLHsum",
-#     ]
-#     cluster_cols += [col for col in snp_df.columns if "Center" in col or "CNV" in col]
-#     cluster_df = snp_df[base_cols + cluster_cols]
-#     return rolling_snp_df, cluster_df
+    return chrom_str(_sort(cnv_df))

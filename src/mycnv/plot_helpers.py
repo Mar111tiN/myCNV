@@ -1,26 +1,27 @@
+import re
+
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import re
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
+from matplotlib.patches import Rectangle
+
+from .tools import set_chrom_categorical
 
 
 def sort_df(df):
     """
-    helper for sorting dfs for chromosomes
+    helper for sorting dfs for chromosomes (natural order)
     """
-    df2 = df.copy()
-    # make Chr column categorical for sorting .. and sort
-    chrom_list = [f"chr{i+1}" for i in range(22)] + ["chrX"]
-    df2["Chr"] = pd.Categorical(df2["Chr"], chrom_list)
-    return df2.sort_values(["Chr", "FullExonPos"])
+    return set_chrom_categorical(df).sort_values(["Chr", "FullExonPos"], kind="stable")
 
 
 def get_chrom_df(df):
 
-    # dropna is neccessary because grouping on categorical returns all categories
-    chrom_df = df.groupby("Chr")["FullExonPos"].agg(["mean", "min", "max"]).dropna()
+    # observed=True: only chromosomes present in the data
+    chrom_df = df.groupby("Chr", observed=True)["FullExonPos"].agg(["mean", "min", "max"]).dropna()
+    chrom_df.index = pd.Index(chrom_df.index.astype(str), name="Chr")
     cols = list(chrom_df.columns)
     chrom_df["sum"] = chrom_df["max"] - chrom_df["min"]
     chrom_df["cummin"] = chrom_df["sum"].cumsum()
@@ -36,33 +37,25 @@ def make_color_chroms(
 ):
 
     # set the cmap from provided argument
-    cmap = plt.cm.get_cmap(colormap, 23)
-    chrom_list = [f"chr{i+1}" for i in range(22)] + ["chrX"]
-    # build the rects
+    cmap = matplotlib.colormaps[colormap].resampled(23)
+    # build one rect per chromosome present (main built 23 rects but coloured only the present ones)
     rects = []
     # set the height and ymin beyond the ylimits so borders are not seen
     ymin = ylimits[0] * 1.1
     height = (ylimits[1] - ymin) * 1.1
 
-    for chrom in chrom_list:
-        if chrom in chrom_df.index:
-            row = chrom_df.loc[chrom]
-            rect = Rectangle(
-                (row["min"], ymin), width=row["max"] - row["min"], height=height
-            )
-            rects.append(rect)
-        else:
-            rect = Rectangle((0, 1), width=0.1, height=height)
-            rects.append(rect)
+    for _, row in chrom_df.iterrows():
+        rects.append(Rectangle((row["min"], ymin), width=row["max"] - row["min"], height=height))
     if color_chroms:
         rect_kwargs = dict(alpha=0.4, ec="none")
     else:
         rect_kwargs = dict(alpha=1, fc="none", ec="darkgray", lw=1, ls="-")
     # set the rectangle collection with colormap
     rect_collection = PatchCollection(rects, cmap=cmap, **rect_kwargs)
-    # set the index for the color map from chrom integers
+    # colour index from the chromosome number (X = 23, Y = 24, others 25)
+    names = [re.sub(r"^chr", "", str(c)) for c in chrom_df.index]
     rect_collection.set_array(
-        chrom_df.index.str.replace("chr", "").str.replace("X", "23").astype(int)
+        np.array([int(n) if n.isdigit() else {"X": 23, "Y": 24}.get(n, 25) for n in names])
     )
 
     # setting clim allows fixing the color for individual chroms
@@ -159,7 +152,7 @@ def set_ticks(ax, df, chrom_df, ticks=20, label_size=12):
     # get the chrom_number
     chrom_count = len(chrom_df.index)
     # get the number of bases
-    stretch = chrom_df["max"][-1]
+    stretch = chrom_df["max"].iloc[-1]
     # set the number of desired ticks
     major_tick_dist = int(stretch / (ticks + 1))
     minor_tick_dist = int(stretch / ((ticks * 2) + 1))

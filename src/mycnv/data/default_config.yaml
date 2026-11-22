@@ -1,0 +1,56 @@
+# mycnv default parameters. Source: somVarWES configs/general/config_CNV.yaml, the CNV config the NHL, DLBCL and
+# AMLMono7 study runs used (GCnormalize: True). Override any key with `--config my.yaml` (same structure; a top-level
+# `CNV:` section, as in the legacy files, is accepted) or with the CLI options.
+CNV:
+    pileup:
+        MAPQ: 20
+        Q: 25
+    hetSNP:
+        normalVAF: [0.2, 0.8]
+        minDepth: 15
+    coverage:
+        minCov: 0
+        GCnormalize: True
+    PONcoverage:
+        minCov: 0
+        minVAF: 0.05        # min pooled VAF to be stored in the PON snp file
+        minDepth: 50
+        stdFactor: 2        # PON coverage values outside mean +- stdFactor * std are removed before the filter stats
+    filter:
+        cov:
+            GCrange: [0.15, 0.85]
+            minPONcov: 30
+            maxPONstd: 35
+        snp:
+            maxPONVAF: 0.45
+            map30_0: 0
+            map50_0: 0.3
+            map75_1: 0.3
+            map100_2: 0.5
+            maxFallSNP: 0.01
+            maxSNPdensity: 0.02
+    rolling:
+        cov:
+            normalize: False
+            debug: False
+            diff_exp: 4     # exponent for the Diff columns (legacy code read `diffexp` and always used 2)
+            ddof: 0         # only used for std/var aggregations
+            LLH:
+                center_range: [-0.5, 0.5]
+                sigma_factor: 0.9
+            data:
+                log2ratio:
+                    mean: 250
+                covLLH:
+                    sum: 250
+        snp:
+            normalize: True
+            debug: False
+            diff_exp: 4
+            ddof: 0
+            data:
+                SNPdensity: 5
+    ascat:
+        gender: XX
+        ascat_penalty: [25, 75]
+        gamma: 1

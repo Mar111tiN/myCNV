@@ -1,11 +1,12 @@
-import pandas as pd
-import numpy as np
 import math
+
+import matplotlib
 import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
-from matplotlib.patches import Rectangle
-from matplotlib.collections import PatchCollection
+import numpy as np
+import pandas as pd
 import seaborn as sns
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Rectangle
 
 sns.set()
 
@@ -14,7 +15,7 @@ def add_chrom_blocks(
     ax, chrom_df, colormap="coolwarm_r", ylimits=(-10, 10), yoffset=5, label_size=1
 ):
     # set the cmap from provided argument
-    cmap = plt.cm.get_cmap("coolwarm_r", 23)
+    cmap = matplotlib.colormaps[colormap].resampled(23)
     rects = []
     ylimits = ax.get_ylim()
     ymin = ylimits[0] * 1.1

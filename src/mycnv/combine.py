@@ -1,421 +1,235 @@
-# try with pd merge
+"""Step D (PON combine) and step E (sample combine: GC normalisation, FullExonPos, log2ratio vs PON).
+
+Fixes vs main (see CHANGELOG.md):
+- PON outlier removal now changes the saved filter stats (stats are recomputed on the outlier-free coverage), and
+  pon.cov.full* keep the unmodified coverage. `legacy=True` reproduces the old files exactly.
+- FullExonPos offsets follow the natural chromosome order (chr1, chr2, ..., chr22, chrX). main summed them in
+  lexicographic order (chr1, chr10, ..., chr19, chr2, ...).
+- Chr is a proper ordered categorical (`df["Chr"] = ...`; `df.loc[:, "Chr"] = ...` keeps object dtype on pandas 2+).
+"""
+
+from __future__ import annotations
+
 import os
+
 import numpy as np
 import pandas as pd
-from script_utils_CNV import show_output
+
+from .tools import PRIMARY_CHROMS, chrom_str, log, natural_chroms, read_tsv, set_chrom_categorical, write_tsv
 
 
-def make_PON_snp(config={}, save=True):
-    """
-    combine the PON coverages for all chroms
-    save to hardcoded place in PON_path
-    """
-
-    # paths
-    pon_path = config["PON_path"]
-
-    chrom_list = [f"chr{c + 1}" for c in range(22)] + ["chrX"]
-    dfs = []
-    for chrom in chrom_list:
-        PON_snp_file = os.path.join(pon_path, f"snp/{chrom}.snp.gz")
-        if os.path.isfile(PON_snp_file):
-            show_output(f"Loading PON SNP file {PON_snp_file}")
-            snp_df = pd.read_csv(PON_snp_file, sep="\t", compression="gzip")
-            dfs.append(snp_df)
+# ##################### PON ###########################################################
+def _pon_files(pon_dir: str, sub: str, suffix: str, chroms) -> list[str]:
+    files = []
+    for chrom in chroms:
+        path = os.path.join(pon_dir, sub, f"{chrom}.{suffix}")
+        if os.path.isfile(path):
+            files.append(path)
         else:
-            show_output(
-                f"Could not find PON coverage file {PON_snp_file}", color="warning"
-            )
-    snp_df = (
-        pd.concat(dfs)
-        .reset_index(drop=True)
-        .rename({"VAF": "PONVAF", "Depth": "PONDepth"}, axis=1)
-    )
-    # make chrom categorical
-    snp_df.loc[:, "Chr"] = pd.Categorical(snp_df["Chr"], chrom_list)
+            log.warning("PON file %s not found", path)
+    if not files:
+        raise FileNotFoundError(f"no {sub}/*.{suffix} files in {pon_dir}")
+    return files
 
-    # save file
-    if save:
-        PON_snp_file = os.path.join(pon_path, "CNV/pon.snp.gz")
-        show_output(f"Saving combined PON SNP file {PON_snp_file}.")
-        snp_df.to_csv(PON_snp_file, sep="\t", index=False, compression="gzip")
-        show_output("Finished", color="success")
+
+def make_pon_snp(pon_dir: str, chroms=PRIMARY_CHROMS) -> pd.DataFrame:
+    """Concatenate snp/{chrom}.snp.gz into one table with PONVAF / PONDepth."""
+    dfs = [read_tsv(f) for f in _pon_files(pon_dir, "snp", "snp.gz", chroms)]
+    snp_df = pd.concat(dfs, ignore_index=True).rename(columns={"VAF": "PONVAF", "Depth": "PONDepth"})
     return snp_df
 
 
-def combine_PON_coverage(config={}):
-    """
-    combine the PON coverages for all chroms
-    """
+def combine_pon_coverage(pon_dir: str, chroms=PRIMARY_CHROMS) -> pd.DataFrame:
+    dfs = [read_tsv(f) for f in _pon_files(pon_dir, "cov", "cov.gz", chroms)]
+    return set_chrom_categorical(pd.concat(dfs, ignore_index=True), chroms)
 
-    # paths
-    pon_path = config["PON_path"]
 
-    chrom_list = [f"chr{c + 1}" for c in range(22)] + ["chrX"]
-    dfs = []
-    for chrom in chrom_list:
-        PON_cov_file = os.path.join(pon_path, f"cov/{chrom}.cov.gz")
-        if os.path.isfile(PON_cov_file):
-            show_output(f"Loading coverage file {PON_cov_file}")
-            cov_df = pd.read_csv(PON_cov_file, sep="\t", compression="gzip")
-            dfs.append(cov_df)
-        else:
-            show_output(f"Could not find PON coverage file {PON_cov_file}")
-    cov_df = pd.concat(dfs).reset_index(drop=True)
-    # make chrom categorical
-    cov_df.loc[:, "Chr"] = pd.Categorical(cov_df["Chr"], chrom_list)
+def normalize_gc_col(cov_df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """Scale one coverage column so that every GCratio class has mean 100 on the autosomes (chrX excluded).
+
+    Rows without GCratio (or with a GCratio that only occurs on chrX) are dropped, as in main.
+    """
+    norm = cov_df.loc[cov_df["Chr"] != "chrX"].groupby("GCratio", observed=True)[col].mean()
+    factor = (100 / norm).rename("factor").reset_index()
+    out = cov_df.merge(factor, on="GCratio")
+    out[col] = out[col] * out["factor"]
+    return out.drop(columns="factor")
+
+
+def normalize_gc(cov_df: pd.DataFrame) -> pd.DataFrame:
+    for col in [c for c in cov_df.columns if c.startswith("Cov")]:
+        log.info("Normalizing GC ratio for %s", col)
+        cov_df = normalize_gc_col(cov_df, col)
+    return cov_df.reset_index(drop=True).sort_values(["Chr", "Pos"])
+
+
+def normalize(cov_df: pd.DataFrame) -> pd.DataFrame:
+    """Scale every coverage column to mean 100 (no GC normalisation)."""
+    cov_df = cov_df.copy()
+    for col in [c for c in cov_df.columns if c.startswith("Cov")]:
+        cov_df[col] = cov_df[col] / cov_df[col].mean() * 100
     return cov_df
 
 
-def normalize_GC_col(cov_df, col):
-    """
-    normalizes one coverage column for GC ratio
-    """
-    # compute the normalizer df
-    # for each GCratio, norm_df has the difference of the respective mean from arbitrary norm coverage 100
-    # remove chrX for the normalization or male genomes will have slightly greater mean
-    norm_df = (
-        (100 / cov_df.query('Chr != "chrX"').groupby("GCratio").agg({col: "mean"}))
-        .reset_index()
-        .rename({col: "factor"}, axis=1)
-    )
-
-    # merge to get the factor
-    cov_df = cov_df.merge(norm_df)
-    # adjust coverage using the factor from norm_df
-    cov_df[col] = cov_df[col] * cov_df["factor"]
-    # remove factor
-    cov_df = cov_df.drop("factor", axis=1)
+def amazonize(cov_df: pd.DataFrame, x_threshold: float = 75) -> pd.DataFrame:
+    """Double the chrX coverage of samples whose chrX mean is below `x_threshold` (male samples -> XX level)."""
+    cov_df = cov_df.copy()
+    cov_cols = [c for c in cov_df.columns if c.startswith("Cov")]
+    is_x = cov_df["Chr"] == "chrX"
+    if not is_x.any():
+        return cov_df
+    x_mean = cov_df.loc[is_x, cov_cols].mean()
+    male = [c for c in cov_cols if x_mean[c] < x_threshold]
+    if male:
+        log.info("Lifting chrX coverage of %d male samples", len(male))
+        cov_df.loc[is_x, male] = cov_df.loc[is_x, male] * 2
     return cov_df
 
 
-def normalize_GC(cov_df):
+def compute_stats(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-position PONcov_mean / median / std (ddof 1, NaN skipped) over the Cov columns."""
+    df = df.drop(columns=[c for c in df.columns if c.startswith("PONcov")])
+    cov = df[[c for c in df.columns if c.startswith("Cov")]]
+    df = df.copy()
+    df["PONcov_mean"] = cov.mean(axis=1)
+    df["PONcov_median"] = cov.median(axis=1)
+    df["PONcov_std"] = cov.std(axis=1)
+    return df
+
+
+def remove_outliers(df: pd.DataFrame, std_factor: float = 2.5) -> pd.DataFrame:
+    """Set coverage values to NaN where |PONcov_mean - value| / PONcov_std > std_factor."""
+    df = df.copy()
+    for col in [c for c in df.columns if c.startswith("Cov")]:
+        df.loc[np.abs(df["PONcov_mean"] - df[col]) / df["PONcov_std"] > std_factor, col] = np.nan
+    return df
+
+
+def make_pon_coverage(pon_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS, legacy: bool = False) -> dict:
+    """Combine cov/{chrom}.cov.gz into the four PON coverage tables.
+
+    Returns {"full": ..., "fullGC": ..., "filter": ..., "filterGC": ...}:
+    - full / fullGC: Chr Pos ExonPos Cov1..N PONcov_mean/median/std (mean-normalised / GC-normalised)
+    - filter / filterGC: Chr Pos ExonPos + stats after outlier removal
+    legacy=True reproduces main: the stats are not recomputed after outlier removal (filter == full stats) and
+    the full tables carry the outlier-removed (NaN) coverage values.
     """
-    normalize GC for an entire tumor_normal sample
-    """
-    for col in cov_df.columns:
-        if col.startswith("Cov"):
-            show_output(f"Normalizing GC ratio for {col}.")
-            cov_df = normalize_GC_col(cov_df, col)
-    cov_df = cov_df.reset_index(drop=True).sort_values(["Chr", "Pos"])
-    return cov_df
-
-
-def normalize(cov_df):
-    """
-    normalize general coverage to 100 (no GC normalization)
-    """
-    for col in cov_df.columns:
-        if col.startswith("Cov"):
-            show_output(f"Normalizing coverage for {col}.")
-            cov_df.loc[:, col] = cov_df[col] / cov_df[col].mean() * 100
-    return cov_df
-
-
-def amazonize(*cov_dfs):
-    """
-    detect male samples via below-threshold X-chrom coverage
-    coverage on chrX is doubled in these samples
-    """
-
-    amazon_dfs = []
-    for cov_df in cov_dfs:
-        # get coverage cols
-        cov_cols = [col for col in cov_df.columns if col.startswith("Cov")]
-        # create the agg dictionary
-        cov_agg = {col: "mean" for col in cov_cols}
-        # compute x_coverage for all samples using agg dictionary
-        X_coverage = cov_df.query('Chr == "chrX"').agg(cov_agg)
-        # filter out the male samples
-        male_cols = [col for col in cov_cols if X_coverage[col] < 75]
-        # adjust the coverage for male samples
-        cov_df.loc[cov_df["Chr"] == "chrX", male_cols] = cov_df[male_cols] * 2
-        amazon_dfs.append(cov_df)
-    return amazon_dfs
-
-
-def compute_stats(*dfs):
-    """
-    get statistics
-    """
-
-    compute_dfs = []
-    for df in dfs:
-        # remove all pre-existing stats
-        df = df.drop([col for col in df.columns if col.startswith("PONcov")], axis=1)
-        # set index for all non-coverage columns
-        index_cols = [col for col in df.columns if not col.startswith("Cov")]
-        cov_df = df.drop(index_cols, axis=1)
-        df["PONcov_mean"] = cov_df.mean(axis=1)
-        df["PONcov_median"] = cov_df.median(axis=1)
-        df["PONcov_std"] = cov_df.std(axis=1)
-        compute_dfs.append(df)
-    return compute_dfs
-
-
-def remove_outliers(*dfs, std_factor=2.5):
-    """
-    cycle through all sample cols, remove outliers with difference to PONcov greater than std_factor * std
-    """
-    filter_dfs = []
-    for df in dfs:
-        for col in [col for col in df.columns if col.startswith("Cov")]:
-            df.loc[
-                np.abs(df["PONcov_mean"] - df[col]) / df["PONcov_std"] > std_factor, col
-            ] = np.nan
-        filter_dfs.append(df)
-    return filter_dfs
-
-
-def make_PON_coverage(
-    config={
-        "PONcoverage": {
-            "stdFactor": 2.5  # only exonPositions straighing within std_factor * std around meanCoverage are kept
-        },
-        "PON_path": ".",  # path to the PON folder
-    },
-    save=True,
-):
-    """ """
-
-    # paths
-    pon_path = config["PON_path"]
-    # load all sample coverages for one chromosome
-    cov_df = combine_PON_coverage(config=config)
-
-    # make chrom categorical
-    chrom_list = [f"chr{i}" for i in range(1, 23)] + ["chrX"]
-    cov_df.loc[:, "Chr"] = pd.Categorical(cov_df["Chr"], chrom_list)
-
-    # normalize and add mean values and std
-    show_output("Normalizing coverage and removing GC dependencies for PON coverage.")
-    covGC_df = normalize_GC(cov_df)
-
-    cov_df = normalize(cov_df)
-
-    show_output("Lifting X-coverages for male samples to XX coverage.")
-    covGC_df, cov_df = amazonize(covGC_df, cov_df)
-
-    show_output("Computing stats.")
-    covGC_df, cov_df = compute_stats(covGC_df, cov_df)
-
-    std_factor = config["PONcoverage"]["stdFactor"]
-    show_output("Remove outliers and recompute stats.")
-    filterGC_df, filter_df = remove_outliers(covGC_df, cov_df, std_factor=std_factor)
-
-    # save and adjust the output columns
-    base_cols = ["Chr", "Pos", "ExonPos"]
-    # map_cols = [col for col in cov_df.columns if col.startswith("map")]
-    cov_cols = [col for col in cov_df.columns if col.startswith("Cov")]
-    stat_cols = [col for col in cov_df.columns if col.startswith("PONcov")]
-
-    cov_df = cov_df.loc[:, base_cols + cov_cols + stat_cols]
-    covGC_df = covGC_df.loc[:, base_cols + cov_cols + stat_cols]
-    filter_df = filter_df.loc[:, base_cols + stat_cols]
-    filterGC_df = filterGC_df.loc[:, base_cols + stat_cols]
-
-    # save dataframes
-    if save:
-        PON_cov_file = os.path.join(pon_path, "CNV/pon.cov.full.gz")
-        show_output(f"Saving combined PON coverage file {PON_cov_file}.")
-        cov_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
-        # GC variant
-        PON_cov_file = PON_cov_file.replace("full", "fullGC")
-        show_output(f"Saving combined PON coverage file {PON_cov_file}.")
-        covGC_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
-
-        # filtered
-        PON_cov_file = os.path.join(pon_path, "CNV/pon.cov.filter.gz")
-        show_output(f"Saving filtered PON coverage file {PON_cov_file}.")
-        filter_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
-        PON_cov_file = PON_cov_file.replace("filter", "filterGC")
-        show_output(f"Saving filtered PON coverage file {PON_cov_file}.")
-        filterGC_df.to_csv(PON_cov_file, sep="\t", index=False, compression="gzip")
-
-        show_output("Finished", color="success")
-
-    return cov_df, filter_df
-
-
-# ################# SAMPLE ##############################################
-def combine_chrom_cnv(sample, config={}):
-    """
-    combine the coverages for all chroms and add the GC ratio
-    """
-
-    cov_dfs = []
-    snp_dfs = []
-    
-    # if no chrom_list is passed in configs, assume one
-    # possible:>> get chroms from file list
-    if len(config.get("chrom_list", [])):
-        chrom_list = config['chrom_list']
+    cov_df = combine_pon_coverage(pon_dir, chroms)
+    log.info("Normalizing PON coverage (GC and mean)")
+    cov_gc = normalize_gc(cov_df)
+    cov_mean = normalize(cov_df)
+    cov_gc, cov_mean = amazonize(cov_gc), amazonize(cov_mean)
+    cov_gc, cov_mean = compute_stats(cov_gc), compute_stats(cov_mean)
+    filt_gc, filt_mean = remove_outliers(cov_gc, std_factor), remove_outliers(cov_mean, std_factor)
+    if not legacy:
+        filt_gc, filt_mean = compute_stats(filt_gc), compute_stats(filt_mean)
     else:
-        chrom_list = [f"chr{c + 1}" for c in range(22)] + ["chrX"]
-        
-    for chrom in chrom_list:
-        cov_file = os.path.join(config["cov_path"], f"{sample}.{chrom}.cov.gz")
-        snp_file = os.path.join(config["snp_path"], f"{sample}.{chrom}.snp")
-        show_output(f"Loading coverage file {cov_file}")
-        cov_df = pd.read_csv(cov_file, sep="\t", compression="gzip")
-        show_output(f"Loading snp file {snp_file}")
-        snp_df = pd.read_csv(snp_file, sep="\t")
-        cov_dfs.append(cov_df)
-        snp_dfs.append(snp_df)
-    cov_df = pd.concat(cov_dfs).reset_index(drop=True)
-    snp_df = pd.concat(snp_dfs).reset_index(drop=True)
-    # make chrom categorical
-    cov_df.loc[:, "Chr"] = pd.Categorical(cov_df["Chr"], chrom_list)
-    snp_df.loc[:, "Chr"] = pd.Categorical(snp_df["Chr"], chrom_list)
-    return cov_df, snp_df
+        # main mutated the full tables in place during outlier removal
+        cov_gc, cov_mean = filt_gc, filt_mean
+
+    base = ["Chr", "Pos", "ExonPos"]
+    cov_cols = [c for c in cov_mean.columns if c.startswith("Cov")]
+    stats = ["PONcov_mean", "PONcov_median", "PONcov_std"]
+    return {
+        "full": chrom_str(cov_mean.loc[:, base + cov_cols + stats]),
+        "fullGC": chrom_str(cov_gc.loc[:, base + cov_cols + stats]),
+        "filter": chrom_str(filt_mean.loc[:, base + stats]),
+        "filterGC": chrom_str(filt_gc.loc[:, base + stats]),
+    }
 
 
-def get_full_exon_pos(*dfs, pon_cov_df):
-    """
-    adds the accumulated exonic position (over all chroms from PON data) to provided dfs
-    """
+def write_pon(pon_dir: str, tables: dict, snp_df: pd.DataFrame) -> list[str]:
+    out = []
+    for name, df in tables.items():
+        path = os.path.join(pon_dir, "CNV", f"pon.cov.{name}.gz")
+        log.info("Writing %s", path)
+        write_tsv(df, path, compression="gzip")
+        out.append(path)
+    path = os.path.join(pon_dir, "CNV", "pon.snp.gz")
+    write_tsv(chrom_str(snp_df), path, compression="gzip")
+    out.append(path)
+    return out
 
-    # create chrom_df from pon_df
-    chrom_df = pon_cov_df.groupby("Chr").agg(dict(ExonPos=["min", "max"]))["ExonPos"]
-    chrom_df["chrAdd"] = chrom_df["max"].cumsum().shift(fill_value=0)
-    chrom_df = chrom_df.loc[:, "chrAdd"].reset_index()
 
-    full_dfs = []
+# ##################### SAMPLE ########################################################
+def concat_tables(paths) -> pd.DataFrame:
+    """Concatenate per-chromosome (or whole-sample) tables in natural chromosome order."""
+    df = pd.concat([read_tsv(p) for p in paths], ignore_index=True)
+    return set_chrom_categorical(df).sort_values(["Chr", "Pos"], kind="stable").reset_index(drop=True)
+
+
+def get_full_exon_pos(*dfs: pd.DataFrame, pon_cov_df: pd.DataFrame, chroms=None):
+    """Add FullExonPos = ExonPos + sum of the max PON ExonPos of all preceding chromosomes (natural order)."""
+    chrom_max = pon_cov_df.groupby(pon_cov_df["Chr"].astype(str))["ExonPos"].max()
+    order = natural_chroms(chrom_max.index) if chroms is None else [c for c in chroms if c in chrom_max.index]
+    chrom_add = chrom_max.loc[order].cumsum().shift(fill_value=0).rename("chrAdd")
+    out = []
     for df in dfs:
-        # merge with chrom_df
-        df = df.merge(chrom_df)
-        # get FullExonPos from ExonPos and chrAdd
-        df.loc[:, "FullExonPos"] = df["ExonPos"] + df["chrAdd"]
-
-        # get col index of "ExonPos" for adjacent inserting of "FullExonPos"
-        insert_index = df.columns.get_loc("ExonPos") + 1
         cols = list(df.columns)
-        out_cols = cols[:insert_index] + ["FullExonPos"] + cols[insert_index:-2]
-        full_dfs.append(df.loc[:, out_cols])
-    return full_dfs
+        df = df.copy()
+        add = df["Chr"].astype(str).map(chrom_add)
+        keep = add.notna()
+        if (~keep).any():
+            log.warning("Dropping %d rows on chromosomes missing from the PON", int((~keep).sum()))
+        df = df.loc[keep].copy()
+        df["FullExonPos"] = (df["ExonPos"] + add[keep]).astype(df["ExonPos"].dtype)
+        i = cols.index("ExonPos") + 1
+        out.append(df.loc[:, cols[:i] + ["FullExonPos"] + cols[i:]].reset_index(drop=True))
+    return out
 
 
-def log2ratio(df, cov_col, pon_cov_col="PONcov_mean"):
-    """
-    add log2ratio (log2(COV/PONCOV) to coverage data
-    """
-    # get the incoming columns
+def log2ratio(df: pd.DataFrame, cov_col: str, pon_cov_col: str = "PONcov_mean") -> pd.DataFrame:
+    """Insert log2ratio<N> = log2(Cov<N> / PONcov_mean) after Cov<N> (NaN where either value is 0)."""
     cols = list(df.columns)
-    # mask rows where logging does not compute
-    loggable = df[cov_col] * df["PONcov_mean"] != 0
-    # apply the log
+    df = df.copy()
     log_col = cov_col.replace("Cov", "log2ratio")
-    df.loc[loggable, log_col] = np.log2(
-        df.loc[loggable, cov_col] / df.loc[loggable, pon_cov_col]
-    )
-    # get col index of cov_col for inserting log_col
-    insert_index = df.columns.get_loc(cov_col) + 1
-    out_cols = cols[:insert_index] + [log_col] + cols[insert_index:]
-    return df.loc[:, out_cols]
+    loggable = df[cov_col] * df[pon_cov_col] != 0
+    df[log_col] = np.nan
+    df.loc[loggable, log_col] = np.log2(df.loc[loggable, cov_col] / df.loc[loggable, pon_cov_col])
+    i = cols.index(cov_col) + 1
+    return df.loc[:, cols[:i] + [log_col] + cols[i:]]
 
 
-def filter_cov(cov_df, config={}):
+def combine_sample(cov_df: pd.DataFrame, snp_df: pd.DataFrame, pon_dir: str, gc_normalize: bool = True):
+    """Sample coverage/SNPs + PON -> raw tables (main: combine_sample_CNV).
+
+    cov_df: Chr Pos ExonPos GCratio map* Cov1 Cov2 (tn2cnv); snp_df: Chr Pos ExonPos map* Depth1 VAF1 Depth2 VAF2.
     """
-    takes the config and applies pre-filtering for rolling computation
-    """
-
-    c = config["filter"]
-
-    # coverage
-    ccov = c["cov"]
-    minGC, maxGC = ccov["GCrange"]
-    minPONcov = ccov["minPONcov"]
-    maxPONstd = ccov["maxPONstd"]
-    cov_df = cov_df.query(
-        "(@minGC < GCratio < @maxGC) and PONcov_mean >= @minPONcov and PONcov_std < @maxPONstd"
-    )
-    return cov_df
-
-
-def filter_snp(snp_df, config={}):
-    """
-    takes the config and applies pre-filtering for rolling computation
-    """
-
-    c = config["filter"]
-
-    csnp = c["snp"]
-    # minDepth = csnp['minDepth']
-    # minVAF = csnp['minVAF']
-    maxPONVAF = csnp["maxPONVAF"]
-    minPONDepth = csnp["minPONDepth"]
-
-    snp_df = snp_df.query("@minPONDepth <= PONDepth and PONVAF < @maxPONVAF")
-
-    return snp_df
-
-
-def combine_sample_CNV(sample, config={}):
-    """
-    combined snp and cov sample data
-    adds FullExonPos to both files
-
-    COV:
-        performs GC normalization
-        adds the PON coverage and computes log2ratio coverage
-    SNP:
-        adds PON VAF to sample SNP data for filtering
-
-    """
-
-    # ## LOAD
-    show_output(f"Loading data for sample {sample}")
-    # combine chrom SNP and COV data for that sample
-    cov_df, snp_df = combine_chrom_cnv(sample, config=config)
-    show_output("Finished", color="success")
-
-    # ## NORMALIZE
-    # get config
-    if config["coverage"]["GCnormalize"]:
-        show_output("Normalizing coverage using GCratio segmentation")
-        cov_df = normalize_GC(cov_df)
-        # use GC PON
-        PON_cov_file = os.path.join(config["PON_path"], "CNV/pon.cov.filterGC.gz")
+    cov_df = set_chrom_categorical(cov_df)
+    if gc_normalize:
+        log.info("Normalizing sample coverage by GC ratio")
+        cov_df = normalize_gc(cov_df)
+        pon_file = os.path.join(pon_dir, "CNV", "pon.cov.filterGC.gz")
     else:
         cov_df = normalize(cov_df)
-        # use nonGC PON
-        PON_cov_file = os.path.join(config["PON_path"], "CNV/pon.cov.filter.gz")
-
-    # ## INCLUDE PON
-    if os.path.isfile(PON_cov_file):
-        show_output(f"Loading PON coverage from {PON_cov_file}")
-        pon_cov_df = pon_cov_df = pd.read_csv(
-            PON_cov_file, sep="\t", compression="gzip"
-        )
-    else:
-        show_output(f"PON coverage file {PON_cov_file} not found!", color="warning")
-        return
-
-    show_output("Adding FullExonPos from PON coverage to coverage and snp data.")
+        pon_file = os.path.join(pon_dir, "CNV", "pon.cov.filter.gz")
+    log.info("Loading PON coverage %s", pon_file)
+    pon_cov_df = read_tsv(pon_file)
+    cov_df, snp_df = chrom_str(cov_df), chrom_str(snp_df)
     cov_df, snp_df = get_full_exon_pos(cov_df, snp_df, pon_cov_df=pon_cov_df)
-    show_output(
-        "Merging coverage with PON coverage and performing log2ratio computation."
-    )
     cov_df = cov_df.merge(pon_cov_df)
-
     del pon_cov_df
-    for col in cov_df.columns:
-        if col.startswith("Cov"):
-            cov_df = log2ratio(cov_df, col)
-    show_output("log2ratio computation finished.", color="success")
+    for col in [c for c in cov_df.columns if c.startswith("Cov")]:
+        cov_df = log2ratio(cov_df, col)
+    pon_snp_file = os.path.join(pon_dir, "CNV", "pon.snp.gz")
+    log.info("Merging PON SNPs from %s", pon_snp_file)
+    # main merged on all shared columns, i.e. also on the float map* columns; those duplicate the sample's own
+    # mappability and break the match when the two files were parsed by different pandas versions
+    pon_snp = read_tsv(pon_snp_file)
+    pon_snp = pon_snp.drop(columns=[c for c in pon_snp.columns if c.startswith("map")])
+    snp_df = snp_df.merge(pon_snp, on=["Chr", "Pos", "ExonPos"], how="left")
+    cov_df = set_chrom_categorical(cov_df).sort_values(["Chr", "Pos"], kind="stable").reset_index(drop=True)
+    snp_df = set_chrom_categorical(snp_df).sort_values(["Chr", "Pos"], kind="stable").reset_index(drop=True)
+    return chrom_str(cov_df), chrom_str(snp_df)
 
-    # PON snp
-    PON_snp_file = os.path.join(config["PON_path"], "CNV/pon.snp.gz")
-    if os.path.isfile(PON_snp_file):
-        show_output(
-            f"Loading PON SNP from {PON_cov_file} and merging into sample SNP data."
-        )
-        pon_snp_df = pon_snp_df = pd.read_csv(
-            PON_snp_file, sep="\t", compression="gzip"
-        )
-    else:
-        show_output(f"PON snp file {PON_snp_file} not found!", color="warning")
-        return
-    snp_df = snp_df.merge(pon_snp_df, how="left")
-    show_output(f"Finished combining data for sample {sample}")
-    return cov_df, snp_df
+
+def filter_cov(cov_df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    """Pre-filter coverage bins for the rolling step (GC range, PON mean and std)."""
+    c = config["filter"]["cov"]
+    min_gc, max_gc = c["GCrange"]
+    return cov_df.loc[
+        (cov_df["GCratio"] > min_gc)
+        & (cov_df["GCratio"] < max_gc)
+        & (cov_df["PONcov_mean"] >= c["minPONcov"])
+        & (cov_df["PONcov_std"] < c["maxPONstd"])
+    ]
