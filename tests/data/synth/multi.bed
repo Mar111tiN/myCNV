@@ -1,0 +1,8 @@
+browser position chr7:1000-1290
+track name=synthetic
+chr7	1000	1080	gene0
+chr7	1100	1104	gene1
+chr7	1200	1290	gene2
+chr21	500	560	gene3
+chr21	600	700	gene4
+chrX	2000	2033	gene5
