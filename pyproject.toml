@@ -9,7 +9,7 @@ description = "PON-based CNV profiles (coverage log2ratio + het-SNP BAF) and ASC
 readme = "README.md"
 requires-python = ">=3.10"
 # conda-forge/bioconda provide the dependencies (environment.yml); mawk, bash and gzip must be on PATH
-dependencies = ["numpy", "pandas>=2", "pyyaml", "matplotlib", "seaborn"]
+dependencies = ["numpy", "pandas>=2", "pyyaml", "matplotlib"]
 
 [project.optional-dependencies]
 test = ["pytest"]

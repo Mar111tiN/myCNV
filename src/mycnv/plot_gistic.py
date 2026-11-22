@@ -4,11 +4,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle
 
-sns.set()
+from .plot_helpers import use_seaborn_style
+
+use_seaborn_style()
 
 
 def add_chrom_blocks(

@@ -61,7 +61,15 @@ def pon_combine(pon_dir: str, out_dir: str | None = None, std_factor: float = 2,
 
 
 # ##################### SAMPLE ########################################################
+def _agg_backend() -> None:
+    """matplotlib is imported only for plots (and then without a display)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+
 def raw_plots(cov_df, snp_df, sample: str, tumor: str, normal: str, plot_dir: str) -> list[str]:
+    _agg_backend()
     from .plot import plot_cov, plot_snp
     from .plot_params import covfig_params, log1, log2, snpfig_params, vaf1, vaf2
 
@@ -81,6 +89,7 @@ def raw_plots(cov_df, snp_df, sample: str, tumor: str, normal: str, plot_dir: st
 
 
 def cnv_plots(snp_df, cnv_df, sample: str, tumor: str, normal: str, plot_dir: str) -> list[str]:
+    _agg_backend()
     from .plot import plot_CNV
     from .plot_params import L2Rmean1, L2Rmean2, cnvfig_params, log1, log2, vaf1, vaf2
 

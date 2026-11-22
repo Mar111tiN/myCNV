@@ -156,9 +156,6 @@ def _names(args):
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging(args.verbose)
-    import matplotlib
-
-    matplotlib.use("Agg")
     cfg = _config(args)
 
     from . import pipeline as pl

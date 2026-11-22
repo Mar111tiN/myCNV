@@ -10,6 +10,12 @@ from matplotlib.patches import Rectangle
 from .tools import set_chrom_categorical
 
 
+def use_seaborn_style():
+    """The seaborn default look (darkgrid, notebook context, deep palette) that main set with `sns.set()`, from the
+    style sheet matplotlib ships, so seaborn (and its scipy dependency) is not needed."""
+    plt.style.use("seaborn-v0_8")
+
+
 def sort_df(df):
     """
     helper for sorting dfs for chromosomes (natural order)

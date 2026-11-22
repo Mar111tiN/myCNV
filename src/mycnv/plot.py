@@ -2,9 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# use seaborn plotting defaults
-import seaborn as sns
-
 from .plot_helpers import (
     get_chrom_df,
     extract_pos,
@@ -12,9 +9,10 @@ from .plot_helpers import (
     add_chrom_labels,
     set_ticks,
     sort_df,
+    use_seaborn_style,
 )
 
-sns.set()
+use_seaborn_style()
 
 
 def plot_cov(

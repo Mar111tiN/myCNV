@@ -10,5 +10,11 @@ build
 nb
 R
 info
+config
 cluster.R
 *.rtf
+# git-ignored data folders; tests/data/restricted/ is patient-derived and must never enter an image layer (plan D14)
+tests/data/restricted
+testpon
+data
+output
