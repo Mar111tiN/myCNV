@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from conftest import DATA, GC, GENMAP, SYNTH, read
-from mycnv.bed import bin_exon_pos, read_bed
+from mycnv.bed import bin_exon_pos, read_bed, region_digest
 from mycnv.raw import pon2cnv, tn2cnv
 from mycnv.tools import mawk
 
@@ -92,6 +92,80 @@ def test_bin_exonpos_with_overlapping_and_bookended_regions(tmp_path):
     expected = dense_first_base_exonpos(str(bed))
     bins = pd.DataFrame({"Chr": "chr7", "Pos": expected.index})
     assert np.array_equal(bin_exon_pos(bins, read_bed(str(bed))), expected.to_numpy())
+
+
+OVERLAP_BED = ("chr7\t100\t200\nchr7\t150\t180\nchr7\t190\t260\nchr7\t260\t270\nchr7\t271\t280\n"
+               "chr7\t400\t410\nchr8\t10\t50\nchr8\t20\t30\n")
+
+
+def _filterbed_dense(bed, legacy=False, end=500):
+    stream = "Chr\tStart\n" + "".join(f"{c}\t{p}\n" for c in ("chr7", "chr8") for p in range(1, end))
+    res = subprocess.run(["bash", "-o", "pipefail", "-c", f"{mawk('filterBed')} {bed} -x{' -L' if legacy else ''}"],
+                         input=stream, capture_output=True, text=True, check=True)
+    return pd.read_csv(StringIO(res.stdout), sep="\t")
+
+
+def test_overlapping_bed_regions_never_double_count_a_base(tmp_path):
+    """Vendor padded BEDs overlap (SS_HAEv7 padded: 29,488 overlaps): in the fixed coordinates every kept base gets
+    the next ExonPos (1, 2, 3, ... per chromosome), whether the BED is merged or not."""
+    bed = tmp_path / "overlap.bed"
+    bed.write_text(OVERLAP_BED)
+    out = _filterbed_dense(bed)
+    for chrom, df in out.groupby("Chr"):
+        assert df["Start"].is_unique
+        assert df["ExonPos"].tolist() == list(range(1, len(df) + 1)), chrom
+    # the kept positions are the union of the regions' start..end (filterBed convention, both inclusive)
+    exp = {("chr7", p) for s, e in [(100, 280), (400, 410)] for p in range(s, e + 1)}
+    exp |= {("chr8", p) for p in range(10, 51)}
+    assert set(zip(out["Chr"], out["Start"])) == exp
+
+
+def test_overlapping_bed_equals_its_merged_copy(tmp_path):
+    raw = tmp_path / "overlap.bed"
+    raw.write_text(OVERLAP_BED)
+    merged = read_bed(str(raw))
+    assert {c: (s.tolist(), e.tolist()) for c, (s, e) in merged.items()} == {
+        "chr7": ([100, 400], [280, 410]), "chr8": ([10], [50])}
+    mfile = tmp_path / "merged.bed"
+    mfile.write_text("".join(f"{c}\t{a}\t{b}\n" for c, (s, e) in merged.items() for a, b in zip(s, e)))
+    pd.testing.assert_frame_equal(_filterbed_dense(raw), _filterbed_dense(mfile))
+    assert region_digest(read_bed(str(raw)), "chr7") == region_digest(read_bed(str(mfile)), "chr7")
+    # BED-derived bin ExonPos (fixed) = ExonPos of the first kept base of the bin, on the raw overlapping BED
+    dense = _filterbed_dense(raw)
+    dense = dense[dense["Chr"] == "chr7"].assign(Pos=lambda d: d["Start"] // 10 * 10).drop_duplicates("Pos")
+    bins = pd.DataFrame({"Chr": "chr7", "Pos": dense["Pos"].to_numpy()})
+    assert np.array_equal(bin_exon_pos(bins, read_bed(str(raw))), dense["ExonPos"].to_numpy())
+
+
+def test_legacy_coords_keep_the_unmerged_regions(tmp_path):
+    """-L reproduces main: overlapping regions stay separate, so ExonPos (BEDSUM - BEDSTART + pos) counts them twice."""
+    bed = tmp_path / "overlap.bed"
+    bed.write_text(OVERLAP_BED)
+    out = _filterbed_dense(bed, legacy=True)
+    s, e = read_bed(str(bed), merge=False)["chr7"]
+    assert s.tolist() == [100, 150, 190, 260, 271, 400]  # unmerged
+    bedsum = np.cumsum(e - s + 1)
+    row = out[(out["Chr"] == "chr7") & (out["Start"] == 400)].iloc[0]
+    assert row["ExonPos"] == bedsum[5] - s[5] + 400  # region 6 of the unmerged list
+    fixed = _filterbed_dense(bed)
+    assert fixed.loc[(fixed["Chr"] == "chr7") & (fixed["Start"] == 400), "ExonPos"].item() < row["ExonPos"]
+
+
+def test_tn2cnv_and_pon2cnv_on_an_overlapping_bed_equal_its_merged_copy(tmp_path):
+    raw = PADDED  # the SS_HAEv7 padded slice has overlapping regions, like the full kit BED
+    s, e = read_bed(raw, merge=False)["chr7"]
+    assert (s[1:] <= e[:-1]).any(), "the fixture must contain overlapping regions"
+    merged = tmp_path / "merged.bed"
+    m = read_bed(raw)
+    merged.write_text("".join(f"chr7\t{a}\t{b}\n" for a, b in zip(*m["chr7"])))
+    a_cov, a_snp = tn2cnv(f"{SYNTH}/chr7.cpile", raw, gc=GC, genmap=GENMAP)
+    b_cov, b_snp = tn2cnv(f"{SYNTH}/chr7.cpile", str(merged), gc=GC, genmap=GENMAP)
+    pd.testing.assert_frame_equal(a_cov, b_cov)
+    pd.testing.assert_frame_equal(a_snp, b_snp)
+    assert a_cov.groupby("Chr")["ExonPos"].apply(lambda x: x.is_monotonic_increasing).all()
+    p_cov, _ = pon2cnv(f"{SYNTH}/matrix/chr7.pon.gz", raw, gc=GC, chrom="chr7")
+    q_cov, _ = pon2cnv(f"{SYNTH}/matrix/chr7.pon.gz", str(merged), gc=GC, chrom="chr7")
+    pd.testing.assert_frame_equal(p_cov, q_cov)
 
 
 def test_pile2cnv_fixed_bin_values_from_the_stream(tmp_path):

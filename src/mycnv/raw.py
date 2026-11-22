@@ -35,8 +35,10 @@ def _filter_cmd(bed: str, chroms: list[str] | None, legacy_coords: bool) -> str:
     return cmd
 
 
-def _regions(bed: str, chroms: list[str] | None):
-    regions = read_bed(bed, chroms)  # validates the BED order (filterBed would drop positions silently)
+def _regions(bed: str, chroms: list[str] | None, legacy_coords: bool = False):
+    # validates the BED order (filterBed would drop positions silently); fixed coordinates merge overlapping/touching
+    # regions exactly like filterBed without -L, so bin ExonPos and the streamed ExonPos agree
+    regions = read_bed(bed, chroms, merge=not legacy_coords)
     if not regions:
         raise ValueError(f"BED {bed} has no region{' on ' + ', '.join(chroms) if chroms else ''}")
     return regions
@@ -81,7 +83,7 @@ def tn2cnv(
     Raises ValueError when no coverage bin is made (empty pileup, BED or --chrom do not match the pileup).
     """
     chroms = _chrom_list(chrom)
-    regions = _regions(bed, chroms)
+    regions = _regions(bed, chroms, legacy_coords)
     read_cmd = cat_cmd(pileup)
     if not clean:
         read_cmd += f" | {mawk('cleanpileup')} -d"
@@ -122,7 +124,7 @@ def pon2cnv(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Per-sample coverage bins and pooled SNP VAFs of one PONmatrix file (`matrix/{chrom}.pon.gz`)."""
     chroms = _chrom_list(chrom)
-    regions = _regions(bed, chroms)
+    regions = _regions(bed, chroms, legacy_coords)
     with tempfile.TemporaryDirectory(dir=tmp_dir) as tmp:
         snp_file = os.path.join(tmp, "pon.snp")
         cnv_cmd = (f"{mawk('PON2CNV')} -x -o {shlex.quote(snp_file)} -v {min_vaf} -d {min_depth} -c {min_cov} "

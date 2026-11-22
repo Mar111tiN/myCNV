@@ -57,7 +57,7 @@ def _pon_coverage_one(args) -> tuple[str, int, int]:
     write_tsv(snp_df, os.path.join(out_dir, "snp", f"{chrom}.snp.gz"), compression="gzip")
     bed = kw["bed"]
     write_cov_meta(out_dir, chrom, kw.get("legacy_coords", False), kw.get("bin_size", 10), bed,
-                   region_digest(read_bed(bed, [chrom]), chrom))
+                   region_digest(read_bed(bed, [chrom], merge=not kw.get("legacy_coords", False)), chrom))
     return chrom, len(cov_df), len(snp_df)
 
 
@@ -183,7 +183,7 @@ def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, c
         pileup, bed, gc=gc, genmap=genmap, normal_vaf=sc["normalVAF"], min_depth=sc["minDepth"],
         min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords, tmp_dir=tmp_dir,
     )
-    regions = read_bed(bed)
+    regions = read_bed(bed, merge=not legacy_coords)
     bed_md5 = {c: region_digest(regions, c) for c in regions}
     cov_df, snp_df = combine_step(cov_df, snp_df, pon_dir, config, legacy_coords=legacy_coords,
                                   min_pon_match=min_pon_match, bed_md5=bed_md5)

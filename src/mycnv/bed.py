@@ -3,7 +3,9 @@
 filterBed (fixed coordinates) gives the stream position `pos` of region i the ExonPos
     BEDSUM[i] - BEDEND[i] + pos,      BEDSUM[i] = sum over regions k <= i of the chromosome of (end_k - start_k + 1),
 i.e. a region [start, end) covers the stream positions start..end (both inclusive, kept from v1.0.1). A position is
-assigned to the first region (in BED order) whose end is >= pos, and is kept if pos >= that region's start.
+assigned to the first region (in BED order) whose end is >= pos, and is kept if pos >= that region's start. In the
+fixed coordinates overlapping or touching regions are merged first (filterBed v2.2.0, `merge_regions`), so no base is
+counted twice; the legacy coordinates (`-L`) keep the regions as listed.
 
 pile2CNV/PON2CNV label a bin by its start (Pos = 10 * floor(pos / 10)) but give it the ExonPos of the first base that
 the stream holds in the bin. That depends on the data (PON2CNV skips bases without coverage in every normal, a pileup
@@ -28,12 +30,31 @@ def normalize_chrom(chrom: str) -> str:
     return chrom if chrom.startswith("chr") else f"chr{chrom}"
 
 
-def read_bed(path: str, chroms=None) -> Regions:
+def merge_regions(regions: Regions) -> Regions:
+    """Merge the regions of each chromosome that overlap or touch, exactly as filterBed.mawk does in the fixed
+    coordinates: a region covers the positions start..end (both inclusive), and a region with start <= previous end + 1
+    extends the previous one. Then no base is counted twice in ExonPos. Regions must be sorted by start."""
+    out: Regions = {}
+    for chrom, (s, e) in regions.items():
+        ms, me = [], []
+        for a, b in zip(s.tolist(), e.tolist()):
+            if ms and a <= me[-1] + 1:
+                me[-1] = max(me[-1], b)
+            else:
+                ms.append(a)
+                me.append(b)
+        out[chrom] = (np.asarray(ms, dtype=np.int64), np.asarray(me, dtype=np.int64))
+    return out
+
+
+def read_bed(path: str, chroms=None, merge: bool = True) -> Regions:
     """{chrom: (starts, ends)} of a BED file, read with the rules of filterBed.mawk.
 
     Lines starting with browser/track/# and empty lines are skipped; fields are tab-separated; only the first three
     columns are used. filterBed needs every chromosome as one block sorted by start (the blocks may come in any
     order); otherwise it silently drops or misassigns positions, so this raises ValueError instead.
+    merge=True (fixed coordinates, as filterBed without -L): overlapping/touching regions are merged
+    (`merge_regions`). merge=False: the regions as listed (legacy coordinates).
     """
     keep = None if chroms is None else {normalize_chrom(c) for c in chroms}
     starts: dict[str, list[int]] = {}
@@ -61,11 +82,13 @@ def read_bed(path: str, chroms=None) -> Regions:
                 continue
             starts.setdefault(chrom, []).append(start)
             ends.setdefault(chrom, []).append(end)
-    return {c: (np.asarray(starts[c], dtype=np.int64), np.asarray(ends[c], dtype=np.int64)) for c in starts}
+    regions = {c: (np.asarray(starts[c], dtype=np.int64), np.asarray(ends[c], dtype=np.int64)) for c in starts}
+    return merge_regions(regions) if merge else regions
 
 
 def region_digest(regions: Regions, chrom: str) -> str:
-    """md5 of one chromosome's regions (start, end pairs in BED order): equal digests = same bins and ExonPos."""
+    """md5 of one chromosome's regions (start, end pairs in BED order): equal digests = same bins and ExonPos.
+    Use the merged regions (read_bed default): a BED and its merged copy then get the same digest."""
     s, e = regions[chrom]
     text = "".join(f"{a}\t{b}\n" for a, b in zip(s.tolist(), e.tolist()))
     return hashlib.md5(text.encode()).hexdigest()

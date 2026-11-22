@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# filterBed v2.1.0 (myCNV kumodev)
+# filterBed v2.2.0 (myCNV kumodev)
 # Filters a position stream (header required, columns 1 = Chr, 2 = Pos) to the positions of a BED file and
 # optionally appends a per-chromosome cumulative exonic coordinate (ExonPos).
 #
@@ -16,6 +16,8 @@
 #     (`sort -k1,1 -k2,2n`; the blocks may come in any order): a chromosome that comes back after another one, or a
 #     start below the previous one, stops the tool with an error (v1.0.1 dropped or misassigned positions silently).
 #     The stream's chromosomes may come in any order; positions must be sorted within each chromosome.
+#   - fixed coordinates: overlapping or touching regions of a chromosome are merged before ExonPos is summed, so
+#     no base is counted twice (v2.2.0; with -L the regions stay as they are, like v1.0.1)
 #   - -c takes a comma-separated list
 #   - no early exit after the last BED region: later chromosomes of the stream are no longer dropped
 #   - ExonPos = cumulative covered bases before the region + (pos - BEDstart + 1), i.e. contiguous and
@@ -95,6 +97,17 @@ FNR == NR {
     }
     lastBedStart = $2 + 0;
     if (nKeep && !($1 in KEEP)) next;
+    # fixed coordinates: merge a region that overlaps or touches the previous region of its chromosome (a region
+    # covers the stream positions start..end, both inclusive), so that no base is counted twice in ExonPos.
+    # Vendor padded BEDs overlap a lot (SS_HAEv7 padded: 29,488 overlaps); -L keeps the unmerged legacy sums.
+    if (!legacyCoords && ($1 in CHROMSTART) && $2 + 0 <= BEDEND[bedCount] + 1) {
+        if ($3 + 0 > BEDEND[bedCount]) {
+            exonicCoord += $3 - BEDEND[bedCount];
+            BEDEND[bedCount] = $3 + 0;
+            BEDSUM[bedCount] = exonicCoord;
+        }
+        next;
+    }
     bedCount++;
     if (!($1 in CHROMSTART)) {
         # first region of a new chromosome
