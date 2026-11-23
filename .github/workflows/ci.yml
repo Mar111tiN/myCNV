@@ -1,0 +1,62 @@
+# CI for the mycnv kumodev port (plan D24: developed and CI-tested in this repo, moved to bayer-int for production).
+# Public tests only: tests/data/restricted/ (patient-derived, git-ignored) never exists in CI, so those tests skip.
+name: ci
+
+on:
+  push:
+    branches: [kumodev]
+  pull_request:
+    branches: [kumodev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          environment-name: mycnv
+          cache-environment: true
+      - name: Install the package (non-editable, so missing package data shows up)
+        run: python -m pip install --no-deps --no-build-isolation .
+      - name: Tests
+        run: python -m pytest -q -p no:cacheprovider -rs tests
+
+  docker-test-stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: docker build --target test (runs the public suite inside the build env)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          push: false
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build the runtime image (last stage) and smoke-test it
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: mycnv:ci
+          platforms: linux/amd64
+          cache-from: type=gha
+      - name: Runtime contract (non-root, CLI, tools)
+        run: >
+          docker run --rm mycnv:ci bash -o pipefail -c
+          'test "$(id -u)" != 0 && mycnv --version && mycnv tracks gc --help >/dev/null &&
+          mawk -W version | head -1 && samtools --version | head -1 && genmap --version-check 0 --version | head -1 &&
+          ps -o rss= -p $$'
