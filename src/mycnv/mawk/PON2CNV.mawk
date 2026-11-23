@@ -5,7 +5,7 @@
 # INPUT (optionally | filterBed -x):
 #   Chr  Start  Ref  A  G  C  T  I  D  Depth  [ExonPos]      cells: s1|s2|..|sN=s1|s2|..|sN (+ strand = - strand)
 # USAGE:
-#   gunzip < matrix/chr7.pon.gz | bash filterBed.mawk covered.bed -x -c chr7 | bash PON2CNV.mawk -x -o snp/chr7.snp
+#   gunzip < matrix/chr7.pon.gz | bash filterBed.mawk kit.padded.bed -x -c chr7 | bash PON2CNV.mawk -x -o snp/chr7.snp
 # OPTIONS
 #   -c | --min-coverage     <INT=0>      minimum (binned) coverage of any sample for coverage output
 #   -x | --keep-exon-pos                 keep the ExonPos column (if present)

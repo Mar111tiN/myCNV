@@ -5,8 +5,8 @@
 # INPUT (cleanpileup -d, optionally | filterBed -x), first sample = normal:
 #   Chr  Start  Ref  Depth1  Read1  Depth2  Read2 ... [ExonPos]
 # USAGE:
-#   samtools mpileup -f ref.fa -q 20 -Q 25 -l covered.bed NORMAL TUMOR | bash cleanpileup.mawk -d |
-#   bash filterBed.mawk covered.bed -x | bash pile2CNV.mawk -x -o out.snp [options] > out.cov
+#   samtools mpileup -f ref.fa -q 20 -Q 25 -l kit.padded.bed NORMAL TUMOR | bash cleanpileup.mawk -d |
+#   bash filterBed.mawk kit.padded.bed -x | bash pile2CNV.mawk -x -o out.snp [options] > out.cov
 # OPTIONS
 #   -c | --min-coverage     <INT=0>     minimum (binned) coverage of any sample for coverage output
 #   -x | --keep-exon-pos                keep the ExonPos column (if present)
