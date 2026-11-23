@@ -59,7 +59,7 @@ jobs:
           docker run --rm mycnv:ci bash -o pipefail -c
           'test "$(id -u)" != 0 && mycnv --version && mycnv tracks gc --help >/dev/null &&
           mawk -W version | sed -n 1p && samtools --version | sed -n 1p && genmap --version-check 0 --version | sed -n 1p &&
-          ps -o rss= -p $$'
+          ps -o rss= -p $$ && ! command -v pip && ! python -c "import pip" 2>/dev/null'
       # sed -n 1p reads all input: `| head -1` under pipefail failed with SIGPIPE (exit 141) when a tool was still
       # writing after head exited (run 45291859460).
       # Trivy 0.69.3 (the kumo-docker-scientific CI version) as a container; the vuln DB is cached in a volume for

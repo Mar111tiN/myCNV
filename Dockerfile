@@ -11,11 +11,17 @@
 FROM mambaorg/micromamba:2.10.0-debian13-slim AS build
 COPY --chown=$MAMBA_USER:$MAMBA_USER environment.yml /tmp/environment.yml
 RUN micromamba install -y -n base -f /tmp/environment.yml \
- && micromamba env export -n base > /opt/conda/env.lock.yml \
  && micromamba clean -a -y
 COPY --chown=$MAMBA_USER:$MAMBA_USER pyproject.toml README.md /tmp/mycnv/
 COPY --chown=$MAMBA_USER:$MAMBA_USER src /tmp/mycnv/src
+# pip is needed only for this install. It is removed afterwards: its vendored libraries (pip/_vendor/vendor.txt:
+# msgpack, urllib3, setuptools/pkg_resources) carried 5 fixed HIGH CVEs in the first CI Trivy gate (2026-11-23), and
+# nothing calls pip at runtime. The lock file is written after the removal, so it lists what ships.
 RUN /opt/conda/bin/python -m pip install --no-cache-dir --no-deps --no-build-isolation /tmp/mycnv \
+ && /opt/conda/bin/mycnv --version \
+ && micromamba remove -y -n base --force pip \
+ && micromamba env export -n base > /opt/conda/env.lock.yml \
+ && micromamba clean -a -y \
  && /opt/conda/bin/mycnv --version
 
 # ---- test: docker build --target test . ; not part of the shipped image ----
