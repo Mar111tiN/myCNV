@@ -67,12 +67,13 @@ mycnv sample --pileup pair.pileup.gz --bed kit.padded.bed --gc gc100-10/ --genma
 # -> CNV/P1/raw/P1_T-N.{cov.gz,snp}  sex.tsv  data/P1_T-N.{cnv.snp.gz,cnv.gz}  pre/P1_T-N_{N,T,germline}_{baf,logr}.tsv
 #    [plots/]
 
-# or step by step (same outputs); a per-chromosome split stops after tn2cnv, `combine` takes all its outputs
+# or step by step (same outputs; combine writes sex.tsv into the --out-cov folder unless --out-sex says otherwise);
+# a per-chromosome split stops after tn2cnv, `combine` takes all its outputs
 mycnv tn2cnv   --pileup pair.pileup.gz --bed kit.padded.bed --gc … --genmap … --out-cov s.chr7.cov.gz --out-snp s.chr7.snp \
     [--chrom chr7 ...]
 mycnv combine  --cov s.chr*.cov.gz --snp s.chr*.snp --ponmatrix ponmatrix_cnv --out-cov raw.cov.gz --out-snp raw.snp \
-    [--out-sex sex.tsv --tumor-name T --normal-name N]
-mycnv sex      --cov raw.cov.gz -o sex.tsv [--tumor-name T --normal-name N | --sample P1_T-N]   # = combine --out-sex
+    [--out-sex sex.tsv] [--tumor-name T --normal-name N]                                   # -> + sex.tsv
+mycnv sex      --cov raw.cov.gz -o sex.tsv [--tumor-name T --normal-name N | --sample P1_T-N]   # = combine's sex.tsv
 mycnv rolling  --cov raw.cov.gz --snp raw.snp --out-snp data.cnv.snp.gz --out-cnv data.cnv.gz
 mycnv ascat-input --cnv data.cnv.snp.gz --sample P1_T-N -o pre/
 mycnv config   # print the effective parameters (defaults = the somVarWES study config)
@@ -89,25 +90,32 @@ labels come from a legacy sample ID `<patient>_<tumor>-<normal>`; sarek pair IDs
 ## Sex calls (chrX of the PON normals and the samples)
 
 One coverage-based call (`mycnv.sex`) is used for the PON and for the samples (plan N-Q7, D-Q3):
-- `ratio = median(chrX non-PAR bins) / median(autosomal bins)` of a coverage column (XX ≈ 1, XY ≈ 0.5), or
-  `2 ** (median(chrX non-PAR) − median(autosomes))` of a log2ratio column, so both share one threshold set. NaN/inf
-  values are ignored. The PARs are GRCh38's (chrX:10,001–2,781,479 and 155,701,383–156,030,895, 1-based inclusive),
-  matched on the bin start `Pos`; autosomes are chr1–chr22.
+- `ratio = 2 ** (median(chrX non-PAR) − median(autosomes))` of a log2ratio column against an effectively female
+  reference: XX ≈ 1, XY ≈ 0.5. (A plain coverage column gives `median(chrX non-PAR bins) / median(autosomal bins)` on the
+  same scale, but without a per-bin reference it carries the kit's chrX/autosome target mix; the PON uses it only as a
+  start, see below.) NaN/inf values and zero-coverage bins are ignored (a log2ratio is NaN where the coverage is 0, and
+  a coverage column drops its 0 bins the same way). The PARs are GRCh38's (chrX:10,001–2,781,479 and
+  155,701,383–156,030,895, 1-based inclusive), matched on the bin start `Pos`; autosomes are chr1–chr22.
 - Call: **XY** if ratio < `sex.xy_max` (0.65), **XX** if ratio > `sex.xx_min` (0.85), else **ambiguous**; **unknown**
   with fewer than `sex.min_bins` (100) non-PAR chrX bins or no autosomal bins (e.g. a chr21-only test kit). Change the
-  thresholds with `--config` (section `sex:`, see `mycnv config`).
+  thresholds with `--config` (section `sex:`, see `mycnv config`); a bad section fails every command before it starts.
 
-**PON** (`pon-combine`): every normal is called on its mean-normalised coverage before any doubling. The chrX of the XY
-normals is doubled (all chrX bins, in the GC and the mean table), so the PON is effectively female; XX, ambiguous and
-unknown normals are not doubled (one warning per ambiguous or unknown normal). `CNV/pon.json` records the calls:
+**PON** (`pon-combine`): every normal is called like a sample, on the log2ratio of its mean-normalised coverage (before
+any doubling) against the per-bin mean of the *other* normals, in which the XY normals have their chrX doubled. The XY
+set starts from the plain coverage ratio cut at `(xy_max + xx_min) / 2` and is recomputed until it no longer changes
+(usually one round). The chrX **non-PAR** bins of the XY normals are doubled (in the GC and the mean table), so the PON
+is effectively female; the PAR is left as is (an XY normal has two PAR copies). XX, ambiguous and unknown normals are
+not doubled: one warning per ambiguous or unknown normal, a summary warning when any is ambiguous, and a warning when
+main's rule (normalised chrX mean < 75) would double other normals. `CNV/pon.json` records the calls:
 `"sex": [{"column": "Cov1", "name": <PON_list.txt entry or null>, "chrx_ratio": 1.0571, "call": "XX", "doubled": false},
-…]` and `"sex_thresholds"` (thresholds, PARs, doubling rule). `name` comes from `<--ponmatrix>/PON_list.txt` when it
-exists and has one entry per column. `--legacy-stats` keeps main's rule (normalised chrX mean < 75) and only records
-the calls. The ratio of a PON column has no per-bin reference, so its level depends on the kit: check `chrx_ratio` in
-`pon.json` (the calls of a new kit, and the warnings) before using a PON.
+…]` and `"sex_thresholds"` (thresholds, PARs, `pon_call` and `doubling` rules). `name` comes from
+`<--ponmatrix>/PON_list.txt` when it exists and has one entry per column. `--legacy-stats` keeps main's rule
+(normalised chrX mean < 75, all chrX bins) and only records the calls. Check the calls and warnings of a new kit or PON
+before using it.
 
-**Samples** (`sample`, `combine --out-sex`, `sex`): `sex.tsv` from the raw coverage table, i.e. the log2ratio of
-the normal and the tumor against the (effectively female) PON, one row per sample column:
+**Samples** (`sample`, `combine`, `sex`): `sex.tsv` from the raw coverage table, i.e. the log2ratio of the normal and
+the tumor against the (effectively female) PON, one row per sample column. An empty table, or one without a finite
+autosomal log2ratio, fails (exit 2); a table without chrX bins gives `unknown`:
 
 | column | content |
 |---|---|
@@ -139,8 +147,8 @@ another BED or coordinate mode than the CNV PON (checked with `CNV/pon.json` and
   only to combine new samples with PON coverage files built by the legacy tools; otherwise rebuild the CNV PON from
   `matrix/`. The dev PON `somvar_HAEv7_NovaSeq_v1` has legacy `cov/` and `CNV/` tables built on the **padded**
   SS_HAEv7 BED: run samples against it with `--bed SS_HAEv7_hg38_Padded.bed --legacy-coords`.
-- `pon-combine --legacy-stats` reproduces the old PON tables (filter stats not recomputed, chrX doubled by main's
-  rule: normalised chrX mean < 75).
+- `pon-combine --legacy-stats` reproduces the old PON tables (filter stats not recomputed, all chrX bins doubled by
+  main's rule: normalised chrX mean < 75).
 - All deliberate changes and the measured deltas on a study sample: `CHANGELOG.md`.
 
 ## Layout

@@ -32,17 +32,24 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 - The image no longer needs seaborn (and scipy): the plots use matplotlib's `seaborn-v0_8` style; matplotlib is only
   imported for plots. `default_config.yaml` lost the unused `pileup` and `ascat` sections; `--config` reports and ignores
   keys mycnv does not read.
-- Coverage sex calls (`mycnv.sex`, design items M4/M5, plan N-Q7/D-Q3): ratio = median(chrX non-PAR bins) /
-  median(autosomal bins) of a coverage column, or `2 ** (median − median)` of a log2ratio column; GRCh38 PARs
-  (chrX:10,001–2,781,479, 155,701,383–156,030,895) excluded; XY < 0.65 < ambiguous < 0.85 < XX; unknown below 100
-  non-PAR chrX bins or without autosomal bins. New config section `sex:` (`xy_max`, `xx_min`, `min_bins`).
-  - `pon-combine`: `CNV/pon.json` gains `sex` (per PON column: `column`, `name` from `PON_list.txt` if it matches the
-    columns, `chrx_ratio`, `call`, `doubled`) and `sex_thresholds` (thresholds, PARs, doubling rule).
-  - `sample` writes `sex.tsv` (`sample role column chrx_ratio log2_diff n_chrx_bins n_auto_bins call ascat_gender`)
-    from the raw coverage table; `ascat_gender` is the normal's call (ambiguous/unknown → XX, with a warning) and is
-    the gender the pipeline's ASCAT step uses (D-Q3). Step by step: `combine --out-sex FILE`, or the new subcommand
-    `mycnv sex --cov raw/<s>.cov.gz -o sex.tsv`. The existing `raw/`, `data/`, `pre/` outputs are unchanged
-    (byte-identical on the synthetic multi-chromosome kit, the synthetic CNV PON + sample and tier A).
+- Coverage sex calls (`mycnv.sex`, design items M4/M5, plan N-Q7/D-Q3): ratio = `2 ** (median − median)` of chrX
+  non-PAR vs autosomal bins of a log2ratio column against an effectively female reference (a plain coverage column:
+  median(chrX non-PAR) / median(autosomes), kit-dependent, only the PON's start); NaN/inf and zero-coverage bins
+  ignored; GRCh38 PARs (chrX:10,001–2,781,479, 155,701,383–156,030,895) excluded; XY < 0.65 < ambiguous < 0.85 < XX;
+  unknown below 100 non-PAR chrX bins or without autosomal bins. New config section `sex:` (`xy_max`, `xx_min`,
+  `min_bins`), checked when the config is loaded (a bad section fails every command before it does work).
+  - `pon-combine`: every PON normal is called on its mean-normalised coverage (before doubling) as a log2ratio vs the
+    per-bin mean of the other normals with the XY normals' chrX doubled; the XY set starts from the plain coverage
+    ratio cut at `(xy_max + xx_min) / 2` and is recomputed until it is stable. `CNV/pon.json` gains `sex` (per PON
+    column: `column`, `name` from `PON_list.txt` if it matches the columns, `chrx_ratio`, `call`, `doubled`) and
+    `sex_thresholds` (thresholds, PARs, `pon_call`, `doubling`).
+  - `sample` and `combine` write `sex.tsv` (`sample role column chrx_ratio log2_diff n_chrx_bins n_auto_bins call
+    ascat_gender`) from the raw coverage table; `ascat_gender` is the normal's call (ambiguous/unknown → XX, with a
+    warning) and is the gender the pipeline's ASCAT step uses (D-Q3). `combine` writes it into the `--out-cov` folder
+    (`--out-sex FILE` elsewhere); the new subcommand `mycnv sex --cov raw/<s>.cov.gz -o sex.tsv` makes the same file.
+    An empty raw table, or one without a finite autosomal log2ratio, exits 2. The call is made before any output is
+    written. The existing `raw/`, `data/`, `pre/` outputs are unchanged (byte-identical on the synthetic
+    multi-chromosome kit, the synthetic CNV PON + sample and tier A).
 - Test fixtures: the synthetic CNV PON (`tests/data/synth/pon`, and the sample on its bins) had all chrX bins at
   100–110 kb, inside PAR1, where an XY normal has two copies; the PAR-aware call found 0 non-PAR bins there. Its chrX
   now starts at 3.0 Mb (`tests/synth.py` `SYN_START`; same random draws). The `main` outputs made from it
@@ -65,7 +72,7 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 | `PON2CNV` first base of a bin | lost (undefined `$COL[s]`), ≈ 1/binSize of the coverage | counted | measured exactly in the tests |
 | `pile2CNV` het-SNP alt reads | A/C/G/T, D/d and only forward-strand insertions `I`: het insertions got ~half their VAF | also reverse-strand `i` | — |
 | PON outlier removal | stats not recomputed (filter == full stats); full tables got the outlier NaNs | filter stats recomputed on outlier-free coverage; full tables unmodified | `pon-combine --legacy-stats` |
-| PON chrX doubling (`amazonize`) | chrX ×2 for normals whose normalised chrX mean (all chrX bins, PAR included) is < 75, decided separately in the GC and the mean table; not recorded | the coverage sex call of each normal (mean-normalised coverage before doubling, PAR excluded) decides for both tables: XY doubled; XX, ambiguous, unknown not doubled (warning per ambiguous/unknown normal); recorded in `CNV/pon.json`. Same columns as main's rule on the synthetic PON (Cov3, Cov6) and on the restricted `pon_mini` (none: its chrX slice lies in PAR1) | `pon-combine --legacy-stats` (main's rule; the calls are only recorded) |
+| PON chrX doubling (`amazonize`) | chrX ×2 (all chrX bins, PAR included) for normals whose normalised chrX mean (PAR included) is < 75, decided separately in the GC and the mean table; not recorded. Fails with column dropouts (HAEv7, chr21 + chr22 + chrX: 8 normals in the GC table, none in the mean table; the coverage call has the same 15 XY on every subset) | the coverage sex call of each normal decides for both tables: log2ratio vs the per-bin mean of the other normals (XY chrX doubled, iterated; PAR and zero bins excluded), the thresholds of the samples. XY: only the chrX non-PAR bins doubled (two PAR copies in XY; main put the PON PAR ~0.65 log2 above the rest of chrX, an apparent loss over PAR1 in every sample); XX, ambiguous, unknown not doubled (warning per ambiguous/unknown normal, a summary warning, and a warning when main's rule differs); recorded in `CNV/pon.json`. Same columns as main's rule on the synthetic PON (Cov3, Cov6), on the restricted `pon_mini` (none: its chrX slice lies in PAR1) and on the HAEv7 PON (15 of 28, see below) | `pon-combine --legacy-stats` (main's rule, all chrX bins; the calls are only recorded) |
 | sample GC normalisation | over chr1–22, X (`combine_chrom_cnv` loaded only those) | the same: bins on chromosomes without PON coverage (chrY, alts) are dropped before normalising | — |
 | GC class with autosomal mean 0 | factor 100/0: its autosomal bins NaN (0 · inf), its chrX bins with coverage **inf**, which spread into the PON stats and rolling windows (seen when the PON was combined on chr7, chr21, chrX only: 15 inf values) | factor NaN: all its bins NaN, with a warning; the bins are kept | — (whole-genome PON and samples: no such class in HAEv7) |
 | FullExonPos offsets | lexicographic chromosome order (chr1, chr10, …, chr2) | natural order | — (rolling is per chromosome, so values do not depend on the order) |
@@ -116,8 +123,22 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 ### Sex calls measured on the HAEv7 PON `somvar_HAEv7_NovaSeq_v1` (D21 `cov/`, 28 normals; 2026-11-23, not genome-wide)
 - main's rule doubles 15 of the 28 normals, the same 15 in the GC and the mean table, whether chr7 + chr21 + chrX or
   chr1 + chr2 + chr7 + chr21 + chrX are combined.
-- On PON coverage the ratio is not centred on 1 and 0.5 for this kit: XX 1.15–1.35, XY 0.60–0.68 (their quotient is
-  ≈ 0.5, as expected), because a coverage column has no per-bin reference. With the default `xy_max` 0.65 the result
-  depends on the autosomes combined: chr7 + chr21 + chrX → 6 XY, 9 ambiguous (0.656–0.682, not doubled), 13 XX;
-  chr1 + chr2 + chr7 + chr21 + chrX → the same 15 XY as main's rule (0.595–0.635), 13 XX. The genome-wide values were
-  not computed on the workbench (owner decision pending: thresholds or a per-bin reference for the PON columns).
+- The plain coverage ratio of a PON column (no per-bin reference) is not centred on 1 and 0.5 for this kit: XX
+  1.15–1.35, XY 0.60–0.68 (quotient ≈ 0.5); zero-coverage bins raised it further (chr22 has column dropouts: 10 of
+  the 28 normals have 29–96 % zero bins there). Called on that ratio with the default thresholds, chr7 + chr21 + chrX
+  gave 6 XY, 9 ambiguous (not doubled), 13 XX, and chr21 + chr22 + chrX left 10 normals unknown (first version of this
+  change, review 2026-11-23).
+- Called as now (log2ratio vs the other normals' per-bin mean, XY chrX doubled; zeros excluded), with the default
+  thresholds:
+  - chr7 + chr21 + chrX: 15 XY (0.483–0.526), 13 XX (0.921–1.032), none ambiguous; the 15 doubled normals are main's
+    15. After doubling, the PON PAR sits at the level of the rest of chrX (fullGC, PON
+    mean vs the mean of the XX normals, median log2: PAR +0.013, chrX non-PAR +0.020, autosomes 0.000); main's
+    doubling of the PAR put it about 0.65 log2 above the rest of chrX.
+  - chr21 + chr22 + chrX: the same 15 XY (0.396–0.524), 9 XX, 4 XX-level normals ambiguous (0.73–0.85, not doubled,
+    with warnings); main's rule doubles 8 normals in the GC table and none in the mean table here.
+  - The start matters only at the edges: in an exploratory run (all-column mean as reference), the starts "all",
+    main's rule and the plain-ratio cut reached the same 15 XY on both subsets, while an empty start stayed empty on
+    chr7 + chr21 + chrX (against a mixed reference the XY normals fall into the ambiguous band); hence the plain-ratio
+    start. The reference now leaves the called normal out, so its call does not depend on its own doubling (with N = 8
+    that dependence made a second fixed point in the tests). Genome-wide values were not computed on the workbench
+    (memory cap).

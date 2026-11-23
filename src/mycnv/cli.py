@@ -109,7 +109,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-cov", type=float, help="minimum binned coverage for output (0)")
     _common(p)
 
-    p = add("pon-combine", "PON cov/ + snp/ -> CNV/pon.cov.{full,fullGC,filter,filterGC}.gz, CNV/pon.snp.gz")
+    p = add("pon-combine", "PON cov/ + snp/ -> CNV/pon.cov.{full,fullGC,filter,filterGC}.gz, CNV/pon.snp.gz, "
+                           "CNV/pon.json (with the sex call of every normal)")
     p.add_argument("--ponmatrix", required=True, help="folder with cov/ and snp/ (the pon-coverage -o folder)")
     p.add_argument("-o", "--outdir", required=True, help="folder that gets CNV/ (may be the --ponmatrix folder)")
     _chrom(p, "chromosomes to combine (default: chr1..chr22, chrX)")
@@ -128,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out-snp", required=True, help="het SNPs")
     _common(p)
 
-    p = add("combine", "tn2cnv outputs + CNV PON -> raw/{s}.cov.gz + raw/{s}.snp (log2ratio vs PON)")
+    p = add("combine", "tn2cnv outputs + CNV PON -> raw/{s}.cov.gz + raw/{s}.snp (log2ratio vs PON) + sex.tsv")
     p.add_argument("--cov", nargs="+", action="extend", required=True,
                    help="tn2cnv coverage file(s): the whole sample, e.g. one per chromosome (repeatable)")
     p.add_argument("--snp", nargs="+", action="extend", required=True, help="tn2cnv SNP file(s) (repeatable)")
@@ -140,8 +141,9 @@ def build_parser() -> argparse.ArgumentParser:
     _pon_match(p)
     p.add_argument("--allow-missing-chroms", action="store_true",
                    help="do not fail when PON chromosomes have no sample bins (partial sample: wrong normalisation)")
-    p.add_argument("--out-sex", help="also write the sex calls (sex.tsv, as `sample` and `sex` write it) here; labels "
-                                     "from --tumor-name/--normal-name or --sample, else tumor/normal")
+    p.add_argument("--out-sex", help="sex calls + ASCAT gender (sex.tsv, as `sample` and `sex` write it; default: "
+                                     "sex.tsv in the --out-cov folder); labels from --tumor-name/--normal-name or "
+                                     "--sample, else tumor/normal")
     _plot_opts(p)
     _common(p)
 
@@ -170,12 +172,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--allow-empty", action="store_true", help="write the tables even if there is no SNP or logR")
     _common(p)
 
-    p = add("sample", "whole per-sample chain: tn2cnv -> combine -> rolling -> ascat-input (always the whole sample)")
+    p = add("sample", "whole per-sample chain: tn2cnv -> combine (+ sex.tsv) -> rolling -> ascat-input (always the "
+                      "whole sample)")
     p.add_argument("--pileup", required=True, help="NORMAL TUMOR pileup after `cleanpileup -d` (plain or .gz)")
     p.add_argument("--ponmatrix", required=True, help="CNV PON folder (reads CNV/)")
     p.add_argument("--sample", required=True, help="sample ID used in file names")
     _names(p)
-    p.add_argument("-o", "--outdir", required=True, help="writes raw/, data/, pre/ (and plots/) here")
+    p.add_argument("-o", "--outdir", required=True,
+                   help="writes raw/, sex.tsv (sex calls, ASCAT gender), data/, pre/ (and plots/) here")
     _tracks(p)
     _sample_opts(p)
     p.add_argument("--no-gc-normalize", action="store_true", help="mean-normalise instead of GC-normalise")
@@ -294,14 +298,14 @@ def _run(args, cfg) -> None:
         from .combine import concat_tables
 
         names = _plot_names(args) if args.plots_dir else None
-        labels = _sex_labels(args) if args.out_sex else None
+        out_sex = args.out_sex or os.path.join(os.path.dirname(args.out_cov), "sex.tsv")
         cov_df, snp_df = pl.combine_step(concat_tables(args.cov), concat_tables(args.snp), args.ponmatrix, cfg,
                                          legacy_coords=args.legacy_coords, min_pon_match=args.min_pon_match,
                                          allow_missing_chroms=args.allow_missing_chroms)
+        sex_df = pl.sex_step(cov_df, *_sex_labels(args), cfg)  # before any write: no partial outputs
         write_tsv(cov_df, args.out_cov)
         write_tsv(snp_df, args.out_snp)
-        if args.out_sex:
-            pl.sex_step(cov_df, *labels, cfg, args.out_sex)
+        write_tsv(sex_df, out_sex)
         if args.plots_dir:
             pl.raw_plots(cov_df, snp_df, args.sample, *names, args.plots_dir)
     elif args.cmd == "sex":

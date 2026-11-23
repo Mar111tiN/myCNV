@@ -92,7 +92,8 @@ def pon_combine(pon_dir: str, out_dir: str, std_factor: float = 2, chroms=PRIMAR
     files = cmb.write_pon(out_dir, tables, snp_df)
     doubled = [c["column"] for c in calls if c["doubled"]]
     log.info("PON chrX doubled for %d of %d columns (%s)", len(doubled), len(calls), ", ".join(doubled) or "none")
-    t = sex.thresholds_record(sex.thresholds(sex_cfg), cmb.LEGACY_DOUBLING if legacy else cmb.XY_DOUBLING)
+    t = sex.thresholds_record(sex.thresholds(sex_cfg), cmb.LEGACY_DOUBLING if legacy else cmb.XY_DOUBLING,
+                              pon_call=cmb.PON_CALL)
     files.append(write_pon_meta(out_dir, meta, used, std_factor, legacy,
                                 sex=sex_entries(calls, read_pon_list(pon_dir)), sex_thresholds=t))
     return files
@@ -208,9 +209,10 @@ def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, c
     bed_md5 = {c: region_digest(regions, c) for c in regions}
     cov_df, snp_df = combine_step(cov_df, snp_df, pon_dir, config, legacy_coords=legacy_coords,
                                   min_pon_match=min_pon_match, bed_md5=bed_md5)
+    sex_df = sex_step(cov_df, tumor, normal, config)  # before any write: a failing call leaves no partial raw/
     write_tsv(cov_df, p["raw_cov"], compression="gzip")
     write_tsv(snp_df, p["raw_snp"])
-    sex_step(cov_df, tumor, normal, config, p["sex"])
+    write_tsv(sex_df, p["sex"])
     if plots:
         raw_plots(cov_df, snp_df, sample, tumor, normal, p["plots"])
     roll_snp, cnv_df, _ = rolling_step(cov_df, snp_df, config)

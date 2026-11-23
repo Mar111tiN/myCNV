@@ -38,7 +38,8 @@ def test_pon_combine_recomputes_filter_stats():
 
 def test_sex_calls_double_the_same_columns_as_main():
     """pon_mini's chrX slice (chrX:284,050-1,465,540) lies wholly in PAR1, where XY normals have two copies: every
-    column is unknown (0 non-PAR bins) and none is doubled; main's 75 rule doubles none either."""
+    column is unknown (0 non-PAR bins) and none is doubled; main's 75 rule doubles none either. (So this check is
+    vacuous; the real-data comparison was run on the whole HAEv7 PON, see CHANGELOG "Sex calls measured".)"""
     tables, calls = pon_coverage_and_sex(PON, chroms=CHROMS)
     cov = combine_pon_coverage(PON, CHROMS)
     assert legacy_male_columns(normalize_gc(cov)) == legacy_male_columns(normalize(cov)) == []

@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from conftest import DATA, GC, GENMAP, SGC, SGENMAP, STUDY_CONFIG, SYNTH, assert_frames_close, read
+from conftest import DATA, GC, GENMAP, LEGACY, SGC, SGENMAP, STUDY_CONFIG, SYNTH, assert_frames_close, read
 
 MYCNV = [sys.executable, "-m", "mycnv.cli"]
 BED7 = f"{DATA}/haev7_covered_chr7.bed"
@@ -81,7 +81,7 @@ def test_pon_and_sample_chain(tmp_path):
     assert "Sex call of the normal N is unknown" in res.stderr
     meta = json.loads((pon / "CNV" / "pon.json").read_text())
     assert len(meta["sex"]) == 5 and {e["call"] for e in meta["sex"]} == {"unknown"}
-    assert not any(e["doubled"] for e in meta["sex"]) and meta["sex_thresholds"]["doubling"] == "XY call"
+    assert not any(e["doubled"] for e in meta["sex"]) and meta["sex_thresholds"]["doubling"] == "XY call, chrX non-PAR bins"
 
 
 # ---------- the multi-chromosome synthetic kit: PON, split path, threads ------------------------------------------
@@ -141,6 +141,86 @@ def test_split_path_equals_sample(tmp_path, multi_pon):
     assert not (tmp_path / "bad.tsv").exists()
     whole_cov = read(whole / "raw" / "M_T-N.cov.gz")
     assert list(dict.fromkeys(whole_cov["Chr"])) == ["chr7", "chr21", "chrX"]
+
+
+def test_sample_takes_the_sex_config(tmp_path, multi_pon):
+    """--config reaches the sex call of `sample`: multi.bed's few chrX bins are unknown with min_bins 100, not with 1."""
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text("CNV:\n  sex:\n    min_bins: 1\n")
+    run("sample", "--pileup", f"{SYNTH}/multi.cpile", "--bed", MULTI_BED, *TRACKS, "--ponmatrix", multi_pon,
+        "--sample", "M_T-N", "-o", tmp_path / "s", "--allow-empty", "--config", cfg)
+    sex = read(tmp_path / "s" / "sex.tsv")
+    assert "unknown" not in sex["call"].tolist() and sex["n_chrx_bins"].between(1, 99).all()
+
+
+# ---------- sex calls of the synthetic sample (chrX > min_bins) through `combine` and `sex` -------------------------
+SAMPLE_COV = sorted(f"{SYNTH}/sample/{f}" for f in os.listdir(f"{SYNTH}/sample") if f.endswith(".cov.gz"))
+SAMPLE_SNP = sorted(f"{SYNTH}/sample/{f}" for f in os.listdir(f"{SYNTH}/sample") if f.endswith(".snp"))
+
+
+@pytest.fixture
+def cnv_pon(tmp_path):
+    """main's CNV tables of the synthetic PON as a --ponmatrix folder."""
+    pon = tmp_path / "pon"
+    pon.mkdir()
+    os.symlink(f"{LEGACY}/pon_synth_CNV", pon / "CNV")
+    return pon
+
+
+def _combine(cnv_pon, out_cov, *extra, check=True):
+    return run("combine", "--cov", *SAMPLE_COV, "--snp", *SAMPLE_SNP, "--ponmatrix", cnv_pon, "--out-cov", out_cov,
+               "--out-snp", os.path.join(os.path.dirname(out_cov), "raw.snp"), *extra, check=check)
+
+
+def test_combine_writes_sex_tsv_and_the_sex_config_reaches_combine_and_sex(tmp_path, cnv_pon):
+    raw = tmp_path / "s" / "raw" / "raw.cov.gz"
+    _combine(cnv_pon, raw, "--tumor-name", "T", "--normal-name", "N")
+    sex = read(tmp_path / "s" / "raw" / "sex.tsv")  # default --out-sex: next to --out-cov
+    assert sex["sample"].tolist() == ["N", "T"] and sex["call"].tolist() == ["XX", "XX"]
+    assert (sex["n_chrx_bins"] > 400).all()
+    cfg = tmp_path / "c.yaml"  # an XX ratio (~1) is below this xy_max: the config must change the call
+    cfg.write_text("CNV:\n  sex:\n    xy_max: 1.5\n    xx_min: 1.6\n")
+    run("sex", "--cov", raw, "-o", tmp_path / "sex_cfg.tsv", "--config", cfg)
+    assert read(tmp_path / "sex_cfg.tsv")["call"].tolist() == ["XY", "XY"]
+    _combine(cnv_pon, tmp_path / "c" / "raw.cov.gz", "--out-sex", tmp_path / "c.sex.tsv", "--config", cfg)
+    assert read(tmp_path / "c.sex.tsv")["call"].tolist() == ["XY", "XY"]
+    assert not (tmp_path / "c" / "sex.tsv").exists()
+    # a header-only table is a data problem (exit 2), not a sample without chrX
+    read(raw).iloc[:0].to_csv(tmp_path / "empty.cov.gz", sep="\t", index=False)
+    res = run("sex", "--cov", tmp_path / "empty.cov.gz", "-o", tmp_path / "e.tsv", check=False)
+    assert res.returncode == 2 and "no bins" in res.stderr and not (tmp_path / "e.tsv").exists()
+
+
+def test_bad_sex_config_fails_before_any_output(tmp_path, cnv_pon):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("CNV:\n  sex:\n    xy_max: 0.9\n")
+    res = _combine(cnv_pon, tmp_path / "o" / "raw.cov.gz", "--config", bad, check=False)
+    assert res.returncode == 2 and "xy_max <= xx_min" in res.stderr
+    assert not (tmp_path / "o").exists()
+    res = run("config", "--config", bad, check=False)
+    assert res.returncode == 2 and "xy_max <= xx_min" in res.stderr
+
+
+def test_pon_combine_takes_the_sex_config(tmp_path):
+    """Cov2 at 70 % chrX: ambiguous with the defaults (not doubled); XY and doubled with sex.xy_max 0.8."""
+    pon = tmp_path / "pon"
+    shutil.copytree(f"{SYNTH}/pon", pon)
+    path = pon / "cov" / "chrX.cov.gz"
+    df = read(path)
+    df["Cov2"] = df["Cov2"] * 0.7
+    df.to_csv(path, sep="\t", index=False, compression="gzip")
+    chroms = ["--chrom", "chr7", "--chrom", "chr21", "--chrom", "chrX"]
+    res = run("pon-combine", "--ponmatrix", pon, "-o", tmp_path / "default", *chroms)
+    by = {e["column"]: e for e in json.loads((tmp_path / "default" / "CNV" / "pon.json").read_text())["sex"]}
+    assert by["Cov2"]["call"] == "ambiguous" and not by["Cov2"]["doubled"] and by["Cov3"]["doubled"]
+    assert "1 of 8 PON columns have an ambiguous sex call" in res.stderr
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text("CNV:\n  sex:\n    xy_max: 0.8\n")
+    run("pon-combine", "--ponmatrix", pon, "-o", tmp_path / "cfg", *chroms, "--config", cfg)
+    meta = json.loads((tmp_path / "cfg" / "CNV" / "pon.json").read_text())
+    by = {e["column"]: e for e in meta["sex"]}
+    assert by["Cov2"]["call"] == "XY" and by["Cov2"]["doubled"] and meta["sex_thresholds"]["xy_max"] == 0.8
+    assert [c for c, e in by.items() if e["doubled"]] == ["Cov2", "Cov3", "Cov6"]
 
 
 def test_raw_mpileup_route(tmp_path):
@@ -214,6 +294,15 @@ def test_threads_and_quiet_on_every_command():
     assert {"tracks gc", "tracks genmap", "sample"} <= set(names)
     sample = dict(leaves(p))["sample"]
     assert "--chrom" not in {o for a in sample._actions for o in a.option_strings}
+
+
+def test_help_names_the_sex_outputs():
+    """The NF modules are written from the --help texts: sex.tsv (sample, combine) and pon.json (pon-combine)."""
+    sample = " ".join(run("sample", "--help").stdout.split())
+    assert "tn2cnv -> combine (+ sex.tsv) -> rolling" in sample and "writes raw/, sex.tsv" in sample
+    combine = " ".join(run("combine", "--help").stdout.split())
+    assert "+ sex.tsv" in combine and "default: sex.tsv in the --out-cov folder" in combine
+    assert "CNV/pon.json (with the sex call of every normal)" in " ".join(run("pon-combine", "--help").stdout.split())
 
 
 def test_plots_dir_needs_sample(tmp_path):

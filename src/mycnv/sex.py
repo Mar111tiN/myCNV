@@ -1,17 +1,24 @@
 """Coverage-based sex calls (plan N-Q7, D-Q3; design items M4 and M5).
 
 One detection for the PON columns and for the samples:
-- `pon-combine` calls every PON normal on its mean-normalised coverage (before any doubling). The call decides which
-  normals get their chrX doubled (XY -> XX level, so the PON is effectively female) and is written to `CNV/pon.json`.
-- `sample` (and `combine --out-sex`, `sex`) call the normal and the tumor on their log2ratio vs that PON and write
-  `sex.tsv`, whose `ascat_gender` is the gender ASCAT uses.
+- `sample` (and `combine`, `sex`) call the normal and the tumor on their log2ratio vs the (effectively female) PON and
+  write `sex.tsv`, whose `ascat_gender` is the gender ASCAT uses.
+- `pon-combine` calls every PON normal the same way (`pon_calls`): the log2ratio of its mean-normalised coverage
+  (before any doubling) vs the per-bin mean of the PON whose XY columns have their chrX doubled. The call decides
+  which normals get their chrX non-PAR doubled (XY -> XX level, so the PON is effectively female) and is written to
+  `CNV/pon.json`.
 
-    coverage column:  ratio = median(chrX non-PAR) / median(autosomes)          XX ~ 1, XY ~ 0.5
-    log2ratio column: ratio = 2 ** (median(chrX non-PAR) - median(autosomes))   the same scale, the same thresholds
+    log2ratio column: ratio = 2 ** (median(chrX non-PAR) - median(autosomes))   XX ~ 1, XY ~ 0.5
+    coverage column:  ratio = median(chrX non-PAR) / median(autosomes)          the same scale, but kit-dependent
 
 XY if ratio < xy_max, XX if ratio > xx_min, else ambiguous; unknown with fewer than min_bins non-PAR chrX bins or no
-autosomal bins. NaN and inf values are ignored. A bin is on the PAR when Chr is chrX and its Pos (the bin start) lies
-in a GRCh38 PAR; the other chrX bins are "chrX non-PAR". Autosomes are chr1..chr22.
+autosomal bins. NaN and inf values are ignored, and so are zero-coverage bins (a log2ratio is NaN where the coverage
+is 0). A bin is on the PAR when Chr is chrX and its Pos (the bin start) lies in a GRCh38 PAR; the other chrX bins are
+"chrX non-PAR". Autosomes are chr1..chr22.
+
+A coverage column has no per-bin reference, so its plain ratio is not centred: it carries the kit's chrX/autosome
+target mix (HAEv7 PON, chr7 + chr21 + chrX: XX 1.17-1.30, XY 0.61-0.67). `pon_calls` therefore uses the plain ratio
+only as the start of the XY set.
 """
 
 from __future__ import annotations
@@ -37,7 +44,10 @@ def thresholds(cfg: dict | None = None) -> dict:
     """The `sex:` config section (defaults filled in), checked: 0 < xy_max <= xx_min, min_bins >= 1."""
     t = dict(DEFAULTS)
     t.update(cfg or {})
-    t = {"xy_max": float(t["xy_max"]), "xx_min": float(t["xx_min"]), "min_bins": int(t["min_bins"])}
+    try:
+        t = {"xy_max": float(t["xy_max"]), "xx_min": float(t["xx_min"]), "min_bins": int(t["min_bins"])}
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"sex thresholds must be numbers (xy_max, xx_min, min_bins): {err}") from None
     if not 0 < t["xy_max"] <= t["xx_min"]:
         raise ValueError(f"sex thresholds need 0 < xy_max <= xx_min, got xy_max {t['xy_max']}, xx_min {t['xx_min']}")
     if t["min_bins"] < 1:
@@ -45,9 +55,11 @@ def thresholds(cfg: dict | None = None) -> dict:
     return t
 
 
-def thresholds_record(t: dict, doubling: str | None = None) -> dict:
-    """The thresholds as written to CNV/pon.json (with the PARs and, for the PON, the doubling rule)."""
+def thresholds_record(t: dict, doubling: str | None = None, pon_call: str | None = None) -> dict:
+    """The thresholds as written to CNV/pon.json (with the PARs and, for the PON, the call and the doubling rule)."""
     out = dict(t, par_grch38={c: [list(r) for r in regions] for c, regions in PAR.items()})
+    if pon_call:
+        out["pon_call"] = pon_call
     if doubling:
         out["doubling"] = doubling
     return out
@@ -66,9 +78,13 @@ def region_masks(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
 
 
 def column_ratio(values, x_mask: np.ndarray, auto_mask: np.ndarray, log2: bool = False) -> dict:
-    """chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins of one column (finite values only)."""
+    """chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins of one column (finite values only; coverage: > 0 only).
+
+    Zero-coverage bins are dropped from a coverage column as the log2ratio path drops them (NaN where Cov is 0): a
+    normal with a dropout on one chromosome would otherwise pull its autosomal median down (or to 0).
+    """
     v = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(float)
-    finite = np.isfinite(v)
+    finite = np.isfinite(v) if log2 else np.isfinite(v) & (v > 0)
     x, a = v[x_mask & finite], v[auto_mask & finite]
     ratio = diff = math.nan
     if len(x) and len(a):
@@ -103,6 +119,61 @@ def call_columns(df: pd.DataFrame, columns, t: dict, log2: bool = False) -> list
     return out
 
 
+def _values(df: pd.DataFrame, col: str, double: bool, x_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(values with the chrX non-PAR doubled if `double`, usable = finite and > 0) of one column."""
+    v = pd.to_numeric(df[col], errors="coerce").to_numpy(float)
+    if double:
+        v = np.where(x_mask, 2 * v, v)
+    return v, np.isfinite(v) & (v > 0)
+
+
+def pon_calls(df: pd.DataFrame, columns, t: dict, max_rounds: int = 10) -> list[dict]:
+    """Sex calls of PON columns (mean-normalised coverage before any doubling), made like the sample calls.
+
+    Every column is called on its log2ratio vs the per-bin mean of the other PON columns, with the chrX non-PAR of
+    the XY columns doubled, i.e. against an effectively female reference (XX ~ 1, XY ~ 0.5, the thresholds of the
+    samples). Leaving the column out keeps its call independent of its own doubling. The XY set starts from the plain
+    coverage ratio cut at the midpoint of xy_max and xx_min (the plain ratio carries the kit's target mix, so it only
+    seeds the set) and is updated until it does not change (at most `max_rounds`). Zero-coverage values enter neither
+    the reference nor the column's log2ratio.
+    Returns [{column, chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins, call, coverage_ratio}]; coverage_ratio is the
+    plain ratio (for the log).
+    """
+    columns = list(columns)
+    x_mask, auto_mask = region_masks(df)
+    plain = {r["column"]: r for r in call_columns(df, columns, t)}
+    mid = (t["xy_max"] + t["xx_min"]) / 2
+    xy = {c for c, r in plain.items() if r["call"] != "unknown" and r["chrx_ratio"] < mid}
+    log.info("PON sex calls: %d columns start as XY (plain coverage ratio < %.3f)", len(xy), mid)
+    for rounds in range(1, max_rounds + 1):
+        total, count = np.zeros(len(df)), np.zeros(len(df))
+        for col in columns:  # per-bin sum and count over all columns (doubled as in `xy`)
+            v, ok = _values(df, col, col in xy, x_mask)
+            total[ok] += v[ok]
+            count[ok] += 1
+        calls = []
+        for col in columns:
+            own, own_ok = _values(df, col, col in xy, x_mask)
+            n = count - own_ok
+            ref = np.full(len(df), np.nan)
+            np.divide(total - np.where(own_ok, own, 0), n, out=ref, where=n > 0)  # mean of the other columns
+            v, ok = _values(df, col, False, x_mask)
+            ok &= np.isfinite(ref) & (ref > 0)
+            lr = np.full(len(df), np.nan)
+            lr[ok] = np.log2(v[ok] / ref[ok])
+            r = column_ratio(lr, x_mask, auto_mask, log2=True)
+            calls.append({"column": col, **r, "call": call_sex(r["chrx_ratio"], r["n_chrx_bins"], r["n_auto_bins"], t),
+                          "coverage_ratio": plain[col]["chrx_ratio"]})
+        new = {c["column"] for c in calls if c["call"] == "XY"}
+        if new == xy:
+            log.info("PON sex calls stable after %d round(s): %d XY", rounds, len(xy))
+            break
+        xy = new
+    else:
+        log.warning("PON sex calls still changed after %d rounds: the last calls are used", max_rounds)
+    return calls
+
+
 def describe(r: dict) -> str:
     ratio = "n/a" if not math.isfinite(r["chrx_ratio"]) else f"{r['chrx_ratio']:.3f}"
     return f"chrX/autosome ratio {ratio}, {r['n_chrx_bins']} non-PAR chrX bins, {r['n_auto_bins']} autosomal bins"
@@ -127,7 +198,12 @@ def sex_table(cov_df: pd.DataFrame, samples, cfg: dict | None = None) -> pd.Data
     if missing:
         raise ValueError(f"the coverage table has no {', '.join(missing)} column: the sex call needs the raw coverage "
                          "table of `combine`/`sample` (raw/<s>.cov.gz, log2ratio vs the PON)")
+    if cov_df.empty:
+        raise ValueError("the coverage table has no bins: no sex call")
     calls = call_columns(cov_df, [col for _, _, col in samples], t, log2=True)
+    if not any(r["n_auto_bins"] for r in calls):
+        raise ValueError(f"the coverage table has no autosomal bin with a finite "
+                         f"{'/'.join(col for _, _, col in samples)}: no sex call")
     rows = []
     for (label, role, _), r in zip(samples, calls):
         rows.append({"sample": label, "role": role, **r})

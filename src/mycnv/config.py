@@ -65,8 +65,10 @@ def load_config(path: str | None = None, overrides: dict | None = None) -> dict:
     """Defaults, then the YAML file at `path` (top-level `CNV:` optional), then `overrides`.
 
     Keys that mycnv does not read (e.g. the legacy `pileup`, `ascat`, `threads` entries, or a misspelt key) are
-    reported with a warning and ignored.
+    reported with a warning and ignored. A bad `sex:` section raises ValueError here, before any command does work.
     """
+    from .sex import thresholds
+
     cfg = default_config()
     if path:
         with open(path) as fh:
@@ -77,6 +79,7 @@ def load_config(path: str | None = None, overrides: dict | None = None) -> dict:
         _deep_update(cfg, _known(user, cfg))
     if overrides:
         _deep_update(cfg, copy.deepcopy(overrides))
+    thresholds(cfg.get("sex"))
     return normalize_keys(cfg)
 
 
