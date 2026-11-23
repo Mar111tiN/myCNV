@@ -115,7 +115,8 @@ def build_parser() -> argparse.ArgumentParser:
     _chrom(p, "chromosomes to combine (default: chr1..chr22, chrX)")
     p.add_argument("--std-factor", type=float, help="outlier threshold in PON std units (2)")
     p.add_argument("--legacy-stats", action="store_true",
-                   help="reproduce main: filter stats not recomputed after outlier removal")
+                   help="reproduce main: filter stats not recomputed after outlier removal, chrX doubled by main's "
+                        "rule (normalised chrX mean < 75) instead of the coverage sex call")
     _common(p)
 
     p = add("tn2cnv", "paired pileup -> coverage bins + het SNPs (whole sample by default)")
@@ -139,7 +140,17 @@ def build_parser() -> argparse.ArgumentParser:
     _pon_match(p)
     p.add_argument("--allow-missing-chroms", action="store_true",
                    help="do not fail when PON chromosomes have no sample bins (partial sample: wrong normalisation)")
+    p.add_argument("--out-sex", help="also write the sex calls (sex.tsv, as `sample` and `sex` write it) here; labels "
+                                     "from --tumor-name/--normal-name or --sample, else tumor/normal")
     _plot_opts(p)
+    _common(p)
+
+    p = add("sex", "raw/{s}.cov.gz (log2ratio vs PON) -> sex.tsv: coverage sex call of normal and tumor, ASCAT gender")
+    p.add_argument("--cov", required=True, help="raw/{s}.cov.gz (from `combine` or `sample`)")
+    p.add_argument("-o", "--output", required=True, help="sex.tsv")
+    p.add_argument("--sample", help="legacy sample ID <patient>_<tumor>-<normal> for the labels")
+    p.add_argument("--tumor-name", help="tumor label (default: from --sample, else 'tumor')")
+    p.add_argument("--normal-name", help="normal label (default: from --sample, else 'normal')")
     _common(p)
 
     p = add("rolling", "raw tables -> data/{s}.cnv.snp.gz + data/{s}.cnv.gz (filter + rolling windows)")
@@ -227,6 +238,13 @@ def _plot_names(args):
     return resolve_names(args.sample, args.tumor_name, args.normal_name)
 
 
+def _sex_labels(args) -> tuple[str, str]:
+    """(tumor, normal) labels for sex.tsv: the names, else from --sample, else tumor/normal."""
+    if args.tumor_name is not None or args.sample:
+        return _plot_names(args)
+    return "tumor", "normal"
+
+
 def _run(args, cfg) -> None:
     from . import pipeline as pl
     from .tools import read_tsv, write_tsv
@@ -260,7 +278,7 @@ def _run(args, cfg) -> None:
         )
     elif args.cmd == "pon-combine":
         pl.pon_combine(args.ponmatrix, args.outdir, std_factor=cfg["PONcoverage"]["stdFactor"],
-                       chroms=args.chrom or PRIMARY_CHROMS, legacy=args.legacy_stats)
+                       chroms=args.chrom or PRIMARY_CHROMS, legacy=args.legacy_stats, sex_cfg=cfg["sex"])
     elif args.cmd == "tn2cnv":
         from .raw import tn2cnv
 
@@ -276,13 +294,18 @@ def _run(args, cfg) -> None:
         from .combine import concat_tables
 
         names = _plot_names(args) if args.plots_dir else None
+        labels = _sex_labels(args) if args.out_sex else None
         cov_df, snp_df = pl.combine_step(concat_tables(args.cov), concat_tables(args.snp), args.ponmatrix, cfg,
                                          legacy_coords=args.legacy_coords, min_pon_match=args.min_pon_match,
                                          allow_missing_chroms=args.allow_missing_chroms)
         write_tsv(cov_df, args.out_cov)
         write_tsv(snp_df, args.out_snp)
+        if args.out_sex:
+            pl.sex_step(cov_df, *labels, cfg, args.out_sex)
         if args.plots_dir:
             pl.raw_plots(cov_df, snp_df, args.sample, *names, args.plots_dir)
+    elif args.cmd == "sex":
+        pl.sex_step(read_tsv(args.cov), *_sex_labels(args), cfg, args.output)
     elif args.cmd == "rolling":
         names = _plot_names(args) if args.plots_dir else None
         roll_snp, cnv_df, _ = pl.rolling_step(read_tsv(args.cov), read_tsv(args.snp), cfg)

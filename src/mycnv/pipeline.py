@@ -3,7 +3,8 @@
 PON dir:    matrix/{chrom}.pon.gz (input, from ebscore)
             cov/{chrom}.cov.gz  cov/{chrom}.cov.json  snp/{chrom}.snp.gz          (pon-coverage)
             CNV/pon.cov.{full,fullGC,filter,filterGC}.gz  CNV/pon.snp.gz  CNV/pon.json   (pon-combine)
-sample dir: raw/{s}.cov.gz  raw/{s}.snp  data/{s}.cnv.snp.gz  data/{s}.cnv.gz  pre/{s}_*_{baf,logr}.tsv  plots/*.jpg
+sample dir: raw/{s}.cov.gz  raw/{s}.snp  sex.tsv  data/{s}.cnv.snp.gz  data/{s}.cnv.gz  pre/{s}_*_{baf,logr}.tsv
+            plots/*.jpg
 """
 
 from __future__ import annotations
@@ -15,9 +16,10 @@ from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 
 from . import combine as cmb
+from . import sex
 from .bed import read_bed, region_digest
 from .convert import resolve_names, write_ascat
-from .ponmeta import combine_cov_meta, write_cov_meta, write_pon_meta
+from .ponmeta import combine_cov_meta, read_pon_list, sex_entries, write_cov_meta, write_pon_meta
 from .raw import pon2cnv, tn2cnv
 from .rolling_cov import rolling_coverage
 from .rolling_snp import remerge_cnv, rolling_snp
@@ -76,14 +78,23 @@ def pon_coverage(matrix_files: dict[str, str], out_dir: str, threads: int = 1, v
 
 
 def pon_combine(pon_dir: str, out_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS,
-                legacy: bool = False) -> list[str]:
-    """PON cov/ + snp/ in pon_dir -> CNV/ in out_dir (the input folder is only read)."""
+                legacy: bool = False, sex_cfg: dict | None = None) -> list[str]:
+    """PON cov/ + snp/ in pon_dir -> CNV/ in out_dir (the input folder is only read).
+
+    CNV/pon.json records the coverage sex call of every PON column (named after pon_dir/PON_list.txt if it exists
+    and matches the columns) and whether its chrX was doubled.
+    """
     used = [c for c in chroms if os.path.isfile(os.path.join(pon_dir, "cov", f"{c}.cov.gz"))]
     meta = combine_cov_meta(pon_dir, used)
-    tables = cmb.make_pon_coverage(pon_dir, std_factor=std_factor, chroms=chroms, legacy=legacy)
+    tables, calls = cmb.pon_coverage_and_sex(pon_dir, std_factor=std_factor, chroms=chroms, legacy=legacy,
+                                             sex_cfg=sex_cfg)
     snp_df = cmb.make_pon_snp(pon_dir, chroms=chroms)
     files = cmb.write_pon(out_dir, tables, snp_df)
-    files.append(write_pon_meta(out_dir, meta, used, std_factor, legacy))
+    doubled = [c["column"] for c in calls if c["doubled"]]
+    log.info("PON chrX doubled for %d of %d columns (%s)", len(doubled), len(calls), ", ".join(doubled) or "none")
+    t = sex.thresholds_record(sex.thresholds(sex_cfg), cmb.LEGACY_DOUBLING if legacy else cmb.XY_DOUBLING)
+    files.append(write_pon_meta(out_dir, meta, used, std_factor, legacy,
+                                sex=sex_entries(calls, read_pon_list(pon_dir)), sex_thresholds=t))
     return files
 
 
@@ -148,6 +159,14 @@ def combine_step(cov_df, snp_df, pon_dir: str, config: dict, legacy_coords: bool
                               allow_missing_chroms=allow_missing_chroms, bed_md5=bed_md5)
 
 
+def sex_step(cov_df: pd.DataFrame, tumor: str, normal: str, config: dict, path: str | None = None) -> pd.DataFrame:
+    """raw coverage table (log2ratio1/2 vs the PON) -> sex.tsv rows (normal, tumor); written to `path` if given."""
+    sex_df = sex.pair_sex_table(cov_df, tumor, normal, config.get("sex"))
+    if path:
+        write_tsv(sex_df, path)
+    return sex_df
+
+
 def rolling_step(cov_df: pd.DataFrame, snp_df: pd.DataFrame, config: dict):
     """raw tables -> (rolled SNP table = data/*.cnv.snp.gz, full CNV track = data/*.cnv.gz, rolled coverage)."""
     cov_df = cmb.filter_cov(cov_df, config)
@@ -161,6 +180,7 @@ def sample_paths(out_dir: str, sample: str) -> dict[str, str]:
     return {
         "raw_cov": os.path.join(out_dir, "raw", f"{sample}.cov.gz"),
         "raw_snp": os.path.join(out_dir, "raw", f"{sample}.snp"),
+        "sex": os.path.join(out_dir, "sex.tsv"),
         "cnv_snp": os.path.join(out_dir, "data", f"{sample}.cnv.snp.gz"),
         "cnv": os.path.join(out_dir, "data", f"{sample}.cnv.gz"),
         "pre": os.path.join(out_dir, "pre"),
@@ -171,10 +191,11 @@ def sample_paths(out_dir: str, sample: str) -> dict[str, str]:
 def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, config: dict, gc=None, genmap=None,
                tumor=None, normal=None, clean=True, legacy_coords=False, plots=False, mock_germline=True,
                min_pon_match: float = 0.9, allow_empty: bool = False, tmp_dir=None) -> dict[str, str]:
-    """Whole per-sample chain: tn2cnv -> combine -> rolling -> ASCAT input (one task per sample, plan D16).
+    """Whole per-sample chain: tn2cnv -> combine (+ sex.tsv) -> rolling -> ASCAT input (one task per sample, D16).
 
     Always the whole sample: GC normalisation and the log2ratio levels need every chromosome (a per-chromosome
-    split stops after tn2cnv; `combine` then takes all its outputs).
+    split stops after tn2cnv; `combine` then takes all its outputs). sex.tsv: the coverage sex call of the normal and
+    the tumor; its ascat_gender is the gender for ASCAT (D-Q3).
     """
     tumor, normal = resolve_names(sample, tumor, normal)
     p = sample_paths(out_dir, sample)
@@ -189,6 +210,7 @@ def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, c
                                   min_pon_match=min_pon_match, bed_md5=bed_md5)
     write_tsv(cov_df, p["raw_cov"], compression="gzip")
     write_tsv(snp_df, p["raw_snp"])
+    sex_step(cov_df, tumor, normal, config, p["sex"])
     if plots:
         raw_plots(cov_df, snp_df, sample, tumor, normal, p["plots"])
     roll_snp, cnv_df, _ = rolling_step(cov_df, snp_df, config)

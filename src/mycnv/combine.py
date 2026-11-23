@@ -6,6 +6,8 @@ Fixes vs main (see CHANGELOG.md):
 - FullExonPos offsets follow the natural chromosome order (chr1, chr2, ..., chr22, chrX). main summed them in
   lexicographic order (chr1, chr10, ..., chr19, chr2, ...).
 - Chr is a proper ordered categorical (`df["Chr"] = ...`; `df.loc[:, "Chr"] = ...` keeps object dtype on pandas 2+).
+- The PON chrX doubling follows the coverage sex call of `mycnv.sex` (XY columns), the same call for the GC and the
+  mean table, and is recorded (CNV/pon.json). main doubled columns whose normalised chrX mean was < 75 (`legacy=True`).
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from . import sex
 from .ponmeta import check_sample_against_pon, read_pon_meta
 from .tools import (
     PRIMARY_CHROMS, chrom_key, chrom_str, log, natural_chroms, read_tsv, set_chrom_categorical, write_tsv,
@@ -97,15 +100,27 @@ def normalize(cov_df: pd.DataFrame) -> pd.DataFrame:
     return cov_df
 
 
-def amazonize(cov_df: pd.DataFrame, x_threshold: float = 75) -> pd.DataFrame:
-    """Double the chrX coverage of samples whose chrX mean is below `x_threshold` (male samples -> XX level)."""
-    cov_df = cov_df.copy()
+def legacy_male_columns(cov_df: pd.DataFrame, x_threshold: float = 75) -> list[str]:
+    """main's male rule: Cov columns whose mean over all chrX bins (PAR included) is below `x_threshold`."""
     cov_cols = [c for c in cov_df.columns if c.startswith("Cov")]
     is_x = cov_df["Chr"] == "chrX"
     if not is_x.any():
-        return cov_df
+        return []
     x_mean = cov_df.loc[is_x, cov_cols].mean()
-    male = [c for c in cov_cols if x_mean[c] < x_threshold]
+    return [c for c in cov_cols if x_mean[c] < x_threshold]
+
+
+def amazonize(cov_df: pd.DataFrame, x_threshold: float = 75, columns=None) -> pd.DataFrame:
+    """Double the chrX coverage (all chrX bins) of male samples, so that they sit at the XX level.
+
+    columns: the columns to double (pon-combine passes the XY calls of `mycnv.sex`); None = main's rule
+    (`legacy_male_columns`: normalised chrX mean below `x_threshold`).
+    """
+    cov_df = cov_df.copy()
+    is_x = cov_df["Chr"] == "chrX"
+    if not is_x.any():
+        return cov_df
+    male = legacy_male_columns(cov_df, x_threshold) if columns is None else list(columns)
     if male:
         log.info("Lifting chrX coverage of %d male samples", len(male))
         cov_df.loc[is_x, male] = cov_df.loc[is_x, male] * 2
@@ -131,20 +146,65 @@ def remove_outliers(df: pd.DataFrame, std_factor: float = 2.5) -> pd.DataFrame:
     return df
 
 
-def make_pon_coverage(pon_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS, legacy: bool = False) -> dict:
-    """Combine cov/{chrom}.cov.gz into the four PON coverage tables.
+LEGACY_DOUBLING = "legacy: normalised chrX mean < 75, per table"
+XY_DOUBLING = "XY call"
 
-    Returns {"full": ..., "fullGC": ..., "filter": ..., "filterGC": ...}:
+
+def pon_sex_calls(cov_mean: pd.DataFrame, sex_cfg: dict | None = None) -> list[dict]:
+    """The coverage sex call of every PON column (`mycnv.sex`) on the mean-normalised coverage before doubling."""
+    t = sex.thresholds(sex_cfg)
+    cov_cols = [c for c in cov_mean.columns if c.startswith("Cov")]
+    calls = sex.call_columns(cov_mean, cov_cols, t)
+    for c in calls:
+        log.info("PON %s: %s (%s)", c["column"], c["call"], sex.describe(c))
+    return calls
+
+
+def make_pon_coverage(pon_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS, legacy: bool = False,
+                      sex_cfg: dict | None = None) -> dict:
+    """Combine cov/{chrom}.cov.gz into the four PON coverage tables (see pon_coverage_and_sex)."""
+    return pon_coverage_and_sex(pon_dir, std_factor=std_factor, chroms=chroms, legacy=legacy, sex_cfg=sex_cfg)[0]
+
+
+def pon_coverage_and_sex(pon_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS, legacy: bool = False,
+                         sex_cfg: dict | None = None) -> tuple[dict, list[dict]]:
+    """Combine cov/{chrom}.cov.gz into the four PON coverage tables, plus the sex call of every PON column.
+
+    Returns ({"full": ..., "fullGC": ..., "filter": ..., "filterGC": ...}, sex calls):
     - full / fullGC: Chr Pos ExonPos Cov1..N PONcov_mean/median/std (mean-normalised / GC-normalised)
     - filter / filterGC: Chr Pos ExonPos + stats after outlier removal
-    legacy=True reproduces main: the stats are not recomputed after outlier removal (filter == full stats) and
-    the full tables carry the outlier-removed (NaN) coverage values.
+    - sex calls: [{column, chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins, call, doubled}] (`mycnv.sex`, on the
+      mean-normalised coverage before doubling). The XY columns get their chrX doubled in both tables (N-Q7); XX,
+      ambiguous and unknown columns are not doubled (a warning for each ambiguous or unknown one).
+    legacy=True reproduces main: the stats are not recomputed after outlier removal (filter == full stats), the
+    full tables carry the outlier-removed (NaN) coverage values, and chrX is doubled by main's rule (normalised chrX
+    mean < 75, decided separately in the GC and the mean table); the sex calls are then only recorded.
     """
     cov_df = combine_pon_coverage(pon_dir, chroms)
     log.info("Normalizing PON coverage (GC and mean)")
     cov_gc = normalize_gc(cov_df)
     cov_mean = normalize(cov_df)
-    cov_gc, cov_mean = amazonize(cov_gc), amazonize(cov_mean)
+    calls = pon_sex_calls(cov_mean, sex_cfg)
+    xy = [c["column"] for c in calls if c["call"] == "XY"]
+    if legacy:
+        male_gc, male_mean = legacy_male_columns(cov_gc), legacy_male_columns(cov_mean)
+        if set(male_gc) != set(male_mean):
+            log.warning("main's chrX rule doubles other columns in the GC table (%s) than in the mean table (%s)",
+                        ", ".join(male_gc) or "none", ", ".join(male_mean) or "none")
+        doubled = set(male_gc) | set(male_mean)
+        if doubled != set(xy):
+            log.warning("main's chrX rule (--legacy-stats) doubles %s; the coverage sex call has XY for %s",
+                        ", ".join(sorted(doubled, key=_cov_key)) or "no column", ", ".join(xy) or "no column")
+        cov_gc, cov_mean = amazonize(cov_gc, columns=male_gc), amazonize(cov_mean, columns=male_mean)
+    else:
+        doubled = set(xy)
+        for c in calls:
+            if c["call"] in ("ambiguous", "unknown"):
+                log.warning("PON %s: sex call %s (%s): its chrX is not doubled", c["column"], c["call"],
+                            sex.describe(c))
+        cov_gc, cov_mean = amazonize(cov_gc, columns=xy), amazonize(cov_mean, columns=xy)
+    for c in calls:
+        c["doubled"] = c["column"] in doubled
     cov_gc, cov_mean = compute_stats(cov_gc), compute_stats(cov_mean)
     filt_gc, filt_mean = remove_outliers(cov_gc, std_factor), remove_outliers(cov_mean, std_factor)
     if not legacy:
@@ -161,7 +221,11 @@ def make_pon_coverage(pon_dir: str, std_factor: float = 2, chroms=PRIMARY_CHROMS
         "fullGC": chrom_str(cov_gc.loc[:, base + cov_cols + stats]),
         "filter": chrom_str(filt_mean.loc[:, base + stats]),
         "filterGC": chrom_str(filt_gc.loc[:, base + stats]),
-    }
+    }, calls
+
+
+def _cov_key(col: str) -> int:
+    return int(col[3:]) if col[3:].isdigit() else 0
 
 
 def write_pon(pon_dir: str, tables: dict, snp_df: pd.DataFrame) -> list[str]:

@@ -3,7 +3,8 @@ another way (review 2026-11-22: a default sample against a --legacy-coords PON m
 
 - `pon-coverage` writes `cov/{chrom}.cov.json` next to every `cov/{chrom}.cov.gz` (one file per chromosome, so
   per-chromosome tasks can be gathered into one folder without name clashes).
-- `pon-combine` checks that they agree and writes `CNV/pon.json`.
+- `pon-combine` checks that they agree and writes `CNV/pon.json`, with the coverage sex call of every PON column
+  (`sex`: column, PON_list.txt name, chrx_ratio, call, doubled) and the thresholds used (`sex_thresholds`).
 - `combine`/`sample` read `CNV/pon.json` (if present) and fail on a coordinate-mode or BED mismatch. PONs built by the
   legacy tools have no metadata; then only the data checks in `combine.combine_sample` apply.
 """
@@ -14,6 +15,7 @@ import json
 import os
 
 from . import __version__
+from .sex import json_float
 from .tools import log
 
 COORDS = {False: "fixed", True: "legacy"}
@@ -55,13 +57,42 @@ def combine_cov_meta(pon_dir: str, chroms) -> dict | None:
             "coverage_mycnv": sorted({m["mycnv"] for m in metas.values()})}
 
 
-def write_pon_meta(out_dir: str, meta: dict | None, chroms, std_factor: float, legacy_stats: bool) -> str:
+def read_pon_list(pon_dir: str) -> list[str]:
+    """Entries of {pon_dir}/PON_list.txt (ebscore writes it in matrix column order); [] if there is none."""
+    path = os.path.join(pon_dir, "PON_list.txt")
+    if not os.path.isfile(path):
+        return []
+    with open(path) as fh:
+        return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+
+
+def sex_entries(calls: list[dict], pon_list: list[str]) -> list[dict]:
+    """The `sex` list of CNV/pon.json: column, name (PON_list.txt entry, if the list matches the columns), chrx_ratio,
+    call, doubled."""
+    names = pon_list if len(pon_list) == len(calls) else []
+    if pon_list and not names:
+        log.warning("PON_list.txt has %d entries but the PON coverage %d columns: the sex calls in pon.json get no "
+                    "names", len(pon_list), len(calls))
+
+    def name(col: str):  # Cov<k> is the k-th PONmatrix sample
+        k = int(col[3:]) - 1 if col[3:].isdigit() else -1
+        return names[k] if 0 <= k < len(names) else None
+
+    return [{"column": c["column"], "name": name(c["column"]), "chrx_ratio": json_float(c["chrx_ratio"]),
+             "call": c["call"], "doubled": bool(c["doubled"])} for c in calls]
+
+
+def write_pon_meta(out_dir: str, meta: dict | None, chroms, std_factor: float, legacy_stats: bool,
+                   sex: list[dict] | None = None, sex_thresholds: dict | None = None) -> str:
     path = os.path.join(out_dir, "CNV", "pon.json")
     full = {"mycnv": __version__, "chroms": list(chroms), "std_factor": std_factor, "legacy_stats": legacy_stats}
     full.update(meta or {"coords": None})
+    if sex is not None:
+        full["sex"] = sex
+        full["sex_thresholds"] = sex_thresholds
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as fh:
-        json.dump(full, fh, indent=1)
+        json.dump(full, fh, indent=1, allow_nan=False)
     return path
 
 

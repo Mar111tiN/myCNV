@@ -2,7 +2,8 @@
 # AMLMono7 study runs used (GCnormalize: True). Override any key with `--config my.yaml` (same structure; a top-level
 # `CNV:` section, as in the legacy files, is accepted) or with the CLI options. Keys mycnv does not read are reported
 # and ignored. Not here: the pileup filters (MAPQ 20, Q 25: `ebscore pileup --min-mapq/--min-baseq`) and the ASCAT
-# parameters (gender XX, penalties 25/75, gamma 1: the ASCAT step of the pipeline).
+# parameters (penalties 25/75, gamma 1: the ASCAT step of the pipeline; its gender is `ascat_gender` of sex.tsv).
+# `sex` is new (no legacy key): the coverage sex call of the PON normals and the samples (mycnv.sex).
 CNV:
     hetSNP:
         normalVAF: [0.2, 0.8]
@@ -15,6 +16,10 @@ CNV:
         minVAF: 0.05        # min pooled VAF to be stored in the PON snp file
         minDepth: 50
         stdFactor: 2        # PON coverage values outside mean +- stdFactor * std are removed before the filter stats
+    sex:                    # ratio = median(chrX non-PAR bins) / median(autosomal bins); log2ratio: 2 ** difference
+        xy_max: 0.65        # XY below (pon-combine doubles the chrX of XY normals), XX above xx_min, else ambiguous
+        xx_min: 0.85
+        min_bins: 100       # fewer non-PAR chrX bins (or no autosomal bins): unknown (sex.tsv: ASCAT gender XX)
     filter:
         cov:
             GCrange: [0.15, 0.85]

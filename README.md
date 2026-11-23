@@ -64,12 +64,15 @@ mycnv pon-combine --ponmatrix ponmatrix_cnv -o ponmatrix_cnv   # -> CNV/pon.cov.
 # per pair, all steps in one task (always the whole sample)
 mycnv sample --pileup pair.pileup.gz --bed kit.padded.bed --gc gc100-10/ --genmap genmap/split/ --ponmatrix ponmatrix_cnv \
     --sample P1_T-N -o CNV/P1 [--tumor-name T --normal-name N] [--plots]
-# -> CNV/P1/raw/P1_T-N.{cov.gz,snp}  data/P1_T-N.{cnv.snp.gz,cnv.gz}  pre/P1_T-N_{N,T,germline}_{baf,logr}.tsv  [plots/]
+# -> CNV/P1/raw/P1_T-N.{cov.gz,snp}  sex.tsv  data/P1_T-N.{cnv.snp.gz,cnv.gz}  pre/P1_T-N_{N,T,germline}_{baf,logr}.tsv
+#    [plots/]
 
 # or step by step (same outputs); a per-chromosome split stops after tn2cnv, `combine` takes all its outputs
 mycnv tn2cnv   --pileup pair.pileup.gz --bed kit.padded.bed --gc … --genmap … --out-cov s.chr7.cov.gz --out-snp s.chr7.snp \
     [--chrom chr7 ...]
-mycnv combine  --cov s.chr*.cov.gz --snp s.chr*.snp --ponmatrix ponmatrix_cnv --out-cov raw.cov.gz --out-snp raw.snp
+mycnv combine  --cov s.chr*.cov.gz --snp s.chr*.snp --ponmatrix ponmatrix_cnv --out-cov raw.cov.gz --out-snp raw.snp \
+    [--out-sex sex.tsv --tumor-name T --normal-name N]
+mycnv sex      --cov raw.cov.gz -o sex.tsv [--tumor-name T --normal-name N | --sample P1_T-N]   # = combine --out-sex
 mycnv rolling  --cov raw.cov.gz --snp raw.snp --out-snp data.cnv.snp.gz --out-cnv data.cnv.gz
 mycnv ascat-input --cnv data.cnv.snp.gz --sample P1_T-N -o pre/
 mycnv config   # print the effective parameters (defaults = the somVarWES study config)
@@ -82,6 +85,44 @@ and can be repeated. Logs go to stderr.
 Option names follow ebscore: `--ponmatrix`, `-o/--outdir`, `--chrom`, `--bed`, `--pileup`, `-t`, `--tmpdir`, `--quiet`.
 `--tumor-name/--normal-name` are labels for file names (ebscore's `--tumor/--normal` are BAM paths). Without them the
 labels come from a legacy sample ID `<patient>_<tumor>-<normal>`; sarek pair IDs (`*_vs_*`) need explicit names.
+
+## Sex calls (chrX of the PON normals and the samples)
+
+One coverage-based call (`mycnv.sex`) is used for the PON and for the samples (plan N-Q7, D-Q3):
+- `ratio = median(chrX non-PAR bins) / median(autosomal bins)` of a coverage column (XX ≈ 1, XY ≈ 0.5), or
+  `2 ** (median(chrX non-PAR) − median(autosomes))` of a log2ratio column, so both share one threshold set. NaN/inf
+  values are ignored. The PARs are GRCh38's (chrX:10,001–2,781,479 and 155,701,383–156,030,895, 1-based inclusive),
+  matched on the bin start `Pos`; autosomes are chr1–chr22.
+- Call: **XY** if ratio < `sex.xy_max` (0.65), **XX** if ratio > `sex.xx_min` (0.85), else **ambiguous**; **unknown**
+  with fewer than `sex.min_bins` (100) non-PAR chrX bins or no autosomal bins (e.g. a chr21-only test kit). Change the
+  thresholds with `--config` (section `sex:`, see `mycnv config`).
+
+**PON** (`pon-combine`): every normal is called on its mean-normalised coverage before any doubling. The chrX of the XY
+normals is doubled (all chrX bins, in the GC and the mean table), so the PON is effectively female; XX, ambiguous and
+unknown normals are not doubled (one warning per ambiguous or unknown normal). `CNV/pon.json` records the calls:
+`"sex": [{"column": "Cov1", "name": <PON_list.txt entry or null>, "chrx_ratio": 1.0571, "call": "XX", "doubled": false},
+…]` and `"sex_thresholds"` (thresholds, PARs, doubling rule). `name` comes from `<--ponmatrix>/PON_list.txt` when it
+exists and has one entry per column. `--legacy-stats` keeps main's rule (normalised chrX mean < 75) and only records
+the calls. The ratio of a PON column has no per-bin reference, so its level depends on the kit: check `chrx_ratio` in
+`pon.json` (the calls of a new kit, and the warnings) before using a PON.
+
+**Samples** (`sample`, `combine --out-sex`, `sex`): `sex.tsv` from the raw coverage table, i.e. the log2ratio of
+the normal and the tumor against the (effectively female) PON, one row per sample column:
+
+| column | content |
+|---|---|
+| `sample` | label: `--normal-name`/`--tumor-name` (or from the legacy sample ID; `sex` without names: `normal`/`tumor`) |
+| `role` | `normal` or `tumor` |
+| `column` | `log2ratio1` (normal = sample 1) or `log2ratio2` (tumor) |
+| `chrx_ratio`, `log2_diff` | `2 ** log2_diff` and median(chrX non-PAR) − median(autosomes), 4 decimals (empty if undefined) |
+| `n_chrx_bins`, `n_auto_bins` | finite values used |
+| `call` | `XX`, `XY`, `ambiguous` or `unknown` |
+| `ascat_gender` | the gender ASCAT uses, the same on every row: the normal's call (a tumor-only run: the tumor's); ambiguous or unknown → `XX`, with a warning |
+
+The pipeline's ASCAT step (`ASCAT_PONCNV`) passes `ascat_gender` to `ascat.loadData(gender = …)`. The sheet sex is
+only a cross-check there: a mismatch with `call` is written to `status.tsv`; for an ambiguous or unknown call the
+template may use the sheet sex instead of the `XX` fallback (design §3, note 6). A tumor that lost one X is called XY
+on its own row, but a pair keeps the normal's gender.
 
 ## Failures instead of empty outputs
 
@@ -98,13 +139,14 @@ another BED or coordinate mode than the CNV PON (checked with `CNV/pon.json` and
   only to combine new samples with PON coverage files built by the legacy tools; otherwise rebuild the CNV PON from
   `matrix/`. The dev PON `somvar_HAEv7_NovaSeq_v1` has legacy `cov/` and `CNV/` tables built on the **padded**
   SS_HAEv7 BED: run samples against it with `--bed SS_HAEv7_hg38_Padded.bed --legacy-coords`.
-- `pon-combine --legacy-stats` reproduces the old PON tables (filter stats not recomputed).
+- `pon-combine --legacy-stats` reproduces the old PON tables (filter stats not recomputed, chrX doubled by main's
+  rule: normalised chrX mean < 75).
 - All deliberate changes and the measured deltas on a study sample: `CHANGELOG.md`.
 
 ## Layout
 
 `src/mycnv/`: `raw` (tn2cnv/pon2cnv), `bed` (BED reading, bin ExonPos), `tracks` (GC/genmap reading), `trackgen` (GC/genmap building), `combine` (PON and
-sample combine), `ponmeta` (PON provenance), `rolling`, `rolling_cov`, `rolling_snp`, `convert` (ASCAT input),
+sample combine), `ponmeta` (PON provenance), `sex` (coverage sex calls), `rolling`, `rolling_cov`, `rolling_snp`, `convert` (ASCAT input),
 `pipeline` (steps used by the CLI), `cli`, `plot*`, `cluster` (GMM-caller groundwork; needs scikit-learn), `mawk/`.
 Notebooks in `nb/` are the development history and still use the legacy `code/` imports (plan 2.3 moves them to
 `import mycnv`). Tests: `tests/README.md`.

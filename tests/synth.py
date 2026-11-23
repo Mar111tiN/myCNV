@@ -4,7 +4,7 @@
 - a synthetic 5-normal PONmatrix over the same positions (for the CLI chain test), also for the 3-chromosome BED
 - GC and genmap tracks for the 3-chromosome BED (`synth/tracks/`)
 - a raw samtools mpileup snippet with read-start/end markers and indels (`synth/raw.mpileup`)
-- a synthetic CNV PON (`synth/pon/{cov,snp}/`: 8 normals, 2 of them male) and a T/N sample in its coordinates
+- a synthetic CNV PON (`synth/pon/{cov,snp}/`: 8 normals, 2 of them male; chrX outside the PAR) and a T/N sample in its coordinates
   (`synth/sample/`, tn2cnv layout per chromosome, with a gain, a loss and BAF shifts): the public inputs of the
   PON-combine, combine, rolling and ASCAT parity tests (legacy outputs: tests/legacy_outputs.py)
 - a synthetic T/N sample in the coordinate system of tests/data/restricted/pon_mini (combine step; restricted,
@@ -95,6 +95,9 @@ def make_pon_matrix(regions, n=5, seed=3, flank=3, het_every=23):
 MULTI = [("chr7", 1000, 1080), ("chr7", 1100, 1104), ("chr7", 1200, 1290), ("chr21", 500, 560),
          ("chr21", 600, 700), ("chrX", 2000, 2033)]
 SYN_BINS = {"chr7": 1500, "chr21": 700, "chrX": 500}  # synthetic CNV PON: bins per chromosome
+# first bin start per chromosome: chrX outside PAR1 (GRCh38 chrX:10,001-2,781,479, two copies in XY), where the
+# male normals' halved coverage is realistic and the coverage sex call (mycnv.sex) sees it
+SYN_START = {"chr7": 100_000, "chr21": 100_000, "chrX": 3_000_000}
 SYN_NORMALS = 8
 SYN_MALE = (3, 6)  # 1-based normals with one X
 MAP_MODES = ["30_0", "50_0", "75_1", "100_2"]
@@ -155,7 +158,7 @@ def make_cnv_pon(out_dir, seed=11):
         os.makedirs(os.path.join(out_dir, sub), exist_ok=True)
     size = rng.uniform(0.6, 1.4, SYN_NORMALS)
     for chrom, n in SYN_BINS.items():
-        pos, exon, region = _syn_bins(rng, n)
+        pos, exon, region = _syn_bins(rng, n, start=SYN_START[chrom])
         gc = np.round(np.clip(0.5 + 0.25 * np.sin(np.arange(n) / 60) + rng.normal(0, 0.04, n), 0.08, 0.92), 2)
         capture = rng.uniform(0.5, 1.5, region.max() + 1)[region]
         level = 100 * (0.6 + 0.6 * np.exp(-(((gc - 0.5) / 0.25) ** 2))) * capture

@@ -6,8 +6,8 @@
 
 - **Public** (always runs, also in CI and `docker build --target test`): mawk tools, bins and coordinates
   (`test_coords.py`), tracks and failure modes (`test_tracks.py`, `test_cli.py`), and value parity with `main` for
-  every step on synthetic inputs (`test_parity_synth.py`, `test_mawk.py`, `test_raw.py`), the CLI end to end, the
-  packaging contract (`test_packaging.py`).
+  every step on synthetic inputs (`test_parity_synth.py`, `test_mawk.py`, `test_raw.py`), the coverage sex calls, the
+  PON chrX doubling and `sex.tsv` (`test_sex.py`), the CLI end to end, the packaging contract (`test_packaging.py`).
 - **Fixture smoke** (`tests/smoke/smoke_mycnv.sh tests/data/plumbing`): the CLI end to end on the non-secret tier-A
   fixture (`tests/data/plumbing/README.md`); CI runs it inside the runtime image. Not collected by pytest.
 - **Restricted** (skipped without `data/restricted/`; `pytest -rs` lists them): the same parity checks on slices of the
@@ -18,7 +18,7 @@
 
 | Path | What | In git |
 |---|---|---|
-| `data/synth/` | synthetic clean T/N pileups (`chr7.cpile` on HAEv7 covered regions, `multi.cpile` on 3 chromosomes), PONmatrix files (`matrix/`, `matrix_multi/`), `multi.bed`, its GC/genmap tracks (`tracks/`), a raw mpileup snippet, a synthetic CNV PON (`pon/`, 8 normals, 2 male) and T/N sample (`sample/`) (`synth.py`) | yes |
+| `data/synth/` | synthetic clean T/N pileups (`chr7.cpile` on HAEv7 covered regions, `multi.cpile` on 3 chromosomes), PONmatrix files (`matrix/`, `matrix_multi/`), `multi.bed`, its GC/genmap tracks (`tracks/`), a raw mpileup snippet, a synthetic CNV PON (`pon/`, 8 normals, 2 male; chrX at 3.0 Mb, outside PAR1) and T/N sample (`sample/`) (`synth.py`) | yes |
 | `data/tracks/` | chr7 slices of the public GC (`gc100-10`) and genmap tracks (`make_fixtures.py`) | yes |
 | `data/haev7_{covered,padded}_chr7.bed` | SS_HAEv7 BED coordinates (3 columns) over the first 300 kb of chr7 | yes |
 | `data/legacy/` | `main` outputs on the synthetic inputs (`legacy_outputs.py`) | yes |

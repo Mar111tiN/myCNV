@@ -1,6 +1,7 @@
 """End-to-end CLI: synthetic PONmatrix -> CNV PON -> per-pair chain (public fixtures only), option vocabulary,
 failure modes (non-zero exit instead of empty outputs)."""
 
+import json
 import os
 import shutil
 import stat
@@ -38,6 +39,7 @@ def test_version_and_config():
     out = run("config").stdout
     assert "diff_exp: 4" in out and "GCnormalize: true" in out
     assert "pileup:" not in out and "ascat:" not in out  # not read by mycnv
+    assert yaml.safe_load(out)["CNV"]["sex"] == {"xy_max": 0.65, "xx_min": 0.85, "min_bins": 100}
 
 
 def test_config_warns_about_unused_keys(tmp_path):
@@ -60,8 +62,8 @@ def test_pon_and_sample_chain(tmp_path):
               "--sample", "S1_T-N", "-o", out, "--plots", check=False)
     assert res.returncode == 2 and "no SNP passed the SNP filter" in res.stderr  # no silent empty ASCAT input
     assert lines(out / "data" / "S1_T-N.cnv.gz") > 100 and not (out / "pre").exists()
-    run("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED7, *TRACKS7, "--ponmatrix", pon,
-        "--sample", "S1_T-N", "-o", out, "--plots", "--allow-empty")
+    res = run("sample", "--pileup", f"{SYNTH}/chr7.cpile", "--bed", BED7, *TRACKS7, "--ponmatrix", pon,
+              "--sample", "S1_T-N", "-o", out, "--plots", "--allow-empty")
     raw = read(out / "raw" / "S1_T-N.cov.gz")
     assert len(raw) > 150 and {"log2ratio1", "log2ratio2", "PONcov_mean", "FullExonPos"} <= set(raw.columns)
     assert raw["log2ratio1"].notna().mean() > 0.9  # sample and PON bins share coordinates
@@ -70,6 +72,16 @@ def test_pon_and_sample_chain(tmp_path):
     for f in ["N_baf", "T_baf", "germline_baf", "N_logr", "T_logr", "germline_logr"]:
         assert (out / "pre" / f"S1_T-N_{f}.tsv").is_file()
     assert len(list((out / "plots").glob("*.jpg"))) >= 4
+    # chr7 only (like the chr21-only tier A): no chrX bins -> unknown -> ASCAT gender XX, with a warning
+    sex = read(out / "sex.tsv")
+    assert sex[["sample", "role", "column"]].values.tolist() == [["N", "normal", "log2ratio1"],
+                                                                 ["T", "tumor", "log2ratio2"]]
+    assert sex["call"].tolist() == ["unknown", "unknown"] and sex["ascat_gender"].tolist() == ["XX", "XX"]
+    assert (sex["n_chrx_bins"] == 0).all() and (sex["n_auto_bins"] > 100).all()
+    assert "Sex call of the normal N is unknown" in res.stderr
+    meta = json.loads((pon / "CNV" / "pon.json").read_text())
+    assert len(meta["sex"]) == 5 and {e["call"] for e in meta["sex"]} == {"unknown"}
+    assert not any(e["doubled"] for e in meta["sex"]) and meta["sex_thresholds"]["doubling"] == "XY call"
 
 
 # ---------- the multi-chromosome synthetic kit: PON, split path, threads ------------------------------------------
@@ -106,15 +118,27 @@ def test_split_path_equals_sample(tmp_path, multi_pon):
         run("combine", "--cov", covs[0], "--snp", snps[0], "--ponmatrix", multi_pon, "--out-cov", tmp_path / "x",
             "--out-snp", tmp_path / "y")
     run("combine", "--cov", covs[0], "--cov", *covs[1:], "--snp", *snps, "--ponmatrix", multi_pon,
-        "--out-cov", tmp_path / "raw.cov.gz", "--out-snp", tmp_path / "raw.snp")
+        "--out-cov", tmp_path / "raw.cov.gz", "--out-snp", tmp_path / "raw.snp", "--sample", "M_T-N",
+        "--out-sex", tmp_path / "sex.tsv")
+    run("sex", "--cov", tmp_path / "raw.cov.gz", "-o", tmp_path / "sex2.tsv", "--tumor-name", "T", "--normal-name", "N")
+    run("sex", "--cov", tmp_path / "raw.cov.gz", "-o", tmp_path / "sex3.tsv")  # default labels
     run("rolling", "--cov", tmp_path / "raw.cov.gz", "--snp", tmp_path / "raw.snp", "--out-snp",
         tmp_path / "d.cnv.snp.gz", "--out-cnv", tmp_path / "d.cnv.gz")
     run("ascat-input", "--cnv", tmp_path / "d.cnv.snp.gz", "--sample", "M_T-N", "-o", tmp_path / "pre", "--allow-empty")
     pairs = [("raw.cov.gz", "raw/M_T-N.cov.gz"), ("raw.snp", "raw/M_T-N.snp"), ("d.cnv.gz", "data/M_T-N.cnv.gz"),
-             ("d.cnv.snp.gz", "data/M_T-N.cnv.snp.gz")]
+             ("d.cnv.snp.gz", "data/M_T-N.cnv.snp.gz"), ("sex.tsv", "sex.tsv"), ("sex2.tsv", "sex.tsv")]
     for split, ref in pairs:
         pd.testing.assert_frame_equal(read(tmp_path / split), read(whole / ref))
     assert sorted(os.listdir(tmp_path / "pre")) == sorted(os.listdir(whole / "pre"))
+    sex3 = read(tmp_path / "sex3.tsv")
+    assert sex3["sample"].tolist() == ["normal", "tumor"]
+    pd.testing.assert_frame_equal(sex3.drop(columns="sample"), read(whole / "sex.tsv").drop(columns="sample"))
+    # multi.bed has only a few chrX bins (< min_bins 100): unknown, ASCAT gender XX
+    assert read(whole / "sex.tsv")["call"].tolist() == ["unknown", "unknown"]
+    # the sex call needs the raw table (log2ratio vs the PON), not the tn2cnv output
+    res = run("sex", "--cov", covs[0], "-o", tmp_path / "bad.tsv", check=False)
+    assert res.returncode == 2 and "no log2ratio1, log2ratio2 column" in res.stderr
+    assert not (tmp_path / "bad.tsv").exists()
     whole_cov = read(whole / "raw" / "M_T-N.cov.gz")
     assert list(dict.fromkeys(whole_cov["Chr"])) == ["chr7", "chr21", "chrX"]
 
