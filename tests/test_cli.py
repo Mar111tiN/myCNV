@@ -172,11 +172,24 @@ def test_threads_and_quiet_on_every_command():
     from mycnv.cli import build_parser
 
     p = build_parser()
-    sub = next(a for a in p._actions if isinstance(a, type(p._subparsers._group_actions[0])))
-    for name, parser in sub.choices.items():
+    sub_type = type(p._subparsers._group_actions[0])
+
+    def leaves(parser, prefix=""):
+        subs = [a for a in parser._actions if isinstance(a, sub_type)]
+        if not subs:
+            yield prefix.strip(), parser
+            return
+        for name, child in subs[0].choices.items():
+            yield from leaves(child, f"{prefix} {name}")
+
+    names = []
+    for name, parser in leaves(p):
+        names.append(name)
         opts = {o for a in parser._actions for o in a.option_strings}
         assert {"-t", "--threads", "-v", "--verbose", "--quiet", "--config"} <= opts, name
-    assert "--chrom" not in {o for a in sub.choices["sample"]._actions for o in a.option_strings}
+    assert {"tracks gc", "tracks genmap", "sample"} <= set(names)
+    sample = dict(leaves(p))["sample"]
+    assert "--chrom" not in {o for a in sample._actions for o in a.option_strings}
 
 
 def test_plots_dir_needs_sample(tmp_path):

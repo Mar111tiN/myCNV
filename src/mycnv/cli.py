@@ -30,7 +30,7 @@ def _chrom(p: argparse.ArgumentParser, help: str) -> None:
 
 
 def _tracks(p: argparse.ArgumentParser, genmap_required: bool = True) -> None:
-    p.add_argument("--bed", required=True, help="capture BED (the same file for samples and PON, plan L9)")
+    p.add_argument("--bed", required=True, help="capture BED: the kit's padded BED, the same file for samples and PON (plan D20)")
     p.add_argument("--gc", required=True, help="GC track: directory with {chrom}.gc100-10.gz or one file")
     p.add_argument("--genmap", required=genmap_required,
                    help="mappability: directory with hg38_genmap.{chrom}.txt.gz or one file"
@@ -74,6 +74,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = add("config", "print the effective parameters (defaults + --config)")
     _common(p)
+
+    p = add("tracks", "build the GC (gc100-10) or mappability (genmap) tracks from a FASTA (genome-bundle builds, D22)")
+    tsub = p.add_subparsers(dest="track", required=True, metavar="TRACK")
+    for name, help in [
+        ("gc", "{chrom}.gc100-10.gz: GC/(GC+AT) over [S-49, S+50] on a 10 bp grid, 2 decimals"),
+        ("genmap", "hg38_genmap.{chrom}.txt.gz: genmap mappability (1 / occurrences) per k_e mode, dense over --bed"),
+    ]:
+        t = tsub.add_parser(name, help=help, description=help, allow_abbrev=False)
+        t.add_argument("--fasta", required=True, help="FASTA with .fai (plain or bgzipped)")
+        t.add_argument("-o", "--outdir", required=True, help="output folder")
+        t.add_argument("--chrom", action="append", metavar="CHROM",
+                       help="sequences to write, as named in the FASTA (repeatable; default: all)")
+        if name == "genmap":
+            t.add_argument("--bed", help="selection: rows are written for these regions only (e.g. the kit's padded "
+                                         "BED, or exons +-100 bp); default: whole chromosomes (one row per base)")
+            t.add_argument("--modes", default="30_0,50_0,75_1,100_2",
+                           help="comma-separated <k-mer length>_<errors> (default: the four mycnv reads)")
+            t.add_argument("--index", help="genmap index of the WHOLE genome: used if it exists, else built there and "
+                                           "kept (~6 bytes per base of RAM; genome-wide only as a kumo job or alone on a "
+                                           ">= 64 GB host). Default: built in --tmpdir and removed")
+            t.add_argument("--tmpdir", help="scratch folder (default: system temp)")
+        _common(t)
 
     p = add("pon-coverage", "PONmatrix matrix/ -> PON cov/{chrom}.cov.gz + snp/{chrom}.snp.gz (per chromosome)")
     src = p.add_mutually_exclusive_group(required=True)
@@ -182,7 +204,10 @@ def _config(args) -> dict:
 
 
 def _check(parser: argparse.ArgumentParser, args) -> None:
-    if getattr(args, "chrom", None):
+    if args.cmd == "tracks":  # FASTA sequence names are used as given (no chr prefix rule)
+        if args.chrom:
+            args.chrom = unique(args.chrom)
+    elif getattr(args, "chrom", None):
         from .bed import normalize_chrom
 
         args.chrom = unique(normalize_chrom(c) for c in args.chrom)
@@ -208,6 +233,17 @@ def _run(args, cfg) -> None:
 
     if args.cmd == "config":
         sys.stdout.write(dump_config(cfg))
+    elif args.cmd == "tracks":
+        from . import trackgen
+
+        if args.track == "gc":
+            trackgen.make_gc_track(args.fasta, args.outdir, chroms=args.chrom, threads=args.threads)
+        else:
+            index = args.index
+            if index and not os.path.exists(index):
+                trackgen.build_genmap_index(args.fasta, index)
+            trackgen.make_genmap_track(args.fasta, args.outdir, chroms=args.chrom, bed=args.bed, modes=args.modes,
+                                       index=index, threads=args.threads, tmp_dir=args.tmpdir)
     elif args.cmd == "pon-coverage":
         if args.ponmatrix:
             files = pl.find_matrix_files(os.path.join(args.ponmatrix, "matrix"), args.chrom)

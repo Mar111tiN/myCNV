@@ -15,6 +15,14 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 - Removed on `kumodev`: `bamCoverage`, `rollingCoverage`, `cleanSNP`, `snpVAF`, `test` (2020 approach, unused), the
   `CNV_raw` LEGACY functions `get_heteroSNP`/`bam2coverage`, `snakemake/`, `env/`, `envMac/`, `.vscode/`.
 - GC and mappability tracks are explicit inputs: a directory of per-chromosome files or one file.
+- New `mycnv tracks gc|genmap` (`mycnv.trackgen`, plan D22): rebuilds both tracks from a FASTA for genome-bundle
+  builds, because the studies' kit-specific tracks are lost. GC reproduces the old static track wherever the FASTAs
+  agree (chr21: 99.985 % of rows, same format). Mappability uses genmap with the old column layout and "blank =
+  unchanged" encoding; the existing reader decodes it unchanged. genmap and samtools are now in `environment.yml`.
+  Provenance of the old generic genmap track (chr21-only index; a genome-wide check is not allowed on the
+  workbench): 66–76 % of positions equal per mode, and 97.6 % agree where the old track says unique. This is
+  consistent with genmap defaults on an exome-wide selection, but on a genome-wide index of a FASTA other than the
+  GATK bundle (the bundle masks ~2 Mb of chr21 that the old GC track has values for).
 - Per-sample steps run on the whole sample. `tn2cnv --chrom` (repeatable) is the optional split; its outputs all go
   into one `combine`. `sample` has no `--chrom`: GC normalisation and the log2ratio levels need the whole sample.
   `pon-coverage` runs one job per chromosome (`--threads` in parallel) (plan D16).

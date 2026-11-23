@@ -16,36 +16,53 @@ tests). Only `pyproject.toml`, `README.md`, `src/` and `tests/` enter the image;
 
 ## Inputs
 
-- **Paired pileup** (normal = sample 1): `samtools mpileup -f ref.fa -q 20 -Q 25 -l <covered BED> NORMAL TUMOR |
+- **Paired pileup** (normal = sample 1): `samtools mpileup -f ref.fa -q 20 -Q 25 -l <padded BED> NORMAL TUMOR |
   cleanpileup -d` (as written by `ebscore pileup`), plain or gzipped. `--raw-pileup` accepts raw mpileup text.
 - **PONmatrix** folder (`--ponmatrix`): `matrix/{chrom}.pon.gz` (`Chr Start Ref A G C T I D Depth`, cells
   `s1|…|sN=s1|…|sN`) from `ebscore pon-matrix`, shared with ebscore. mycnv adds `cov/`, `snp/` and `CNV/`, each in a
   folder you name with `-o/--outdir` (it never writes into an input folder).
-- **BED** (`--bed`): the capture BED, the same file for the PON and the samples (plan L9: `covered`). Every chromosome
+- **BED** (`--bed`): the kit's **padded** BED, the same file for the PON and the samples (plan D20; overlapping regions are merged, never double-counted). Every chromosome
   must be one block sorted by start (`sort -k1,1 -k2,2n`); other BEDs are rejected.
 - **GC** (`--gc`, required): directory with `{chrom}.gc100-10.gz` (`Start GC/AT`), one file with a `Chr` column, or
   one chromosome's file (its name must name the chromosome).
 - **Mappability** (`--genmap`, required for samples): directory with `hg38_genmap.{chrom}.txt.gz`
   (`Chr Pos 30_0 …`) or one file. The generic `genmap/split/` track is not the kit-specific `HAEv7split` the studies
-  used (see CHANGELOG, "Known differences").
+  used (see CHANGELOG, "Known differences"). Both tracks can be rebuilt with `mycnv tracks` (next section).
+
+## Tracks (GC and mappability, for genome-bundle builds)
+
+```bash
+mycnv tracks gc     --fasta genome.fa -o gc100-10/ [--chrom chr21 ...] [-t 8]
+mycnv tracks genmap --fasta genome.fa -o genmap/ --bed kit.padded.bed [--modes 30_0,50_0,75_1,100_2] \
+    [--index genmap_index/] [--chrom chr21 ...] [-t 8] [--tmpdir scratch/]
+```
+- **GC** (`{chrom}.gc100-10.gz`, `Start GC/AT`): GC/(GC+AT) over [S−49, S+50] on a 10 bp grid, 2 decimals, rows
+  without any A/C/G/T base left out. It reproduces the old static track wherever the FASTAs agree (chr21: 99.985 % of
+  rows). ~12 bytes per base peak per process (chr21 8.6 s / 0.57 GB), so it is safe genome-wide.
+- **Mappability** (`hg38_genmap.{chrom}.txt.gz`): genmap mappability (1 / occurrences on both strands, ≤ e errors)
+  of the k-mer starting at each position, 3 decimals, dense over `--bed`, a cell left empty when it repeats the
+  previous row (the old encoding). The index must cover the **whole genome** the reads are aligned to (cross-chromosome
+  repeats) and needs ~6 bytes per base of RAM: build it once with `--index DIR` (kept and reused). A whole-genome
+  index is a job for a kumo job or a host where nothing else runs with ≥ 64 GB; never next to other work.
+- Python: `mycnv.trackgen.make_gc_track`, `make_genmap_track`, `build_genmap_index`, `gc_table`.
 
 ## Commands
 
 ```bash
 # CNV PON (once per kit + normal set): coverage/SNPs per chromosome, then the combined PON tables
-mycnv pon-coverage --ponmatrix PONmatrix --bed covered.bed --gc gc100-10/ [--genmap genmap/split/] \
+mycnv pon-coverage --ponmatrix PONmatrix --bed kit.padded.bed --gc gc100-10/ [--genmap genmap/split/] \
     -o ponmatrix_cnv -t 8                               # -> ponmatrix_cnv/cov/{chrom}.cov.{gz,json}, snp/{chrom}.snp.gz
 mycnv pon-combine --ponmatrix ponmatrix_cnv -o ponmatrix_cnv   # -> CNV/pon.cov.{full,fullGC,filter,filterGC}.gz,
                                                                #    CNV/pon.snp.gz, CNV/pon.json
 # per chromosome (scatter): pon-coverage --matrix PONmatrix/matrix/chr7.pon.gz ... -o cov_chr7  (repeat --chrom/--matrix)
 
 # per pair, all steps in one task (always the whole sample)
-mycnv sample --pileup pair.pileup.gz --bed covered.bed --gc gc100-10/ --genmap genmap/split/ --ponmatrix ponmatrix_cnv \
+mycnv sample --pileup pair.pileup.gz --bed kit.padded.bed --gc gc100-10/ --genmap genmap/split/ --ponmatrix ponmatrix_cnv \
     --sample P1_T-N -o CNV/P1 [--tumor-name T --normal-name N] [--plots]
 # -> CNV/P1/raw/P1_T-N.{cov.gz,snp}  data/P1_T-N.{cnv.snp.gz,cnv.gz}  pre/P1_T-N_{N,T,germline}_{baf,logr}.tsv  [plots/]
 
 # or step by step (same outputs); a per-chromosome split stops after tn2cnv, `combine` takes all its outputs
-mycnv tn2cnv   --pileup pair.pileup.gz --bed covered.bed --gc … --genmap … --out-cov s.chr7.cov.gz --out-snp s.chr7.snp \
+mycnv tn2cnv   --pileup pair.pileup.gz --bed kit.padded.bed --gc … --genmap … --out-cov s.chr7.cov.gz --out-snp s.chr7.snp \
     [--chrom chr7 ...]
 mycnv combine  --cov s.chr*.cov.gz --snp s.chr*.snp --ponmatrix ponmatrix_cnv --out-cov raw.cov.gz --out-snp raw.snp
 mycnv rolling  --cov raw.cov.gz --snp raw.snp --out-snp data.cnv.snp.gz --out-cnv data.cnv.gz
@@ -81,7 +98,7 @@ another BED or coordinate mode than the CNV PON (checked with `CNV/pon.json` and
 
 ## Layout
 
-`src/mycnv/`: `raw` (tn2cnv/pon2cnv), `bed` (BED reading, bin ExonPos), `tracks` (GC/genmap), `combine` (PON and
+`src/mycnv/`: `raw` (tn2cnv/pon2cnv), `bed` (BED reading, bin ExonPos), `tracks` (GC/genmap reading), `trackgen` (GC/genmap building), `combine` (PON and
 sample combine), `ponmeta` (PON provenance), `rolling`, `rolling_cov`, `rolling_snp`, `convert` (ASCAT input),
 `pipeline` (steps used by the CLI), `cli`, `plot*`, `cluster` (GMM-caller groundwork; needs scikit-learn), `mawk/`.
 Notebooks in `nb/` are the development history and still use the legacy `code/` imports (plan 2.3 moves them to
