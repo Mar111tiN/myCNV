@@ -5,9 +5,18 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 from conftest import HERE
 
 ROOT = os.path.dirname(HERE)
+
+# The Dockerfile and .dockerignore are checked in the source checkout (CI pytest job, workbench). The image's test
+# stage copies only src/ and tests/ (.dockerignore excludes both files), so these checks skip there.
+needs_checkout = pytest.mark.skipif(
+    not (os.path.isfile(os.path.join(ROOT, "Dockerfile")) and os.path.isfile(os.path.join(ROOT, ".dockerignore"))),
+    reason="Dockerfile/.dockerignore are not in this tree (Docker test stage)",
+)
 
 
 def _lines(name):
@@ -15,10 +24,12 @@ def _lines(name):
         return [line.strip() for line in fh if line.strip() and not line.lstrip().startswith("#")]
 
 
+@needs_checkout
 def test_dockerignore_excludes_restricted_fixtures():
     assert "tests/data/restricted" in _lines(".dockerignore")
 
 
+@needs_checkout
 def test_dockerfile_copies_explicit_paths_and_runtime_is_last():
     lines = _lines("Dockerfile")
     copies = [line for line in lines if line.startswith("COPY") and "--from=" not in line]
