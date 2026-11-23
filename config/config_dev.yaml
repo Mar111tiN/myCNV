@@ -1,0 +1,110 @@
+# Dev config for the Gen-2 notebooks in nb/ (plan 2.3): data paths of the workbench cache + the Gen-2 CNV params.
+# Read by nb/dev_config.py. The paths section is notebook-only; the CNV section goes through mycnv.config.load_config
+# (deep-merged over the packaged defaults, which are the somVarWES study config).
+#
+# Overrides for headless runs (environment variables):
+#   MYCNV_NB_CONFIG   another config file (same structure)
+#   MYCNV_NB_SAMPLE   key in `samples` (default: `sample` below)
+#   MYCNV_NB_DATA     data root (default: paths.data_root)
+#   MYCNV_NB_OUT      output root (default: paths.out_root); outputs go to <out_root>/<sample key>/
+#
+# The data are consented study outputs (dev space); they stay on the workbench and never go into git.
+
+paths:
+    # local cache, same relative layout as the dev test-data folder
+    # s3://…/genome-bundle-testdata/kumo_pipelines/kumo-variant-calling-nf/somvar/ (README.md there)
+    data_root: /home/GOFQR/tools/somvar-dev/data
+    out_root: /home/GOFQR/tools/somvar-dev/nb_runs/nb-port
+    studies: "{data_root}/studies"
+    static: "{data_root}/static/hg38"
+    # the NHL/AMLMono7 HAEv7 PON (PONmatrix: matrix/ from 2021, cov/ snp/ CNV/ rebuilt with mycnv 2.0, plan D21);
+    # only notebooks 0A/0B read it. Dev space: …/somvar/toolrefs/PONmatrix/SS_HAEv7/somvar_HAEv7_NovaSeq_v1/
+    pon_dir: "{data_root}/toolrefs/PONmatrix/SS_HAEv7/somvar_HAEv7_NovaSeq_v1"
+    # one BED flavour everywhere: the kit's padded BED (plan D20), the file the D21 PON rebuild used
+    bed: "{data_root}/genome_resources/Homo_sapiens/GRCh38.GATK/DNAseq/SS_HAEv7/kit/SS_HAEv7.padded.bed"
+    gc: "{static}/gc100-10"           # {chrom}.gc100-10.gz (Start GC/AT)
+    genmap: "{static}/genmap/split"   # hg38_genmap.{chrom}.txt.gz (Chr Pos 30_0 50_0 75_1 100_2)
+
+# where notebooks 5 and visualize read the rolled tables from:
+#   run   = the outputs of notebooks 3 + 4 in <out_root>/<sample key>/data/
+#   study = the study's CNV/<id>/data/ (Snakemake outputs of the original runs)
+chain_from: run
+
+# smoke-test pairs (one per study in scope; DLBCL is out of scope since 2026-11-23);
+# folder = studies/<study>/CNV/<id>/, files <pair>.*
+sample: NHL1
+samples:
+    NHL1:  {study: NHL, id: NHL1, pair: NHL1_A-B}
+    AML03: {study: AMLMono7, id: "03", pair: 03_A-B}
+
+# PON build notebooks (0A, 0B): chromosomes to process and whether to keep the legacy bin labels/ExonPos.
+# Outputs go to <out_root>/PON/ (never into pon_dir).
+pon_build:
+    chroms: [chr21]                  # 0A; all: [chr1, …, chr22, chrX]
+    combine_chroms: [chr7, chr21, chrX]   # 0B combines these cov/ snp/ files of pon_dir
+    legacy_coords: false
+
+# Gen-2 CNV params = myCNV config/config_CNV.yaml (the file the Gen-2 notebooks read). Its filter and rolling
+# values equal the somVarWES study config (the mycnv defaults); the differences are noted inline.
+CNV:
+    pileup:
+        MAPQ: 20
+        Q: 25
+    hetSNP:
+        normalVAF: [0.2, 0.8]
+        minDepth: 15
+    coverage:
+        minCov: 0
+        minPONcov: 50
+        maxPONstd: 50
+        GCnormalize: False      # study config: True (only used when combining samples, notebook 2)
+    PONcoverage:
+        minCov: 0
+        minVAF: 0.05            # min pooled VAF to be stored in the PON snp file
+        minDepth: 50
+        stdFactor: 2            # PON coverage outside mean +- stdFactor * std counts as outlier
+    filter:
+        cov:
+            GCrange: [0.15, 0.85]
+            minPONcov: 30
+            maxPONstd: 35
+        snp:
+            maxPONVAF: 0.45
+            map30_0: 0
+            map50_0: 0.3
+            map75_1: 0.3
+            map100_2: 0.5
+            maxFallSNP: 0.01
+            maxSNPdensity: 0.02
+    rolling:
+        cov:
+            normalize: False
+            debug: False        # True adds the L and R columns
+            diff_exp: 4         # main never read this key (exponent was 2); mycnv reads it. Set 2 to match main.
+            ddof: 0
+            LLH:
+                center_range: [-0.5, 0.5]
+                sigma_factor: 0.9
+            data:
+                log2ratio:
+                    mean: 250
+                covLLH:
+                    sum: 250
+        snp:
+            normalize: True
+            debug: False
+            diff_exp: 4
+            ddof: 0
+            LLH:
+                center_range: [-0.5, 0.5]
+                sigma_factor: 0.9
+            data:
+                SNPdensity: 5   # window of the SNP density; the other keys are not used by rolling_snp
+                log2ratio:
+                    mean: 250
+                covLLH:
+                    sum: 250
+    ascat:
+        gender: XX
+        ascat_penalty: [25, 75]
+        gamma: 1
