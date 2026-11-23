@@ -61,8 +61,16 @@ def normalize_gc_col(cov_df: pd.DataFrame, col: str) -> pd.DataFrame:
     """Scale one coverage column so that every GCratio class has mean 100 on the autosomes (chrX excluded).
 
     Rows without GCratio (or with a GCratio that only occurs on chrX) are dropped, as in main.
+    A class whose autosomal mean is 0 has no defined factor: its bins get NaN (main: 0 * inf = NaN on the autosomes,
+    but inf on chrX bins with coverage). This only happens for rare classes, e.g. when few chromosomes are combined.
     """
     norm = cov_df.loc[cov_df["Chr"] != "chrX"].groupby("GCratio", observed=True)[col].mean()
+    zero = norm == 0
+    if zero.any():
+        n_bins = int(cov_df["GCratio"].isin(norm.index[zero]).sum())
+        log.warning("GC normalisation of %s: %d GC classes have mean 0 on the autosomes; their %d bins get NaN",
+                    col, int(zero.sum()), n_bins)
+        norm = norm.mask(zero)
     factor = (100 / norm).rename("factor").reset_index()
     out = cov_df.merge(factor, on="GCratio")
     out[col] = out[col] * out["factor"]

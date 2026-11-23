@@ -50,6 +50,7 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 | `pile2CNV` het-SNP alt reads | A/C/G/T, D/d and only forward-strand insertions `I`: het insertions got ~half their VAF | also reverse-strand `i` | — |
 | PON outlier removal | stats not recomputed (filter == full stats); full tables got the outlier NaNs | filter stats recomputed on outlier-free coverage; full tables unmodified | `pon-combine --legacy-stats` |
 | sample GC normalisation | over chr1–22, X (`combine_chrom_cnv` loaded only those) | the same: bins on chromosomes without PON coverage (chrY, alts) are dropped before normalising | — |
+| GC class with autosomal mean 0 | factor 100/0: its autosomal bins NaN (0 · inf), its chrX bins with coverage **inf**, which spread into the PON stats and rolling windows (seen when the PON was combined on chr7, chr21, chrX only: 15 inf values) | factor NaN: all its bins NaN, with a warning; the bins are kept | — (whole-genome PON and samples: no such class in HAEv7) |
 | FullExonPos offsets | lexicographic chromosome order (chr1, chr10, …, chr2) | natural order | — (rolling is per chromosome, so values do not depend on the order) |
 | rolling windows | crossed chromosome boundaries (also the interpolation) | per chromosome; chromosomes with fewer than 2 · (window − 10) − 1 rows get partial windows (below that the full-window margins left a block of NaN) | — |
 | ties in FullExonPos (legacy coords only) | interpolation neighbour chosen by numpy's unstable sort | (Chr, FullExonPos) stable sort, genomic neighbour | — |
@@ -84,3 +85,13 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
   shift by ≤ 0.0054 / 0.0028 (global min-max no longer sees cross-chromosome windows); SNPdensityDiff changes with
   `diff_exp` 4; the interpolated coverage columns (`log2ratio*`, `PONcov_*`, `GCratio`) differ on ~300–375 of 12,939
   rows (FullExonPos ties under the legacy coordinates and chromosome boundaries).
+
+### Measured on AMLMono7 03_A-B (notebooks 3 → 4 → 5 on the study `raw/`, 2026-11-23)
+- `main` in `somvar-legacy` reproduces the study `data/03_A-B.cnv.snp.gz` exactly (11,945 rows, all 27 columns).
+- The new code keeps 11,995 SNPs: 51 more and 1 fewer. Every `fallSNP` is ≈ 0.575 × main's (p01–p99 0.533–0.580),
+  because `fallSNP = SNPdensity · PONVAF / max` is scaled by one SNP: chr7:100,958,115 in MUC3A, where two SNPs 625 bp
+  apart share FullExonPos 43,183,799 under the legacy coordinates. The stable (Chr, FullExonPos) sort orders such ties
+  differently, the 5-SNP density window there changes, and the genome-wide max rises 1.74×. SNPs with main's fallSNP
+  just above `maxFallSNP` 0.01 then pass. Fixed coordinates have no such ties; the max-scaling itself (one SNP cluster
+  sets the cut for the whole sample) is unchanged legacy behaviour.
+- Rolled coverage: median |Δ| ≈ 1e-7, 289 rows > 0.01 (as on NHL1).
