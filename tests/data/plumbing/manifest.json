@@ -1,0 +1,357 @@
+{
+ "fixture": "somvar tier A (plumbing), repo copy",
+ "classification": "non-secret: simulated nf-core/sarek test reads + public GRCh38 chr21 + Agilent SS_HAEv7 design BED slice + generic hg38 GC/mappability tracks; no study or patient data",
+ "reference": "GRCh38 chr21 with every base outside chr21:46,099,000-46,301,000 replaced by N (length and coordinates unchanged; @SQ M5 in the BAM headers is that of the unmasked chr21, which samtools ignores for BAM input)",
+ "parameters": {
+  "region": "chr21:46100000-46300000",
+  "boost": 1,
+  "bq_shift": {
+   "add": 15,
+   "cap": 41
+  },
+  "pon": [
+   {
+    "name": "PON_1",
+    "samtools_s": "11.9"
+   },
+   {
+    "name": "PON_2",
+    "samtools_s": "12.8"
+   },
+   {
+    "name": "PON_3",
+    "samtools_s": "13.7"
+   },
+   {
+    "name": "PON_4",
+    "samtools_s": "14.6"
+   },
+   {
+    "name": "PON_5",
+    "samtools_s": "15.5"
+   }
+  ],
+  "read_selection": "samtools view -L bed/testkit.padded.bed <cram> <region>",
+  "gc_convention": "Start on a 10-bp grid; GC/(GC+AT) over 1-based [Start-49, Start+50], 2 decimals"
+ },
+ "sources": {
+  "fasta": {
+   "origin": "nf-core/test-datasets (branch modules): data/genomics/homo_sapiens/genome/chr21/sequence/genome.fasta",
+   "md5": "69bd44ef67566a76d6cbb8aa4a25ae35"
+  },
+  "fai": {
+   "origin": "nf-core/test-datasets (branch modules): data/genomics/homo_sapiens/genome/chr21/sequence/genome.fasta.fai",
+   "md5": "74184d265bc96cb92ddfb71c3ce85c09"
+  },
+  "normal_cram": {
+   "origin": "nf-core/test-datasets (branch modules): data/genomics/homo_sapiens/illumina/cram/test.paired_end.recalibrated.sorted.cram",
+   "md5": "721693139d873d73039a2937affc9f3e"
+  },
+  "normal_crai": {
+   "origin": "nf-core/test-datasets (branch modules): data/genomics/homo_sapiens/illumina/cram/test.paired_end.recalibrated.sorted.cram.crai",
+   "md5": "14bc3bd5c89cacc8f4541f9062429029"
+  },
+  "tumor_cram": {
+   "origin": "nf-core/test-datasets (branch modules): data/genomics/homo_sapiens/illumina/cram/test2.paired_end.recalibrated.sorted.cram",
+   "md5": "5eb5805d6e0fc77df52bb9d4bb946b4d"
+  },
+  "tumor_crai": {
+   "origin": "nf-core/test-datasets (branch modules): data/genomics/homo_sapiens/illumina/cram/test2.paired_end.recalibrated.sorted.cram.crai",
+   "md5": "8c13048618198e7c8b571a0983be8dc3"
+  },
+  "gc_track": {
+   "origin": "generic hg38 track chr21.gc100-10.gz (somvar static tracks, computed from GRCh38)",
+   "md5": "51a96fce77be60e589bf187a1c1bca77"
+  },
+  "genmap_track": {
+   "origin": "generic hg38 track hg38_genmap.chr21.txt.gz (somvar static tracks, computed from GRCh38)",
+   "md5": "58a2a958fe54ddb2043b3c062b5fa2cb"
+  },
+  "bed_regions": {
+   "origin": "Agilent SureSelect Human All Exon V7 design file SS_HAEv7_hg38_Regions.bed (clipped to the window)",
+   "md5": "d6b2700955084e39161fd345145f328e"
+  },
+  "bed_covered": {
+   "origin": "Agilent SureSelect Human All Exon V7 design file SS_HAEv7_hg38_Covered.bed (clipped to the window)",
+   "md5": "67e61a0ae68a757e04098880ee4209e9"
+  },
+  "bed_padded": {
+   "origin": "Agilent SureSelect Human All Exon V7 design file SS_HAEv7_hg38_Padded.bed (clipped to the window)",
+   "md5": "46e1a670556ea9edb9bb761f772750d3"
+  }
+ },
+ "variants": [
+  {
+   "Chr": "chr21",
+   "Start": 46209653,
+   "End": 46209653,
+   "Ref": "-",
+   "Alt": "A",
+   "VCF_POS": 46209653,
+   "VCF_REF": "T",
+   "VCF_ALT": "TA",
+   "note": "insertion; PON-supported control: after the BQ shift the alt read is also in the normal and 4 of 5 PON members"
+  },
+  {
+   "Chr": "chr21",
+   "Start": 46256924,
+   "End": 46256924,
+   "Ref": "G",
+   "Alt": "T",
+   "VCF_POS": 46256924,
+   "VCF_REF": "G",
+   "VCF_ALT": "T",
+   "note": "SNV; tumor-only alt reads"
+  },
+  {
+   "Chr": "chr21",
+   "Start": 46277670,
+   "End": 46277670,
+   "Ref": "C",
+   "Alt": "-",
+   "VCF_POS": 46277669,
+   "VCF_REF": "TC",
+   "VCF_ALT": "T",
+   "note": "deletion; tumor-only alt reads"
+  }
+ ],
+ "bed_stats": {
+  "targets": {
+   "intervals": 104,
+   "bp": 15223
+  },
+  "covered": {
+   "intervals": 99,
+   "bp": 22524
+  },
+  "padded": {
+   "intervals": 99,
+   "bp": 42324
+  }
+ },
+ "qc": {
+  "mean_depth_covered": {
+   "normal": 57.8,
+   "tumor": 57.0,
+   "PON_1": 52.2,
+   "PON_2": 46.5,
+   "PON_3": 40.5,
+   "PON_4": 34.5,
+   "PON_5": 28.4
+  },
+  "variant_sites": {
+   "chr21:46209653 ->A (insertion)": {
+    "normal": {
+     "depth": 88,
+     "alt": 1
+    },
+    "tumor": {
+     "depth": 76,
+     "alt": 1
+    },
+    "PON_1": {
+     "depth": 83,
+     "alt": 1
+    },
+    "PON_2": {
+     "depth": 73,
+     "alt": 1
+    },
+    "PON_3": {
+     "depth": 63,
+     "alt": 0
+    },
+    "PON_4": {
+     "depth": 50,
+     "alt": 1
+    },
+    "PON_5": {
+     "depth": 47,
+     "alt": 1
+    }
+   },
+   "chr21:46256924 G>T (SNV)": {
+    "normal": {
+     "depth": 69,
+     "alt": 0
+    },
+    "tumor": {
+     "depth": 83,
+     "alt": 2
+    },
+    "PON_1": {
+     "depth": 67,
+     "alt": 0
+    },
+    "PON_2": {
+     "depth": 58,
+     "alt": 0
+    },
+    "PON_3": {
+     "depth": 45,
+     "alt": 0
+    },
+    "PON_4": {
+     "depth": 40,
+     "alt": 0
+    },
+    "PON_5": {
+     "depth": 36,
+     "alt": 0
+    }
+   },
+   "chr21:46277669 C>- (deletion)": {
+    "normal": {
+     "depth": 67,
+     "alt": 0
+    },
+    "tumor": {
+     "depth": 77,
+     "alt": 2
+    },
+    "PON_1": {
+     "depth": 61,
+     "alt": 0
+    },
+    "PON_2": {
+     "depth": 53,
+     "alt": 0
+    },
+    "PON_3": {
+     "depth": 51,
+     "alt": 0
+    },
+    "PON_4": {
+     "depth": 33,
+     "alt": 0
+    },
+    "PON_5": {
+     "depth": 33,
+     "alt": 0
+    }
+   }
+  }
+ },
+ "files": {
+  "bed/testkit.padded.bed": {
+   "bytes": 2376,
+   "md5": "883373b0cab3bee4606fa30b1389785c"
+  },
+  "bed/testkit.window.bed": {
+   "bytes": 24,
+   "md5": "41347beb943d6f83aab0b349dac9274c"
+  },
+  "expected/ebscore/PONmatrix/PON_list.txt": {
+   "bytes": 50,
+   "md5": "9f81e2b22823e8ce265d4f060b66b47b"
+  },
+  "expected/ebscore/PONmatrix/matrix/chr21.pon.gz": {
+   "bytes": 419247,
+   "md5": "c55127689bf0ffe7df7ec80d4f40b9a6"
+  },
+  "expected/ebscore/pair.pileup.gz": {
+   "bytes": 600312,
+   "md5": "7444a400a3e719fa49bfd5a403c451ff"
+  },
+  "expected/mycnv/PONmatrix/CNV/pon.cov.filter.gz": {
+   "bytes": 121085,
+   "md5": "489f45b90c52506f4b38169cb2e3e390"
+  },
+  "expected/mycnv/PONmatrix/CNV/pon.cov.filterGC.gz": {
+   "bytes": 124127,
+   "md5": "048d690aab50b5ab55ffd7e8e4eb227f"
+  },
+  "expected/mycnv/PONmatrix/CNV/pon.cov.full.gz": {
+   "bytes": 234680,
+   "md5": "a8f2bbbd531afec3879232e6479ad7ce"
+  },
+  "expected/mycnv/PONmatrix/CNV/pon.cov.fullGC.gz": {
+   "bytes": 264835,
+   "md5": "ffb6bd91005011f6d9200ff276746425"
+  },
+  "expected/mycnv/PONmatrix/CNV/pon.json": {
+   "bytes": 281,
+   "md5": "0e842c4d8e366abd1a02ee255b9e02dc"
+  },
+  "expected/mycnv/PONmatrix/CNV/pon.snp.gz": {
+   "bytes": 31713,
+   "md5": "127a8c3453e9d0bb92b32a9e4af0aa9c"
+  },
+  "expected/mycnv/PONmatrix/cov/chr21.cov.gz": {
+   "bytes": 64111,
+   "md5": "e28d29d4a6f3693250e95a54e5d84d68"
+  },
+  "expected/mycnv/PONmatrix/cov/chr21.cov.json": {
+   "bytes": 168,
+   "md5": "d74d4e21cf147a504388cacfd7c5aede"
+  },
+  "expected/mycnv/PONmatrix/snp/chr21.snp.gz": {
+   "bytes": 31709,
+   "md5": "c96b5bebdc35c00fdb431683af6a2dfe"
+  },
+  "expected/mycnv/pair/data/fixture_tumor-normal.cnv.gz": {
+   "bytes": 147237,
+   "md5": "f67fb4fcda1e8272494f43b7ecd02209"
+  },
+  "expected/mycnv/pair/data/fixture_tumor-normal.cnv.snp.gz": {
+   "bytes": 198,
+   "md5": "39f7e611c1284581d2d42e16acdfed23"
+  },
+  "expected/mycnv/pair/pre/fixture_tumor-normal_germline_baf.tsv": {
+   "bytes": 31,
+   "md5": "ac36d782cd558c4fc6d2f3ef23773173"
+  },
+  "expected/mycnv/pair/pre/fixture_tumor-normal_germline_logr.tsv": {
+   "bytes": 31,
+   "md5": "ac36d782cd558c4fc6d2f3ef23773173"
+  },
+  "expected/mycnv/pair/pre/fixture_tumor-normal_normal_baf.tsv": {
+   "bytes": 31,
+   "md5": "ac36d782cd558c4fc6d2f3ef23773173"
+  },
+  "expected/mycnv/pair/pre/fixture_tumor-normal_normal_logr.tsv": {
+   "bytes": 31,
+   "md5": "ac36d782cd558c4fc6d2f3ef23773173"
+  },
+  "expected/mycnv/pair/pre/fixture_tumor-normal_tumor_baf.tsv": {
+   "bytes": 31,
+   "md5": "ac36d782cd558c4fc6d2f3ef23773173"
+  },
+  "expected/mycnv/pair/pre/fixture_tumor-normal_tumor_logr.tsv": {
+   "bytes": 31,
+   "md5": "ac36d782cd558c4fc6d2f3ef23773173"
+  },
+  "expected/mycnv/pair/raw/fixture_tumor-normal.cov.gz": {
+   "bytes": 283924,
+   "md5": "5604f7be4bfd6622e7d55b5b64e2580f"
+  },
+  "expected/mycnv/pair/raw/fixture_tumor-normal.snp": {
+   "bytes": 415,
+   "md5": "d85b5f6b756c4e52685d753451a8155b"
+  },
+  "ref/chr21.dict": {
+   "bytes": 125,
+   "md5": "ddb41d284d69f3073abfd44fe5157f79"
+  },
+  "ref/chr21.fa.gz": {
+   "bytes": 228510,
+   "md5": "f217f1b51759237d256167657ed18d33"
+  },
+  "ref/chr21.fa.gz.fai": {
+   "bytes": 23,
+   "md5": "74184d265bc96cb92ddfb71c3ce85c09"
+  },
+  "ref/chr21.fa.gz.gzi": {
+   "bytes": 11640,
+   "md5": "d2e480c6d77bfa8293961667332d4920"
+  },
+  "static/gc100-10/chr21.gc100-10.gz": {
+   "bytes": 63131,
+   "md5": "e29c15725969eb183c7be6e592e31013"
+  },
+  "static/genmap/hg38_genmap.chr21.txt.gz": {
+   "bytes": 171998,
+   "md5": "dcf60f19934154c2bde8bda7cc340ad7"
+  }
+ }
+}

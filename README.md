@@ -14,7 +14,8 @@ conda run -n mycnv python -m pytest -q              # public tests incl. parity 
 Container: `docker build -t mycnv:<ver> .` (named stages `build` → `test` → `runtime`; `--target test` runs the public
 tests). Only `pyproject.toml`, `README.md`, `src/` and `tests/` enter the image; `tests/data/restricted/` never does.
 CI (`.github/workflows/ci.yml`, plan D24): on push/PR to `kumodev`, pytest, the Docker test stage, the runtime image
-with a contract check, and Trivy 0.69.3: a Dockerfile config scan, the vulnerability gate (library packages, fixed
+with a contract check, the tier-A fixture smoke inside the image (`tests/smoke/smoke_mycnv.sh` on
+`tests/data/plumbing/`, as the image user and as an arbitrary uid), and Trivy 0.69.3: a Dockerfile config scan, the vulnerability gate (library packages, fixed
 vulnerabilities, HIGH/CRITICAL; accepted findings go into `.trivyignore` with a reason) and an informational report
 that includes the OS packages.
 

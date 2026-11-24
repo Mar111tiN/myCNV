@@ -1,0 +1,19 @@
+{
+ "mycnv": "2.0.0.dev0",
+ "chroms": [
+  "chr21"
+ ],
+ "std_factor": 2,
+ "legacy_stats": false,
+ "coords": "fixed",
+ "bin_size": 10,
+ "bed": [
+  "testkit.padded.bed"
+ ],
+ "bed_regions_md5": {
+  "chr21": "ca44a9bca527312ddc3897db00cec613"
+ },
+ "coverage_mycnv": [
+  "2.0.0.dev0"
+ ]
+}

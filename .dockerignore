@@ -18,3 +18,6 @@ tests/data/restricted
 testpon
 data
 output
+# tier-A fixture + smoke: mounted from the checkout by the CI smoke step, not needed in the image
+tests/data/plumbing
+tests/smoke

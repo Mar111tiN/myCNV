@@ -62,6 +62,12 @@ jobs:
           ps -o rss= -p $$ && ! command -v pip && ! python -c "import pip" 2>/dev/null'
       # sed -n 1p reads all input: `| head -1` under pipefail failed with SIGPIPE (exit 141) when a tool was still
       # writing after head exited (run 45291859460).
+      - name: Tier-A fixture smoke in the runtime image (image user, then an arbitrary uid)
+        run: |
+          docker run --rm -v "$PWD/tests/data/plumbing:/data:ro" -v "$PWD/tests/smoke:/smoke:ro" \
+            mycnv:ci bash /smoke/smoke_mycnv.sh /data
+          docker run --rm --user 4242:4242 -v "$PWD/tests/data/plumbing:/data:ro" -v "$PWD/tests/smoke:/smoke:ro" \
+            mycnv:ci bash /smoke/smoke_mycnv.sh /data
       # Trivy 0.69.3 (the kumo-docker-scientific CI version) as a container; the vuln DB is cached in a volume for
       # the three scans of this job. Gate = library packages, fixed vulns only, HIGH/CRITICAL. Accepted findings go
       # into .trivyignore with a reason (plan 3b/D24).

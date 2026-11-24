@@ -8,6 +8,8 @@
   (`test_coords.py`), tracks and failure modes (`test_tracks.py`, `test_cli.py`), and value parity with `main` for
   every step on synthetic inputs (`test_parity_synth.py`, `test_mawk.py`, `test_raw.py`), the CLI end to end, the
   packaging contract (`test_packaging.py`).
+- **Fixture smoke** (`tests/smoke/smoke_mycnv.sh tests/data/plumbing`): the CLI end to end on the non-secret tier-A
+  fixture (`tests/data/plumbing/README.md`); CI runs it inside the runtime image. Not collected by pytest.
 - **Restricted** (skipped without `data/restricted/`; `pytest -rs` lists them): the same parity checks on slices of the
   real HAEv7 PON and of the NHL1 study sample (`test_pon.py`, `test_combine.py`, `test_rolling.py`, `test_convert.py`,
   parts of `test_mawk.py` / `test_raw.py`).
