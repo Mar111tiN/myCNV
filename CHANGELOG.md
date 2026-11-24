@@ -88,6 +88,22 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
   now starts at 3.0 Mb (`tests/synth.py` `SYN_START`; same random draws). The `main` outputs made from it
   (`tests/data/legacy/{pon_synth_CNV,combine_synth_*,rolling_synth_all*}`) were regenerated with unmodified `main` in
   `somvar-legacy` and are identical to the previous ones up to chrX `Pos` + 2,900,000.
+- CLI contract snapshot (plan C1, 2026-11-24). This is a test only: the CLI and its outputs do not change.
+  `tests/data/cli_contract.json` (schema `mycnv-cli-contract/1`, the layout of ebscore's C1 snapshot) is written by
+  `tests/make_cli_contract.py` from `mycnv.cli.build_parser()`. It covers every subcommand, the nested `tracks gc` and
+  `tracks genmap` included, with the sorted option strings. Per option it records the flags, required, the action kind,
+  `nargs`, `type`, `choices` and the default when that is a constant. It also records the mutually exclusive groups,
+  the positionals, and the `--version` format with the version masked (`mycnv <version>`). The sex (`sex`,
+  `combine --out-sex`) and tumor-only (`--tumor-only`, `--snp-sites`, `--tumor-vaf`) options are in it. Help texts are
+  not: argparse formats `--help` differently per Python version, and the snapshot is the same on Python 3.9 and 3.15.
+  - `tests/test_cli_contract.py` fails on any difference, compared as canonical JSON (so `1`, `1.0` and `true`
+    differ). The message lists each changed entry and the kumo-variant-calling-nf modules that call the changed
+    subcommand (`MYCNV_PONCOVERAGE`, `MYCNV_PONCOMBINE`, `MYCNV_SAMPLE`; design §3). It says to rerun
+    `python tests/make_cli_contract.py` and review those modules. When the imported `mycnv` is a stale install (another
+    copy than `src/`, with other code), it says that instead.
+  - The test also parses the design §3 command lines (`pon-coverage`, `pon-combine`, `sample` paired and
+    `--tumor-only`) with prefix matching off and runs the CLI's cross-option checks on them. It checks that no
+    (sub)command parser allows prefix matching (plan risk "moving CLIs").
 
 ### Behaviour changes vs `main` (deliberate)
 | Area | `main` | now | effect / how to get `main` |

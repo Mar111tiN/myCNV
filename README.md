@@ -223,4 +223,6 @@ another BED or coordinate mode than the CNV PON (checked with `CNV/pon.json` and
 sample combine), `ponmeta` (PON provenance), `sex` (coverage sex calls), `rolling`, `rolling_cov`, `rolling_snp`, `convert` (ASCAT input),
 `pipeline` (steps used by the CLI), `cli`, `plot*`, `cluster` (GMM-caller groundwork; needs scikit-learn), `mawk/`.
 Notebooks in `nb/` are the development history and still use the legacy `code/` imports (plan 2.3 moves them to
-`import mycnv`). Tests: `tests/README.md`.
+`import mycnv`). Tests: `tests/README.md`. The subcommands and options are pinned by a snapshot test
+(`tests/data/cli_contract.json`, plan C1), because the kumo-variant-calling-nf modules call them with fixed flags. After
+a deliberate CLI change, rerun `python tests/make_cli_contract.py` and review the modules that use the changed flags.

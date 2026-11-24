@@ -1,0 +1,263 @@
+{
+  "command_required": true,
+  "commands": {
+    "ascat-input": {
+      "mutually_exclusive": [],
+      "option_strings": ["--allow-empty", "--cnv", "--config", "--help", "--no-mock-germline", "--normal-name", "--outdir", "--quiet", "--sample", "--threads", "--tumor-name", "--tumor-only", "--verbose", "-h", "-o", "-t", "-v"],
+      "options": {
+        "--allow-empty": {"action": "store_true", "choices": null, "default": false, "flags": ["--allow-empty"], "nargs": 0, "required": false, "type": null},
+        "--cnv": {"action": "store", "choices": null, "default": null, "flags": ["--cnv"], "nargs": null, "required": true, "type": null},
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--no-mock-germline": {"action": "store_true", "choices": null, "default": false, "flags": ["--no-mock-germline"], "nargs": 0, "required": false, "type": null},
+        "--normal-name": {"action": "store", "choices": null, "default": null, "flags": ["--normal-name"], "nargs": null, "required": false, "type": null},
+        "--outdir": {"action": "store", "choices": null, "default": null, "flags": ["--outdir", "-o"], "nargs": null, "required": true, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--sample": {"action": "store", "choices": null, "default": null, "flags": ["--sample"], "nargs": null, "required": true, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tumor-name": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-name"], "nargs": null, "required": false, "type": null},
+        "--tumor-only": {"action": "store_true", "choices": null, "default": false, "flags": ["--tumor-only"], "nargs": 0, "required": false, "type": null},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "combine": {
+      "mutually_exclusive": [],
+      "option_strings": ["--allow-missing-chroms", "--config", "--cov", "--help", "--legacy-coords", "--min-pon-match", "--no-gc-normalize", "--normal-name", "--out-cov", "--out-sex", "--out-snp", "--plots-dir", "--ponmatrix", "--quiet", "--sample", "--snp", "--threads", "--tumor-name", "--tumor-only", "--verbose", "-h", "-t", "-v"],
+      "options": {
+        "--allow-missing-chroms": {"action": "store_true", "choices": null, "default": false, "flags": ["--allow-missing-chroms"], "nargs": 0, "required": false, "type": null},
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--cov": {"action": "extend", "choices": null, "default": null, "flags": ["--cov"], "nargs": "+", "required": true, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--legacy-coords": {"action": "store_true", "choices": null, "default": false, "flags": ["--legacy-coords"], "nargs": 0, "required": false, "type": null},
+        "--min-pon-match": {"action": "store", "choices": null, "default": 0.9, "flags": ["--min-pon-match"], "nargs": null, "required": false, "type": "float"},
+        "--no-gc-normalize": {"action": "store_true", "choices": null, "default": false, "flags": ["--no-gc-normalize"], "nargs": 0, "required": false, "type": null},
+        "--normal-name": {"action": "store", "choices": null, "default": null, "flags": ["--normal-name"], "nargs": null, "required": false, "type": null},
+        "--out-cov": {"action": "store", "choices": null, "default": null, "flags": ["--out-cov"], "nargs": null, "required": true, "type": null},
+        "--out-sex": {"action": "store", "choices": null, "default": null, "flags": ["--out-sex"], "nargs": null, "required": false, "type": null},
+        "--out-snp": {"action": "store", "choices": null, "default": null, "flags": ["--out-snp"], "nargs": null, "required": true, "type": null},
+        "--plots-dir": {"action": "store", "choices": null, "default": null, "flags": ["--plots-dir"], "nargs": null, "required": false, "type": null},
+        "--ponmatrix": {"action": "store", "choices": null, "default": null, "flags": ["--ponmatrix"], "nargs": null, "required": true, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--sample": {"action": "store", "choices": null, "default": null, "flags": ["--sample"], "nargs": null, "required": false, "type": null},
+        "--snp": {"action": "extend", "choices": null, "default": null, "flags": ["--snp"], "nargs": "+", "required": true, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tumor-name": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-name"], "nargs": null, "required": false, "type": null},
+        "--tumor-only": {"action": "store_true", "choices": null, "default": false, "flags": ["--tumor-only"], "nargs": 0, "required": false, "type": null},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "config": {
+      "mutually_exclusive": [],
+      "option_strings": ["--config", "--help", "--quiet", "--threads", "--verbose", "-h", "-t", "-v"],
+      "options": {
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "pon-combine": {
+      "mutually_exclusive": [],
+      "option_strings": ["--chrom", "--config", "--help", "--legacy-stats", "--outdir", "--ponmatrix", "--quiet", "--std-factor", "--threads", "--verbose", "-h", "-o", "-t", "-v"],
+      "options": {
+        "--chrom": {"action": "append", "choices": null, "default": null, "flags": ["--chrom"], "nargs": null, "required": false, "type": null},
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--legacy-stats": {"action": "store_true", "choices": null, "default": false, "flags": ["--legacy-stats"], "nargs": 0, "required": false, "type": null},
+        "--outdir": {"action": "store", "choices": null, "default": null, "flags": ["--outdir", "-o"], "nargs": null, "required": true, "type": null},
+        "--ponmatrix": {"action": "store", "choices": null, "default": null, "flags": ["--ponmatrix"], "nargs": null, "required": true, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--std-factor": {"action": "store", "choices": null, "default": null, "flags": ["--std-factor"], "nargs": null, "required": false, "type": "float"},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "pon-coverage": {
+      "mutually_exclusive": [
+        {"options": ["--matrix", "--ponmatrix"], "required": true}
+      ],
+      "option_strings": ["--bed", "--chrom", "--config", "--gc", "--genmap", "--help", "--legacy-coords", "--matrix", "--min-cov", "--min-depth", "--min-vaf", "--outdir", "--ponmatrix", "--quiet", "--threads", "--tmpdir", "--verbose", "-h", "-o", "-t", "-v"],
+      "options": {
+        "--bed": {"action": "store", "choices": null, "default": null, "flags": ["--bed"], "nargs": null, "required": true, "type": null},
+        "--chrom": {"action": "append", "choices": null, "default": null, "flags": ["--chrom"], "nargs": null, "required": false, "type": null},
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--gc": {"action": "store", "choices": null, "default": null, "flags": ["--gc"], "nargs": null, "required": true, "type": null},
+        "--genmap": {"action": "store", "choices": null, "default": null, "flags": ["--genmap"], "nargs": null, "required": false, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--legacy-coords": {"action": "store_true", "choices": null, "default": false, "flags": ["--legacy-coords"], "nargs": 0, "required": false, "type": null},
+        "--matrix": {"action": "extend", "choices": null, "default": null, "flags": ["--matrix"], "nargs": "+", "required": false, "type": null},
+        "--min-cov": {"action": "store", "choices": null, "default": null, "flags": ["--min-cov"], "nargs": null, "required": false, "type": "float"},
+        "--min-depth": {"action": "store", "choices": null, "default": null, "flags": ["--min-depth"], "nargs": null, "required": false, "type": "int"},
+        "--min-vaf": {"action": "store", "choices": null, "default": null, "flags": ["--min-vaf"], "nargs": null, "required": false, "type": "float"},
+        "--outdir": {"action": "store", "choices": null, "default": null, "flags": ["--outdir", "-o"], "nargs": null, "required": true, "type": null},
+        "--ponmatrix": {"action": "store", "choices": null, "default": null, "flags": ["--ponmatrix"], "nargs": null, "required": false, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tmpdir": {"action": "store", "choices": null, "default": null, "flags": ["--tmpdir"], "nargs": null, "required": false, "type": null},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "rolling": {
+      "mutually_exclusive": [],
+      "option_strings": ["--config", "--cov", "--help", "--normal-name", "--out-cnv", "--out-snp", "--plots-dir", "--quiet", "--sample", "--snp", "--threads", "--tumor-name", "--tumor-only", "--verbose", "-h", "-t", "-v"],
+      "options": {
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--cov": {"action": "store", "choices": null, "default": null, "flags": ["--cov"], "nargs": null, "required": true, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--normal-name": {"action": "store", "choices": null, "default": null, "flags": ["--normal-name"], "nargs": null, "required": false, "type": null},
+        "--out-cnv": {"action": "store", "choices": null, "default": null, "flags": ["--out-cnv"], "nargs": null, "required": true, "type": null},
+        "--out-snp": {"action": "store", "choices": null, "default": null, "flags": ["--out-snp"], "nargs": null, "required": true, "type": null},
+        "--plots-dir": {"action": "store", "choices": null, "default": null, "flags": ["--plots-dir"], "nargs": null, "required": false, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--sample": {"action": "store", "choices": null, "default": null, "flags": ["--sample"], "nargs": null, "required": false, "type": null},
+        "--snp": {"action": "store", "choices": null, "default": null, "flags": ["--snp"], "nargs": null, "required": true, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tumor-name": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-name"], "nargs": null, "required": false, "type": null},
+        "--tumor-only": {"action": "store_true", "choices": null, "default": false, "flags": ["--tumor-only"], "nargs": 0, "required": false, "type": null},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "sample": {
+      "mutually_exclusive": [],
+      "option_strings": ["--allow-empty", "--bed", "--config", "--gc", "--genmap", "--help", "--legacy-coords", "--min-cov", "--min-depth", "--min-pon-match", "--no-gc-normalize", "--no-mock-germline", "--normal-name", "--normal-vaf", "--outdir", "--pileup", "--plots", "--ponmatrix", "--quiet", "--raw-pileup", "--sample", "--snp-sites", "--threads", "--tmpdir", "--tumor-name", "--tumor-only", "--tumor-vaf", "--verbose", "-h", "-o", "-t", "-v"],
+      "options": {
+        "--allow-empty": {"action": "store_true", "choices": null, "default": false, "flags": ["--allow-empty"], "nargs": 0, "required": false, "type": null},
+        "--bed": {"action": "store", "choices": null, "default": null, "flags": ["--bed"], "nargs": null, "required": true, "type": null},
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--gc": {"action": "store", "choices": null, "default": null, "flags": ["--gc"], "nargs": null, "required": true, "type": null},
+        "--genmap": {"action": "store", "choices": null, "default": null, "flags": ["--genmap"], "nargs": null, "required": true, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--legacy-coords": {"action": "store_true", "choices": null, "default": false, "flags": ["--legacy-coords"], "nargs": 0, "required": false, "type": null},
+        "--min-cov": {"action": "store", "choices": null, "default": null, "flags": ["--min-cov"], "nargs": null, "required": false, "type": "float"},
+        "--min-depth": {"action": "store", "choices": null, "default": null, "flags": ["--min-depth"], "nargs": null, "required": false, "type": "int"},
+        "--min-pon-match": {"action": "store", "choices": null, "default": 0.9, "flags": ["--min-pon-match"], "nargs": null, "required": false, "type": "float"},
+        "--no-gc-normalize": {"action": "store_true", "choices": null, "default": false, "flags": ["--no-gc-normalize"], "nargs": 0, "required": false, "type": null},
+        "--no-mock-germline": {"action": "store_true", "choices": null, "default": false, "flags": ["--no-mock-germline"], "nargs": 0, "required": false, "type": null},
+        "--normal-name": {"action": "store", "choices": null, "default": null, "flags": ["--normal-name"], "nargs": null, "required": false, "type": null},
+        "--normal-vaf": {"action": "store", "choices": null, "default": null, "flags": ["--normal-vaf"], "nargs": 2, "required": false, "type": "float"},
+        "--outdir": {"action": "store", "choices": null, "default": null, "flags": ["--outdir", "-o"], "nargs": null, "required": true, "type": null},
+        "--pileup": {"action": "store", "choices": null, "default": null, "flags": ["--pileup"], "nargs": null, "required": true, "type": null},
+        "--plots": {"action": "store_true", "choices": null, "default": false, "flags": ["--plots"], "nargs": 0, "required": false, "type": null},
+        "--ponmatrix": {"action": "store", "choices": null, "default": null, "flags": ["--ponmatrix"], "nargs": null, "required": true, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--raw-pileup": {"action": "store_true", "choices": null, "default": false, "flags": ["--raw-pileup"], "nargs": 0, "required": false, "type": null},
+        "--sample": {"action": "store", "choices": null, "default": null, "flags": ["--sample"], "nargs": null, "required": true, "type": null},
+        "--snp-sites": {"action": "store", "choices": null, "default": null, "flags": ["--snp-sites"], "nargs": null, "required": false, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tmpdir": {"action": "store", "choices": null, "default": null, "flags": ["--tmpdir"], "nargs": null, "required": false, "type": null},
+        "--tumor-name": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-name"], "nargs": null, "required": false, "type": null},
+        "--tumor-only": {"action": "store_true", "choices": null, "default": false, "flags": ["--tumor-only"], "nargs": 0, "required": false, "type": null},
+        "--tumor-vaf": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-vaf"], "nargs": 2, "required": false, "type": "float"},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "sex": {
+      "mutually_exclusive": [],
+      "option_strings": ["--config", "--cov", "--help", "--normal-name", "--output", "--quiet", "--sample", "--threads", "--tumor-name", "--tumor-only", "--verbose", "-h", "-o", "-t", "-v"],
+      "options": {
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--cov": {"action": "store", "choices": null, "default": null, "flags": ["--cov"], "nargs": null, "required": true, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--normal-name": {"action": "store", "choices": null, "default": null, "flags": ["--normal-name"], "nargs": null, "required": false, "type": null},
+        "--output": {"action": "store", "choices": null, "default": null, "flags": ["--output", "-o"], "nargs": null, "required": true, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--sample": {"action": "store", "choices": null, "default": null, "flags": ["--sample"], "nargs": null, "required": false, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tumor-name": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-name"], "nargs": null, "required": false, "type": null},
+        "--tumor-only": {"action": "store_true", "choices": null, "default": false, "flags": ["--tumor-only"], "nargs": 0, "required": false, "type": null},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "tn2cnv": {
+      "mutually_exclusive": [],
+      "option_strings": ["--bed", "--chrom", "--config", "--gc", "--genmap", "--help", "--legacy-coords", "--min-cov", "--min-depth", "--normal-vaf", "--out-cov", "--out-snp", "--pileup", "--quiet", "--raw-pileup", "--snp-sites", "--threads", "--tmpdir", "--tumor-only", "--tumor-vaf", "--verbose", "-h", "-t", "-v"],
+      "options": {
+        "--bed": {"action": "store", "choices": null, "default": null, "flags": ["--bed"], "nargs": null, "required": true, "type": null},
+        "--chrom": {"action": "append", "choices": null, "default": null, "flags": ["--chrom"], "nargs": null, "required": false, "type": null},
+        "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+        "--gc": {"action": "store", "choices": null, "default": null, "flags": ["--gc"], "nargs": null, "required": true, "type": null},
+        "--genmap": {"action": "store", "choices": null, "default": null, "flags": ["--genmap"], "nargs": null, "required": true, "type": null},
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+        "--legacy-coords": {"action": "store_true", "choices": null, "default": false, "flags": ["--legacy-coords"], "nargs": 0, "required": false, "type": null},
+        "--min-cov": {"action": "store", "choices": null, "default": null, "flags": ["--min-cov"], "nargs": null, "required": false, "type": "float"},
+        "--min-depth": {"action": "store", "choices": null, "default": null, "flags": ["--min-depth"], "nargs": null, "required": false, "type": "int"},
+        "--normal-vaf": {"action": "store", "choices": null, "default": null, "flags": ["--normal-vaf"], "nargs": 2, "required": false, "type": "float"},
+        "--out-cov": {"action": "store", "choices": null, "default": null, "flags": ["--out-cov"], "nargs": null, "required": true, "type": null},
+        "--out-snp": {"action": "store", "choices": null, "default": null, "flags": ["--out-snp"], "nargs": null, "required": true, "type": null},
+        "--pileup": {"action": "store", "choices": null, "default": null, "flags": ["--pileup"], "nargs": null, "required": true, "type": null},
+        "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+        "--raw-pileup": {"action": "store_true", "choices": null, "default": false, "flags": ["--raw-pileup"], "nargs": 0, "required": false, "type": null},
+        "--snp-sites": {"action": "store", "choices": null, "default": null, "flags": ["--snp-sites"], "nargs": null, "required": false, "type": null},
+        "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+        "--tmpdir": {"action": "store", "choices": null, "default": null, "flags": ["--tmpdir"], "nargs": null, "required": false, "type": null},
+        "--tumor-only": {"action": "store_true", "choices": null, "default": false, "flags": ["--tumor-only"], "nargs": 0, "required": false, "type": null},
+        "--tumor-vaf": {"action": "store", "choices": null, "default": null, "flags": ["--tumor-vaf"], "nargs": 2, "required": false, "type": "float"},
+        "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    },
+    "tracks": {
+      "command_required": true,
+      "commands": {
+        "gc": {
+          "mutually_exclusive": [],
+          "option_strings": ["--chrom", "--config", "--fasta", "--help", "--outdir", "--quiet", "--threads", "--verbose", "-h", "-o", "-t", "-v"],
+          "options": {
+            "--chrom": {"action": "append", "choices": null, "default": null, "flags": ["--chrom"], "nargs": null, "required": false, "type": null},
+            "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+            "--fasta": {"action": "store", "choices": null, "default": null, "flags": ["--fasta"], "nargs": null, "required": true, "type": null},
+            "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+            "--outdir": {"action": "store", "choices": null, "default": null, "flags": ["--outdir", "-o"], "nargs": null, "required": true, "type": null},
+            "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+            "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+            "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+          },
+          "positionals": []
+        },
+        "genmap": {
+          "mutually_exclusive": [],
+          "option_strings": ["--bed", "--chrom", "--config", "--fasta", "--help", "--index", "--modes", "--outdir", "--quiet", "--threads", "--tmpdir", "--verbose", "-h", "-o", "-t", "-v"],
+          "options": {
+            "--bed": {"action": "store", "choices": null, "default": null, "flags": ["--bed"], "nargs": null, "required": false, "type": null},
+            "--chrom": {"action": "append", "choices": null, "default": null, "flags": ["--chrom"], "nargs": null, "required": false, "type": null},
+            "--config": {"action": "store", "choices": null, "default": null, "flags": ["--config"], "nargs": null, "required": false, "type": null},
+            "--fasta": {"action": "store", "choices": null, "default": null, "flags": ["--fasta"], "nargs": null, "required": true, "type": null},
+            "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+            "--index": {"action": "store", "choices": null, "default": null, "flags": ["--index"], "nargs": null, "required": false, "type": null},
+            "--modes": {"action": "store", "choices": null, "default": "30_0,50_0,75_1,100_2", "flags": ["--modes"], "nargs": null, "required": false, "type": null},
+            "--outdir": {"action": "store", "choices": null, "default": null, "flags": ["--outdir", "-o"], "nargs": null, "required": true, "type": null},
+            "--quiet": {"action": "store_true", "choices": null, "default": false, "flags": ["--quiet"], "nargs": 0, "required": false, "type": null},
+            "--threads": {"action": "store", "choices": null, "default": 1, "flags": ["--threads", "-t"], "nargs": null, "required": false, "type": "int"},
+            "--tmpdir": {"action": "store", "choices": null, "default": null, "flags": ["--tmpdir"], "nargs": null, "required": false, "type": null},
+            "--verbose": {"action": "store_true", "choices": null, "default": false, "flags": ["--verbose", "-v"], "nargs": 0, "required": false, "type": null}
+          },
+          "positionals": []
+        }
+      },
+      "mutually_exclusive": [],
+      "option_strings": ["--help", "-h"],
+      "options": {
+        "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null}
+      },
+      "positionals": []
+    }
+  },
+  "mutually_exclusive": [],
+  "option_strings": ["--help", "--version", "-h"],
+  "options": {
+    "--help": {"action": "help", "choices": null, "default": "==SUPPRESS==", "flags": ["--help", "-h"], "nargs": 0, "required": false, "type": null},
+    "--version": {"action": "version", "choices": null, "default": "==SUPPRESS==", "flags": ["--version"], "nargs": 0, "required": false, "type": null, "version": "mycnv <version>"}
+  },
+  "positionals": [],
+  "prog": "mycnv",
+  "schema": "mycnv-cli-contract/1"
+}
