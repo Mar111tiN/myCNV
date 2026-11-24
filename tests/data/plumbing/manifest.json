@@ -270,8 +270,8 @@
    "md5": "ffb6bd91005011f6d9200ff276746425"
   },
   "expected/mycnv/PONmatrix/CNV/pon.json": {
-   "bytes": 281,
-   "md5": "0e842c4d8e366abd1a02ee255b9e02dc"
+   "bytes": 1659,
+   "md5": "4cd7f286a8077223a8597abbb132498a"
   },
   "expected/mycnv/PONmatrix/CNV/pon.snp.gz": {
    "bytes": 31713,
@@ -328,6 +328,10 @@
   "expected/mycnv/pair/raw/fixture_tumor-normal.snp": {
    "bytes": 415,
    "md5": "d85b5f6b756c4e52685d753451a8155b"
+  },
+  "expected/mycnv/pair/sex.tsv": {
+   "bytes": 170,
+   "md5": "54f296263804da513ec9c835c600e88d"
   },
   "ref/chr21.dict": {
    "bytes": 125,

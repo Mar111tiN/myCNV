@@ -15,5 +15,67 @@
  },
  "coverage_mycnv": [
   "2.0.0.dev0"
- ]
+ ],
+ "sex": [
+  {
+   "column": "Cov1",
+   "name": null,
+   "chrx_ratio": null,
+   "call": "unknown",
+   "doubled": false
+  },
+  {
+   "column": "Cov2",
+   "name": null,
+   "chrx_ratio": null,
+   "call": "unknown",
+   "doubled": false
+  },
+  {
+   "column": "Cov3",
+   "name": null,
+   "chrx_ratio": null,
+   "call": "unknown",
+   "doubled": false
+  },
+  {
+   "column": "Cov4",
+   "name": null,
+   "chrx_ratio": null,
+   "call": "unknown",
+   "doubled": false
+  },
+  {
+   "column": "Cov5",
+   "name": null,
+   "chrx_ratio": null,
+   "call": "unknown",
+   "doubled": false
+  }
+ ],
+ "sex_thresholds": {
+  "xy_max": 0.65,
+  "xx_min": 0.85,
+  "min_bins": 100,
+  "par_grch38": {
+   "chrX": [
+    [
+     10001,
+     2781479
+    ],
+    [
+     155701383,
+     156030895
+    ]
+   ]
+  },
+  "pon_call": "log2ratio vs the per-bin mean of the other PON columns with the chrX non-PAR of the XY columns doubled; the XY set starts from the split of the sorted log2 coverage ratios whose lower part, doubled, leaves the PON tightest, among the splits whose group medians are split_gap_log2 apart with split_step_log2 free between them (pon_start split; none: one sex, the coverage ratio cut at (xy_max + xx_min) / 2, pon_start cut) and is iterated until stable",
+  "split_gap_log2": [
+   0.75,
+   1.25
+  ],
+  "split_step_log2": 0.4,
+  "pon_start": "cut",
+  "doubling": "XY call, chrX non-PAR bins"
+ }
 }

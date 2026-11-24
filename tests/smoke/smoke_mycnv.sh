@@ -54,6 +54,8 @@ table "$E/pair/raw/$P.cov.gz" "$O/pair/raw/$P.cov.gz"
 table "$E/pair/raw/$P.snp" "$O/pair/raw/$P.snp"
 table "$E/pair/data/$P.cnv.gz" "$O/pair/data/$P.cnv.gz"
 table "$E/pair/data/$P.cnv.snp.gz" "$O/pair/data/$P.cnv.snp.gz"
+# coverage sex calls (M5): the chr21-only fixture has no chrX bins, so both rows are unknown and ASCAT gets XX
+table "$E/pair/sex.tsv" "$O/pair/sex.tsv"
 for f in "$E"/pair/pre/*.tsv; do
     table "$f" "$O/pair/pre/$(basename "$f")"
 done
