@@ -153,13 +153,15 @@ def remove_outliers(df: pd.DataFrame, std_factor: float = 2.5) -> pd.DataFrame:
 
 LEGACY_DOUBLING = "legacy: normalised chrX mean < 75, per table, all chrX bins"
 XY_DOUBLING = "XY call, chrX non-PAR bins"
-PON_CALL = ("log2ratio vs the per-bin PON mean with the chrX non-PAR of the XY columns doubled, iterated from the "
-            "coverage ratio cut at (xy_max + xx_min) / 2")
+PON_CALL = ("log2ratio vs the per-bin mean of the other PON columns with the chrX non-PAR of the XY columns doubled; "
+            "the XY set starts from the split of the sorted log2 coverage ratios whose lower part, doubled, leaves the "
+            "PON tightest (one group, i.e. one sex: the coverage ratio cut at (xy_max + xx_min) / 2) and is iterated "
+            "until stable")
 
 
 def pon_sex_calls(cov_mean: pd.DataFrame, sex_cfg: dict | None = None) -> list[dict]:
     """The coverage sex call of every PON column (`mycnv.sex.pon_calls`) on the mean-normalised coverage before
-    doubling, against the PON's own effectively female per-bin mean."""
+    doubling, against the per-bin mean of the other columns (effectively female: XY chrX doubled)."""
     t = sex.thresholds(sex_cfg)
     cov_cols = [c for c in cov_mean.columns if c.startswith("Cov")]
     calls = sex.pon_calls(cov_mean, cov_cols, t)
@@ -184,10 +186,10 @@ def pon_coverage_and_sex(pon_dir: str, std_factor: float = 2, chroms=PRIMARY_CHR
     - full / fullGC: Chr Pos ExonPos Cov1..N PONcov_mean/median/std (mean-normalised / GC-normalised)
     - filter / filterGC: Chr Pos ExonPos + stats after outlier removal
     - sex calls: [{column, chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins, call, coverage_ratio, doubled}]
-      (`mycnv.sex.pon_calls`, on the mean-normalised coverage before doubling, vs the PON's own effectively female
-      per-bin mean). The XY columns get their chrX non-PAR bins doubled in both tables (N-Q7; the PAR has two copies
-      in XY); XX, ambiguous and unknown columns are not doubled (a warning for each ambiguous or unknown one, and one
-      when main's rule would double other columns).
+      (`mycnv.sex.pon_calls`, on the mean-normalised coverage before doubling, vs the effectively female per-bin
+      mean of the other columns). The XY columns get their chrX non-PAR bins doubled in both tables (N-Q7; the PAR
+      has two copies in XY); XX, ambiguous and unknown columns are not doubled (a warning for each ambiguous or
+      unknown one, and one when main's rule would double other columns).
     legacy=True reproduces main: the stats are not recomputed after outlier removal (filter == full stats), the
     full tables carry the outlier-removed (NaN) coverage values, and chrX (all bins) is doubled by main's rule
     (normalised chrX mean < 75, decided separately in the GC and the mean table); the sex calls are then only recorded.

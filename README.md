@@ -92,21 +92,27 @@ labels come from a legacy sample ID `<patient>_<tumor>-<normal>`; sarek pair IDs
 One coverage-based call (`mycnv.sex`) is used for the PON and for the samples (plan N-Q7, D-Q3):
 - `ratio = 2 ** (median(chrX non-PAR) − median(autosomes))` of a log2ratio column against an effectively female
   reference: XX ≈ 1, XY ≈ 0.5. (A plain coverage column gives `median(chrX non-PAR bins) / median(autosomal bins)` on the
-  same scale, but without a per-bin reference it carries the kit's chrX/autosome target mix; the PON uses it only as a
-  start, see below.) NaN/inf values and zero-coverage bins are ignored (a log2ratio is NaN where the coverage is 0, and
-  a coverage column drops its 0 bins the same way). The PARs are GRCh38's (chrX:10,001–2,781,479 and
+  same scale, but without a per-bin reference it carries the kit's chrX/autosome target mix; the PON uses it only for
+  the start, see below.) NaN/inf values and zero-coverage bins are ignored (a log2ratio is NaN where the coverage is 0,
+  and a coverage column drops its 0 bins the same way). The PARs are GRCh38's (chrX:10,001–2,781,479 and
   155,701,383–156,030,895, 1-based inclusive), matched on the bin start `Pos`; autosomes are chr1–chr22.
 - Call: **XY** if ratio < `sex.xy_max` (0.65), **XX** if ratio > `sex.xx_min` (0.85), else **ambiguous**; **unknown**
   with fewer than `sex.min_bins` (100) non-PAR chrX bins or no autosomal bins (e.g. a chr21-only test kit). Change the
-  thresholds with `--config` (section `sex:`, see `mycnv config`); a bad section fails every command before it starts.
+  thresholds with `--config` (section `sex:`, a mapping, see `mycnv config`); a bad section fails every command
+  before it starts (exit 2).
 
 **PON** (`pon-combine`): every normal is called like a sample, on the log2ratio of its mean-normalised coverage (before
 any doubling) against the per-bin mean of the *other* normals, in which the XY normals have their chrX doubled. The XY
-set starts from the plain coverage ratio cut at `(xy_max + xx_min) / 2` and is recomputed until it no longer changes
-(usually one round). The chrX **non-PAR** bins of the XY normals are doubled (in the GC and the mean table), so the PON
-is effectively female; the PAR is left as is (an XY normal has two PAR copies). XX, ambiguous and unknown normals are
-not doubled: one warning per ambiguous or unknown normal, a summary warning when any is ambiguous, and a warning when
-main's rule (normalised chrX mean < 75) would double other normals. `CNV/pon.json` records the calls:
+set is recomputed until it no longer changes (usually one round). It starts from the plain coverage ratios. The kit's
+chrX target mix scales all of them alike, and the XY normals of a mixed PON sit a factor 2 below the rest. So the start
+is the split of the sorted log2 ratios whose lower part, doubled, leaves the PON tightest. This works for any kit and
+any XX/XY mix. If no split beats doubling none, the PON is all one sex: the ratios alone cannot tell XX from XY, and the
+start is the plain ratio cut at `(xy_max + xx_min) / 2` (with a warning). That cut assumes a chrX/autosome mix
+near 1. On a kit whose plain XY ratio is above 0.75, an all-XY PON is called XX and not doubled; a single XX normal
+among the XY ones avoids that. The chrX **non-PAR** bins of the XY normals are doubled (in the GC and the mean table),
+so the PON is effectively female; the PAR is left as is (an XY normal has two PAR copies). XX, ambiguous and unknown
+normals are not doubled: one warning per ambiguous or unknown normal, a summary warning when any is ambiguous, and a
+warning when main's rule (normalised chrX mean < 75) would double other normals. `CNV/pon.json` records the calls:
 `"sex": [{"column": "Cov1", "name": <PON_list.txt entry or null>, "chrx_ratio": 1.0571, "call": "XX", "doubled": false},
 …]` and `"sex_thresholds"` (thresholds, PARs, `pon_call` and `doubling` rules). `name` comes from
 `<--ponmatrix>/PON_list.txt` when it exists and has one entry per column. `--legacy-stats` keeps main's rule

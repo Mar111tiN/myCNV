@@ -4,7 +4,7 @@ One detection for the PON columns and for the samples:
 - `sample` (and `combine`, `sex`) call the normal and the tumor on their log2ratio vs the (effectively female) PON and
   write `sex.tsv`, whose `ascat_gender` is the gender ASCAT uses.
 - `pon-combine` calls every PON normal the same way (`pon_calls`): the log2ratio of its mean-normalised coverage
-  (before any doubling) vs the per-bin mean of the PON whose XY columns have their chrX doubled. The call decides
+  (before any doubling) vs the per-bin mean of the other normals, with the XY normals' chrX doubled. The call decides
   which normals get their chrX non-PAR doubled (XY -> XX level, so the PON is effectively female) and is written to
   `CNV/pon.json`.
 
@@ -17,8 +17,8 @@ is 0). A bin is on the PAR when Chr is chrX and its Pos (the bin start) lies in 
 "chrX non-PAR". Autosomes are chr1..chr22.
 
 A coverage column has no per-bin reference, so its plain ratio is not centred: it carries the kit's chrX/autosome
-target mix (HAEv7 PON, chr7 + chr21 + chrX: XX 1.17-1.30, XY 0.61-0.67). `pon_calls` therefore uses the plain ratio
-only as the start of the XY set.
+target mix (HAEv7 PON, chr7 + chr21 + chrX: XX 1.17-1.30, XY 0.61-0.67). `pon_calls` therefore uses the plain ratios
+only to find the start of the XY set (`pon_start`: the split into a factor-2 lower and an upper group).
 """
 
 from __future__ import annotations
@@ -41,7 +41,9 @@ _AUTOSOME = re.compile(r"^chr([1-9]|1[0-9]|2[0-2])$")
 
 
 def thresholds(cfg: dict | None = None) -> dict:
-    """The `sex:` config section (defaults filled in), checked: 0 < xy_max <= xx_min, min_bins >= 1."""
+    """The `sex:` config section (defaults filled in), checked: a mapping, 0 < xy_max <= xx_min, min_bins >= 1."""
+    if cfg is not None and not isinstance(cfg, dict):
+        raise ValueError(f"the sex: config section must be a mapping (xy_max, xx_min, min_bins), got {cfg!r}")
     t = dict(DEFAULTS)
     t.update(cfg or {})
     try:
@@ -127,24 +129,55 @@ def _values(df: pd.DataFrame, col: str, double: bool, x_mask: np.ndarray) -> tup
     return v, np.isfinite(v) & (v > 0)
 
 
-def pon_calls(df: pd.DataFrame, columns, t: dict, max_rounds: int = 10) -> list[dict]:
+def pon_start(plain: dict, t: dict) -> tuple[set, str]:
+    """The XY set the PON calls start from (plain = {column: call_columns row}), and how it was found.
+
+    The kit's chrX target mix scales the plain ratio of every column alike; what sets the XY normals of a mixed PON
+    apart is that they sit a factor 2 below the others. So the start is the split of the sorted log2 plain ratios whose
+    lower part, raised by 1 (doubled), leaves the PON tightest (least sum of squares around the mean): "split". A start
+    from the midpoint cut alone fails on a kit with a high chrX mix: an XY ratio >= 0.75 seeds nothing, and against the
+    undoubled mixed reference a balanced PON's XY normals land in the ambiguous band (0.5 / 0.75 ~ 0.67), a fixed point.
+    When no split is tighter than doubling none (= doubling all), the callable normals form one group: the ratios alone
+    cannot tell an all-XX from an all-XY PON, and the start is the plain ratio cut at (xy_max + xx_min) / 2, which
+    assumes a chrX/autosome mix near 1 ("cut", with a warning). Unknown columns never start as XY.
+    """
+    use = sorted((r["chrx_ratio"], c) for c, r in plain.items()
+                 if r["call"] != "unknown" and math.isfinite(r["chrx_ratio"]) and r["chrx_ratio"] > 0)
+    n = len(use)
+    if n >= 2:
+        lg = np.log2([ratio for ratio, _ in use])
+        shifted = lg + (np.arange(n)[None, :] < np.arange(n + 1)[:, None])  # row j: the j lowest raised by 1
+        ss = ((shifted - shifted.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
+        j = int(np.argmin(ss[1:n])) + 1
+        if ss[j] < min(ss[0], ss[n]) * (1 - 1e-9):
+            return {c for _, c in use[:j]}, "split"
+    mid = (t["xy_max"] + t["xx_min"]) / 2
+    if n:
+        log.warning("PON sex calls: the %d callable normals form one group (plain coverage ratio %.3f-%.3f), i.e. one "
+                    "sex: XX or XY is decided by the plain ratio cut at %.3f, which depends on the kit's chrX target "
+                    "mix; check the calls", n, use[0][0], use[-1][0], mid)
+    return {c for ratio, c in use if ratio < mid}, "cut"
+
+
+def pon_calls(df: pd.DataFrame, columns, t: dict, max_rounds: int = 10, start=None) -> list[dict]:
     """Sex calls of PON columns (mean-normalised coverage before any doubling), made like the sample calls.
 
     Every column is called on its log2ratio vs the per-bin mean of the other PON columns, with the chrX non-PAR of
     the XY columns doubled, i.e. against an effectively female reference (XX ~ 1, XY ~ 0.5, the thresholds of the
-    samples). Leaving the column out keeps its call independent of its own doubling. The XY set starts from the plain
-    coverage ratio cut at the midpoint of xy_max and xx_min (the plain ratio carries the kit's target mix, so it only
-    seeds the set) and is updated until it does not change (at most `max_rounds`). Zero-coverage values enter neither
-    the reference nor the column's log2ratio.
+    samples). Leaving the column out keeps its call independent of its own doubling. The XY set starts from `start`
+    (default: `pon_start`) and is updated until it does not change (at most `max_rounds`). Zero-coverage values enter
+    neither the reference nor the column's log2ratio.
     Returns [{column, chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins, call, coverage_ratio}]; coverage_ratio is the
     plain ratio (for the log).
     """
     columns = list(columns)
     x_mask, auto_mask = region_masks(df)
     plain = {r["column"]: r for r in call_columns(df, columns, t)}
-    mid = (t["xy_max"] + t["xx_min"]) / 2
-    xy = {c for c, r in plain.items() if r["call"] != "unknown" and r["chrx_ratio"] < mid}
-    log.info("PON sex calls: %d columns start as XY (plain coverage ratio < %.3f)", len(xy), mid)
+    if start is None:
+        xy, how = pon_start(plain, t)
+    else:
+        xy, how = set(start), "given"
+    log.info("PON sex calls: %d columns start as XY (%s)", len(xy), how)
     for rounds in range(1, max_rounds + 1):
         total, count = np.zeros(len(df)), np.zeros(len(df))
         for col in columns:  # per-bin sum and count over all columns (doubled as in `xy`)

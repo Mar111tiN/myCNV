@@ -8,6 +8,7 @@ import shutil
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 
 from conftest import LEGACY, SYNTH, assert_frames_close, read
 from mycnv import sex
@@ -131,6 +132,21 @@ def test_bad_sex_config_fails_on_load(bad, tmp_path):
         load_config(str(path))
 
 
+@pytest.mark.parametrize("bad", [0.9, [0.6, 0.9], "high", ""])
+def test_sex_config_that_is_not_a_mapping_fails_on_load(bad, tmp_path):
+    """A scalar or a list is a ValueError (exit 2 in the CLI), not a TypeError (or an unhelpful ValueError) from
+    dict.update; an empty `sex:` (null) means the defaults."""
+    path = tmp_path / "c.yaml"
+    path.write_text(yaml.safe_dump({"CNV": {"sex": bad}}))
+    with pytest.raises(ValueError, match="the sex: config section must be a mapping"):
+        load_config(str(path))
+    with pytest.raises(ValueError, match="must be a mapping"):
+        load_config(overrides={"sex": bad})
+    path.write_text("CNV:\n  sex:\n")
+    load_config(str(path))
+    assert sex.thresholds(None) == sex.DEFAULTS
+
+
 def test_config_defaults():
     assert default_config()["sex"] == {"xy_max": 0.65, "xx_min": 0.85, "min_bins": 100} == sex.DEFAULTS
 
@@ -147,20 +163,29 @@ def test_ascat_gender(caplog):
 
 
 # ---------- M4: PON columns ---------------------------------------------------------------------------------------
-def pon_table(x_offset=1.4, xy=("Cov3", "Cov6"), n_cols=8, n_auto=900, n_x=400, n_par=60, seed=3):
+def pon_table(x_offset=1.4, xy=("Cov3", "Cov6"), n_cols=8, n_auto=900, n_x=400, n_par=60, seed=3, x_level=None):
     """PON-like coverage: a per-bin capture efficiency shared by all normals (lognormal), chrX non-PAR targets
     `x_offset` times better captured than the autosomes (a kit's target mix: HAEv7 ~1.2-1.3), the `xy` columns at
-    half level on chrX non-PAR (two PAR copies)."""
+    half level on chrX non-PAR (two PAR copies); x_level = {column: chrX non-PAR level} for other levels."""
     rng = np.random.default_rng(seed)
     chrom = np.repeat(["chr1", "chr2", "chr3"], n_auto // 3).tolist() + ["chrX"] * (n_par + n_x)
     pos = np.r_[100_000 + 10 * np.arange(n_auto), PAR1[0] + 10 * np.arange(n_par), 5_000_000 + 10 * np.arange(n_x)]
     nonpar = np.r_[np.zeros(n_auto + n_par, bool), np.ones(n_x, bool)]
     eff = rng.lognormal(0, 0.5, len(chrom)) * np.where(nonpar, x_offset, 1)
-    df = pd.DataFrame({"Chr": chrom, "Pos": pos})
+    cols = {}
     for k in range(1, n_cols + 1):
         col = f"Cov{k}"
-        df[col] = 100 * eff * np.where(nonpar & (col in xy), 0.5, 1) * rng.uniform(0.85, 1.15, len(chrom))
-    return df
+        level = (x_level or {}).get(col, 0.5 if col in xy else 1)
+        cols[col] = 100 * eff * np.where(nonpar, level, 1) * rng.uniform(0.85, 1.15, len(chrom))
+    return pd.concat([pd.DataFrame({"Chr": chrom, "Pos": pos}), pd.DataFrame(cols)], axis=1)
+
+
+def covs(n):
+    return [f"Cov{k}" for k in range(1, n + 1)]
+
+
+def xy_set(calls):
+    return {c["column"] for c in calls if c["call"] == "XY"}
 
 
 @pytest.mark.parametrize("x_offset", [0.8, 1.0, 1.4, 1.7])
@@ -182,20 +207,75 @@ def test_pon_calls_use_the_pon_as_reference(x_offset):
 
 
 def test_pon_calls_settle_from_a_wrong_start_and_ignore_dropouts():
-    """x_offset 1.7: the plain XY ratio (0.85) is above the start cut, so no column starts as XY; the mixed reference
-    then puts the XY columns at ~0.57 and the next round doubles them. A normal with 0 coverage on 60 % of its
-    autosomal bins keeps its call, and its zeros do not lower the reference of the others."""
+    """x_offset 1.7: the plain XY ratio (0.85) is above the midpoint cut. From an empty start the mixed reference puts
+    the 2 XY of 8 at ~0.57 and the next round doubles them; the default start (the split) is right at once. A normal
+    with 0 coverage on 60 % of its autosomal bins keeps its call, and its zeros do not lower the reference of the
+    others."""
     df = pon_table(1.7)
-    cols = [f"Cov{k}" for k in range(1, 9)]
+    cols = covs(8)
     auto = df.index[df["Chr"] != "chrX"]
     df.loc[auto[:540], "Cov5"] = 0
-    calls = {c["column"]: c for c in sex.pon_calls(df, cols, T)}
-    assert {c for c, r in calls.items() if r["call"] == "XY"} == {"Cov3", "Cov6"}
-    assert calls["Cov5"]["call"] == "XX" and calls["Cov5"]["n_auto_bins"] == 360
-    assert all(abs(calls[c]["chrx_ratio"] - 1) < 0.05 for c in cols if c not in ("Cov3", "Cov6"))
+    plain = {r["column"]: r for r in sex.call_columns(df, cols, T)}
+    assert sex.pon_start(plain, T) == ({"Cov3", "Cov6"}, "split")
+    for start in (None, set()):
+        calls = {c["column"]: c for c in sex.pon_calls(df, cols, T, start=start)}
+        assert xy_set(calls.values()) == {"Cov3", "Cov6"}
+        assert calls["Cov5"]["call"] == "XX" and calls["Cov5"]["n_auto_bins"] == 360
+        assert all(abs(calls[c]["chrx_ratio"] - 1) < 0.05 for c in cols if c not in ("Cov3", "Cov6"))
     # every column unknown (no chrX non-PAR bins): nothing starts or ends as XY
     no_x = df.loc[(df["Chr"] != "chrX") | (df["Pos"] < 3_000_000)]
     assert {c["call"] for c in sex.pon_calls(no_x, cols, T)} == {"unknown"}
+    assert sex.pon_start({r["column"]: r for r in sex.call_columns(no_x, cols, T)}, T) == (set(), "cut")
+
+
+@pytest.mark.parametrize("n_cols, n_xy", [(28, 15), (100, 50)])
+@pytest.mark.parametrize("x_offset", [0.8, 1.25, 1.7])
+def test_pon_calls_balanced_pon_any_kit(n_cols, n_xy, x_offset):
+    """A balanced mixed PON (N-Q7's IMMUcan case: 50 XX + 50 XY). On a kit with a high chrX mix (1.7) no plain XY
+    ratio is below the midpoint cut, and against the undoubled mixed reference every XY normal lands in the ambiguous
+    band (0.5 / 0.75 ~ 0.67): an empty start is a fixed point that doubles nothing. The split start finds them."""
+    truth = set(covs(n_xy))
+    df = pon_table(x_offset, xy=truth, n_cols=n_cols)
+    cols = covs(n_cols)
+    calls = sex.pon_calls(df, cols, T)
+    assert xy_set(calls) == truth and {c["call"] for c in calls if c["column"] not in truth} == {"XX"}
+    assert all(abs(c["chrx_ratio"] - (0.5 if c["column"] in truth else 1)) < 0.05 for c in calls)
+    if x_offset == 1.7 and n_cols == 28:  # the failure the split start avoids (6287af4: the cut seeded nothing here)
+        # (100 / 50 lands at 0.5 / 0.7525 ~ 0.66, too close to xy_max to stall reliably on 1,300 bins)
+        stalled = sex.pon_calls(df, cols, T, start=set())
+        assert xy_set(stalled) == set() and {c["call"] for c in stalled if c["column"] in truth} == {"ambiguous"}
+
+
+@pytest.mark.parametrize("n_cols, xy", [(8, ("Cov3", "Cov6")), (28, tuple(covs(6))), (28, ())])
+@pytest.mark.parametrize("x_offset", [1.25, 1.7])
+def test_pon_calls_one_ambiguous_normal_doubles_nothing_else(n_cols, xy, x_offset):
+    """In an XX-majority PON, one normal at 75 % chrX stays ambiguous and the XY set stays the true one. "Every column
+    XY" is a second fixed point here (doubled XX normals put the others below 0.65), with no ambiguous column at all:
+    picking among fixed points by the number of ambiguous calls would double every normal."""
+    odd = f"Cov{n_cols}"
+    df = pon_table(x_offset, xy=xy, n_cols=n_cols, x_level={odd: 0.75})
+    cols = covs(n_cols)
+    calls = {c["column"]: c for c in sex.pon_calls(df, cols, T)}
+    assert xy_set(calls.values()) == set(xy) and calls[odd]["call"] == "ambiguous"
+    every = sex.pon_calls(df, cols, T, start=set(cols))
+    assert xy_set(every) == set(cols) and "ambiguous" not in {c["call"] for c in every}
+
+
+def test_pon_calls_one_sex_pon(caplog):
+    """A PON of one sex: the self-reference cannot tell XX from XY, so the start is the midpoint cut on the plain
+    ratio (kit-dependent, with a warning). Right for all XX on any kit and for all XY on a kit with a chrX mix near 1;
+    an all-XY PON on a kit with a high chrX mix (plain XY ratio > 0.75) is called XX (documented limit). One XX normal
+    among 27 XY makes it a mixed PON again: the split finds the 27 on that kit as well."""
+    cols = covs(28)
+    with caplog.at_level(logging.WARNING, logger="mycnv"):
+        assert {c["call"] for c in sex.pon_calls(pon_table(1.7, xy=(), n_cols=28), cols, T)} == {"XX"}
+    assert "the 28 callable normals form one group" in caplog.text and "cut at 0.750" in caplog.text
+    assert xy_set(sex.pon_calls(pon_table(1.0, xy=cols, n_cols=28), cols, T)) == set(cols)
+    assert xy_set(sex.pon_calls(pon_table(1.7, xy=cols, n_cols=28), cols, T)) == set()  # the documented limit
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="mycnv"):
+        assert xy_set(sex.pon_calls(pon_table(1.7, xy=covs(27), n_cols=28), cols, T)) == set(covs(27))
+    assert "one group" not in caplog.text
 
 
 def test_pon_calls_double_the_same_columns_as_main():

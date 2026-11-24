@@ -199,6 +199,10 @@ def test_bad_sex_config_fails_before_any_output(tmp_path, cnv_pon):
     assert not (tmp_path / "o").exists()
     res = run("config", "--config", bad, check=False)
     assert res.returncode == 2 and "xy_max <= xx_min" in res.stderr
+    bad.write_text("CNV:\n  sex: 0.9\n")  # not a mapping: one error line and exit 2, not a TypeError traceback
+    res = run("config", "--config", bad, check=False)
+    assert res.returncode == 2 and "the sex: config section must be a mapping" in res.stderr
+    assert "Traceback" not in res.stderr
 
 
 def test_pon_combine_takes_the_sex_config(tmp_path):

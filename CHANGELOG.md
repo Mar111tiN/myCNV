@@ -37,12 +37,15 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
   median(chrX non-PAR) / median(autosomes), kit-dependent, only the PON's start); NaN/inf and zero-coverage bins
   ignored; GRCh38 PARs (chrX:10,001–2,781,479, 155,701,383–156,030,895) excluded; XY < 0.65 < ambiguous < 0.85 < XX;
   unknown below 100 non-PAR chrX bins or without autosomal bins. New config section `sex:` (`xy_max`, `xx_min`,
-  `min_bins`), checked when the config is loaded (a bad section fails every command before it does work).
+  `min_bins`), checked when the config is loaded: a bad section, also one that is not a mapping (`sex: 0.9`), fails
+  every command with exit 2 before it does work.
   - `pon-combine`: every PON normal is called on its mean-normalised coverage (before doubling) as a log2ratio vs the
-    per-bin mean of the other normals with the XY normals' chrX doubled; the XY set starts from the plain coverage
-    ratio cut at `(xy_max + xx_min) / 2` and is recomputed until it is stable. `CNV/pon.json` gains `sex` (per PON
-    column: `column`, `name` from `PON_list.txt` if it matches the columns, `chrx_ratio`, `call`, `doubled`) and
-    `sex_thresholds` (thresholds, PARs, `pon_call`, `doubling`).
+    per-bin mean of the other normals with the XY normals' chrX doubled. The XY set is recomputed until it is stable.
+    It starts from the split of the sorted log2 plain coverage ratios whose lower part, doubled, leaves the PON
+    tightest (least sum of squares), which does not depend on the kit's chrX mix. A PON of one sex (no split beats
+    doubling none) starts from the plain ratio cut at `(xy_max + xx_min) / 2`, with a warning. `CNV/pon.json` gains
+    `sex` (per PON column: `column`, `name` from `PON_list.txt` if it matches the columns, `chrx_ratio`, `call`,
+    `doubled`) and `sex_thresholds` (thresholds, PARs, `pon_call`, `doubling`).
   - `sample` and `combine` write `sex.tsv` (`sample role column chrx_ratio log2_diff n_chrx_bins n_auto_bins call
     ascat_gender`) from the raw coverage table; `ascat_gender` is the normal's call (ambiguous/unknown → XX, with a
     warning) and is the gender the pipeline's ASCAT step uses (D-Q3). `combine` writes it into the `--out-cov` folder
@@ -138,7 +141,19 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
     with warnings); main's rule doubles 8 normals in the GC table and none in the mean table here.
   - The start matters only at the edges: in an exploratory run (all-column mean as reference), the starts "all",
     main's rule and the plain-ratio cut reached the same 15 XY on both subsets, while an empty start stayed empty on
-    chr7 + chr21 + chrX (against a mixed reference the XY normals fall into the ambiguous band); hence the plain-ratio
-    start. The reference now leaves the called normal out, so its call does not depend on its own doubling (with N = 8
-    that dependence made a second fixed point in the tests). Genome-wide values were not computed on the workbench
-    (memory cap).
+    chr7 + chr21 + chrX (against a mixed reference the XY normals fall into the ambiguous band). The reference now
+    leaves the called normal out, so its call does not depend on its own doubling (with N = 8 that dependence made a
+    second fixed point in the tests). Genome-wide values were not computed on the workbench (memory cap).
+  - Start rule (review 2026-11-24). The first version started from the plain-ratio cut alone. That fails on a balanced
+    mixed PON (N-Q7's IMMUcan case, 50 XX + 50 XY) on a kit with a high chrX mix, where the plain XY ratio is above
+    about 0.76. Nothing is seeded, the XY normals sit at about 0.5 / 0.75 ≈ 0.67 against the undoubled mixed reference
+    (ambiguous), and that empty set is a fixed point. Every XY normal stayed undoubled, with warnings only. Synthetic
+    PON, 28 normals / 15 XY and 100 / 50, chrX mix 1.6 or 1.8: 0 XY, all XY ambiguous.
+    - The fix is the split start. A second start from "every normal XY", keeping the fixed point with fewer ambiguous
+      normals, was rejected. With one genuinely ambiguous normal in an XX-majority PON, "every normal XY" is a fixed
+      point with no ambiguous normal, so every normal would be doubled.
+    - Synthetic PONs (28 / 15, 100 / 50, 28 / 6, 8 / 2, 8 / 4, 28 / 1, 28 / 27, chrX mix 0.8–1.8, also with one normal
+      at 75 % chrX): the split start gives the true XY set every time.
+    - The remaining limit is a PON of one sex: all XY on a kit with a plain XY ratio above 0.75 is called XX.
+    - HAEv7: the split start already is the final XY set, and the calls on both subsets are the same as from the cut.
+      The restricted `pon_mini` is all unknown (no non-PAR chrX bins), as before.
