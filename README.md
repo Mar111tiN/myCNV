@@ -25,6 +25,9 @@ that includes the OS packages.
 - **Paired pileup** (normal = sample 1): `samtools mpileup -f ref.fa -q 20 -Q 25 -l <padded BED> NORMAL TUMOR |
   cleanpileup -d` (as written by `ebscore pileup`), plain or gzipped. `--raw-pileup` accepts raw mpileup text. The
   first line is checked: a pair needs 2 samples; a one-sample (tumor) pileup needs `--tumor-only` (next section).
+  A regular file is checked before the pass; a pipe or FIFO (`--pileup /dev/stdin`) can be read only once, so it is
+  checked on the stream header after the pass (same errors). One gap remains there: a clean pileup on a pipe given
+  with `--raw-pileup` is not detected, so give `--raw-pileup` only for raw text.
 - **Tumor-only** (`--tumor-only`): the one-sample pileup of `ebscore pileup --tumor T` (`Chr Start Ref Depth1 Read1`,
   tumor = sample 1) and a common-SNP sites file (`--snp-sites`), see "Tumor-only samples".
 - **PONmatrix** folder (`--ponmatrix`): `matrix/{chrom}.pon.gz` (`Chr Start Ref A G C T I D Depth`, cells
@@ -118,13 +121,21 @@ are germline het SNPs (N-Q3):
   are counted as for pairs (A/C/G/T, D/d, I/i). The band is a new, owner-tunable parameter: a wider band keeps more
   LOH-shifted sites and more artefacts. The PON artefact filter (`filter.snp.maxPONVAF` on `CNV/pon.snp.gz`), the
   mappability and the SNP-density filters apply downstream as for pairs.
-- **`--snp-sites`**: a VCF or VCF.gz (bgzip is fine; only CHROM, POS, REF, ALT are read; biallelic SNVs are kept,
-  multi-allelic records, indels and symbolic alleles are dropped, a position listed twice counts once), or a TSV with
-  the two columns `Chr Pos` (1-based, header line optional; a BED is rejected). The format is detected from the
-  content. Chromosome names must be written as in the pileup and the BED (no `chr` prefix is added); a sites file
-  that shares no chromosome with the BED fails. The pipeline's file is the kit's `<kit>.snp_sites.vcf.gz`: common
-  sites of gnomAD and dbSNP (or the one available), cut to the kit's padded BED (design K1). The file is read in
-  chunks, so a large one is fine.
+- **`--snp-sites`**: a VCF or VCF.gz, or a TSV with the two columns `Chr Pos` (1-based; a BED is rejected), plain
+  or gzipped/bgzipped. The format is detected from the content: a file with a `##fileformat=VCF` line or a
+  `#CHROM POS ID REF ALT …` header is a VCF.
+  - VCF: only CHROM, POS, REF and ALT are read. Biallelic SNVs are kept; indels and symbolic alleles are dropped.
+    A multi-allelic site is dropped whether it is one record (`ALT` `A,T`) or split into biallelic records at one
+    position (`bcftools norm -m-`, gnomAD v4): a position with records of more than one allele is dropped, an
+    identical record listed twice counts once.
+  - TSV: `#` lines are comments, so the `#CHROM POS` of `grep -v '^##' sites.vcf | cut -f1,2` is fine. A first line
+    whose Pos has no digit (`Chr Pos`) is the header. Every other line is data, and a Pos that is not a 1-based
+    integer is an error.
+  - The file is checked before the pileup pass: it must exist, be a regular file (it is read more than once: no
+    pipe or process substitution) and hold at least one record. Chromosome names must be written as in the pileup and
+    the BED (no `chr` prefix is added); a sites file that shares no chromosome with the BED fails.
+  - The pipeline's file is the kit's `<kit>.snp_sites.vcf.gz`: common sites of gnomAD and dbSNP (or the one
+    available), cut to the kit's padded BED (design K1). The file is read in chunks, so a large one is fine.
 - **Outputs**: `pre/<S>_<T>_{baf,logr}.tsv` and the mock germline `pre/<S>_germline_{baf,logr}.tsv` (BAF 0.5, logR 0:
   ASCAT mode B, D-Q3), no normal tables; `<T>` is `--tumor-name`, default `--sample`. `sex.tsv` has one row (role
   `tumor`, column `log2ratio1`), and its `ascat_gender` is the tumor's own call. That call has a lower confidence than a

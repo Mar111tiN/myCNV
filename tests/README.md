@@ -8,8 +8,9 @@
   (`test_coords.py`), tracks and failure modes (`test_tracks.py`, `test_cli.py`), and value parity with `main` for
   every step on synthetic inputs (`test_parity_synth.py`, `test_mawk.py`, `test_raw.py`), the coverage sex calls, the
   PON chrX doubling and `sex.tsv` (`test_sex.py`), tumor-only samples (`test_tumor_only.py`: het SNPs at the sites
-  within the tumor VAF band and depth, one-sample tables equal to a pair's tumor columns, mock germline, one-row
-  `sex.tsv`, CLI and error cases), the CLI end to end, the packaging contract (`test_packaging.py`).
+  within the tumor VAF band and depth, the sites file rules (formats, headers, multi-allelic sites), one-sample tables
+  equal to a pair's tumor columns, mock germline, one-row `sex.tsv`, pileups on a pipe, CLI and error cases), the CLI
+  end to end, the packaging contract (`test_packaging.py`).
 - **Fixture smoke** (`tests/smoke/smoke_mycnv.sh tests/data/plumbing`): the CLI end to end on the non-secret tier-A
   fixture (`tests/data/plumbing/README.md`); CI runs it inside the runtime image. Not collected by pytest.
 - **Restricted** (skipped without `data/restricted/`; `pytest -rs` lists them): the same parity checks on slices of the

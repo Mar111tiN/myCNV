@@ -62,12 +62,22 @@ def _fix_bins(cov_df: pd.DataFrame, regions, bin_size: int, legacy_coords: bool,
     return cov_df
 
 
+def _layout_error(pileup, clean: bool, got: str) -> ValueError:
+    if clean:
+        return ValueError(f"the pileup {pileup} does not start with the `cleanpileup -d` header (Chr Start Ref Depth1 "
+                          f"Read1 ...): got {got}; a raw samtools mpileup needs --raw-pileup")
+    return ValueError(f"the pileup {pileup} is not raw samtools mpileup text (3 + 3 per sample columns, got {got}); a "
+                      "clean pileup (with header) is read without --raw-pileup")
+
+
 def pileup_samples(pileup: str, clean: bool = True) -> int:
     """Number of samples of a pileup, from its first line.
 
     clean: the `cleanpileup -d` header `Chr Start Ref Depth1 Read1 [Depth2 Read2 ...]` (what `ebscore pileup` writes);
     raw `samtools mpileup` text (clean=False): 3 + 3 per sample columns. Raises ValueError for an empty file or a
     first line of another layout (e.g. a raw mpileup given without --raw-pileup).
+    Reads (consumes) the first line: only for a regular file, not for a pipe or FIFO (`tn2cnv` checks those from the
+    stream instead).
     """
     try:
         with (gzip.open(pileup, "rt") if str(pileup).endswith(".gz") else open(pileup)) as fh:
@@ -83,20 +93,47 @@ def pileup_samples(pileup: str, clean: bool = True) -> int:
         n = (len(fields) - 3) // 2
         expected = ["Chr", "Start", "Ref"] + [f"{c}{k}" for k in range(1, n + 1) for c in ("Depth", "Read")]
         if n < 1 or fields != expected:
-            raise ValueError(f"the pileup {pileup} does not start with the `cleanpileup -d` header (Chr Start Ref Depth1 "
-                             f"Read1 ...): got {first[:80]!r}; a raw samtools mpileup needs --raw-pileup")
+            raise _layout_error(pileup, clean, repr(first[:80]))
         return n
     if len(fields) < 6 or (len(fields) - 3) % 3 or fields[:2] == ["Chr", "Start"]:
-        raise ValueError(f"the pileup {pileup} is not raw samtools mpileup text (3 + 3 per sample columns, got "
-                         f"{len(fields)}); a clean pileup (with header) is read without --raw-pileup")
+        raise _layout_error(pileup, clean, str(len(fields)))
     return (len(fields) - 3) // 3
 
 
+def _stream_samples(cov_df: pd.DataFrame, pileup, clean: bool) -> int:
+    """Number of samples from the pile2CNV header `Chr Pos ExonPos Cov1 ... CovN`. A pileup without a valid header
+    gives another header: filterBed passes its first line on as data, and pile2CNV takes that line as the header."""
+    cols = [str(c) for c in cov_df.columns]
+    n = len(cols) - 3
+    if n < 1 or cols != ["Chr", "Pos", "ExonPos"] + [f"Cov{k}" for k in range(1, n + 1)]:
+        raise _layout_error(pileup, clean, "the stream header " + repr("\t".join(cols)[:80]))
+    return n
+
+
+def _check_samples(pileup, n: int, tumor_only: bool) -> None:
+    """A pair needs 2 samples (NORMAL TUMOR), a tumor-only sample 1; the error names the flag."""
+    if tumor_only and n != 1:
+        raise ValueError(f"--tumor-only needs a one-sample (TUMOR) pileup; {pileup} has {n} samples"
+                         + (" (a NORMAL TUMOR pair: run without --tumor-only)" if n == 2 else ""))
+    if not tumor_only and n != 2:
+        raise ValueError(f"the pileup {pileup} has {n} sample{'s' if n != 1 else ''}; a pair needs NORMAL TUMOR (2)"
+                         + (": a one-sample tumor pileup needs --tumor-only --snp-sites" if n == 1 else ""))
+
+
 def _pile2cnv(pileup: str, bed: str, chroms, regions, vaf, min_depth: int, min_cov: float, bin_size: int, clean: bool,
-              legacy_coords: bool, tmp_dir: str | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+              legacy_coords: bool, tmp_dir: str | None, tumor_only: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
     """`[cleanpileup -d |] filterBed | pile2CNV` on a pileup: (coverage bins with the BED-derived ExonPos, het-SNP
     table). The het SNPs are the rows where sample 1 has an alt read, every sample has depth >= min_depth and the
-    VAF of sample 1 is within `vaf` (inclusive): the normal of a pair, the tumor of a tumor-only sample."""
+    VAF of sample 1 is within `vaf` (inclusive): the normal of a pair, the tumor of a tumor-only sample.
+
+    The sample count (2 for a pair, 1 for `tumor_only`) is checked on the first line of a regular file before the pass
+    (an early error) and on the pile2CNV header after it. A pipe or FIFO (`/dev/stdin`, process substitution) cannot be
+    read twice, so it gets only the second check: reading its first line here would take it away from the pass.
+    """
+    if os.path.isfile(pileup):
+        _check_samples(pileup, pileup_samples(pileup, clean), tumor_only)
+    elif not os.path.exists(pileup):
+        raise FileNotFoundError(f"the pileup {pileup} does not exist")
     read_cmd = cat_cmd(pileup)
     if not clean:
         read_cmd += f" | {mawk('cleanpileup')} -d"
@@ -110,7 +147,11 @@ def _pile2cnv(pileup: str, bed: str, chroms, regions, vaf, min_depth: int, min_c
             cnv_cmd += " -L"
         cmd = f"{read_cmd} | {_filter_cmd(bed, chroms, legacy_coords)} | {cnv_cmd}"
         log.info("Coverage and het SNPs from %s%s", pileup, f" ({', '.join(chroms)})" if chroms else "")
-        cov_df = cmd2df(cmd)
+        try:
+            cov_df = cmd2df(cmd)
+        except pd.errors.EmptyDataError:  # no line at all (a regular file is caught by pileup_samples)
+            raise ValueError(f"the pileup {pileup} is empty") from None
+        _check_samples(pileup, _stream_samples(cov_df, pileup, clean), tumor_only)
         snp_df = pd.read_csv(snp_file, sep="\t")
     cov_df = _fix_bins(cov_df, regions, bin_size, legacy_coords, pileup)
     return cov_df, snp_df
@@ -142,12 +183,8 @@ def tn2cnv(
     """
     chroms = _chrom_list(chrom)
     regions = _regions(bed, chroms, legacy_coords)
-    n = pileup_samples(pileup, clean)
-    if n != 2:
-        raise ValueError(f"the pileup {pileup} has {n} sample{'s' if n != 1 else ''}; a pair needs NORMAL TUMOR (2)"
-                         + (": a one-sample tumor pileup needs --tumor-only --snp-sites" if n == 1 else ""))
     cov_df, snp_df = _pile2cnv(pileup, bed, chroms, regions, normal_vaf, min_depth, min_cov, bin_size, clean,
-                               legacy_coords, tmp_dir)
+                               legacy_coords, tmp_dir, tumor_only=False)
     log.info("%d coverage bins, %d het SNPs", len(cov_df), len(snp_df))
     if snp_df.empty:
         log.warning("No het SNP in %s (normal VAF %s-%s, depth >= %s in every sample): no BAF track", pileup,
@@ -191,19 +228,14 @@ def tumor2cnv(
     (A/C/G/T, D/d, I/i). PON artefact sites (maxPONVAF) are dropped downstream, as for pairs.
     Returns (Chr Pos ExonPos GCratio map* Cov1, Chr Pos ExonPos map* Depth1 VAF1).
     """
-    from .sites import restrict_to_sites
+    from .sites import check_sites, restrict_to_sites
 
     band = vaf_band(tumor_vaf)
     chroms = _chrom_list(chrom)
     regions = _regions(bed, chroms, legacy_coords)
-    n = pileup_samples(pileup, clean)
-    if n != 1:
-        raise ValueError(f"--tumor-only needs a one-sample (TUMOR) pileup; {pileup} has {n} samples"
-                         + (" (a NORMAL TUMOR pair: run without --tumor-only)" if n == 2 else ""))
-    if not os.path.isfile(snp_sites):
-        raise FileNotFoundError(f"--snp-sites {snp_sites} does not exist")
+    check_sites(snp_sites)  # before the pileup pass: missing, unreadable layout, no record
     cov_df, snp_df = _pile2cnv(pileup, bed, chroms, regions, band, min_depth, min_cov, bin_size, clean, legacy_coords,
-                               tmp_dir)
+                               tmp_dir, tumor_only=True)
     n_cand = len(snp_df)
     # the naming check uses all BED chromosomes: a --chrom split of a small panel may have no site on its chromosome
     bed_chroms = regions.keys() if chroms is None else read_bed(bed, merge=not legacy_coords).keys()

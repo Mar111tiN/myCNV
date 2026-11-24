@@ -22,6 +22,7 @@ from mycnv.config import default_config, load_config
 from mycnv.convert import write_ascat
 from mycnv.pipeline import check_sample_columns, cnv_plots, raw_plots, rolling_step, sex_step
 from mycnv.raw import pileup_samples, tn2cnv, tumor2cnv
+from mycnv.sites import check_sites, sites_at
 from mycnv.tools import mawk
 
 MYCNV = [sys.executable, "-m", "mycnv.cli"]
@@ -77,14 +78,20 @@ def test_tumor_only_het_snps_are_the_sites_within_band_and_depth(tmp_path, tumor
     st = stream(pile)
     cand = expected_het_snps(st, normal_vaf=BAND, min_depth=15)  # tumor = sample 1: the pile2CNV rule on the tumor
     c21 = cand.loc[cand["Chr"] == "chr21", "Pos"].astype(int).tolist()
-    multi, indel, dup = c21[:3]
+    multi, indel, dup, split, split_indel = c21[:5]
     special = {("chr21", multi): ("G", "A,T"), ("chr21", indel): ("GA", "G")}  # not biallelic SNVs: dropped
     recs = [(c, p, *special.get((c, p), (r, a))) for c, p, r, a in records]
-    recs.append(next(r for r in recs if r[:2] == ("chr21", dup)))  # listed twice (a split multi-allelic site)
+    recs.append(next(r for r in recs if r[:2] == ("chr21", dup)))  # an identical record listed twice: counted once
+    # a multi-allelic site split into biallelic records (bcftools norm -m-, gnomAD v4) is dropped like a joined one:
+    # a second SNV allele, or an indel at the same position
+    ref = {r[:2]: r[2] for r in recs}
+    recs.append(("chr21", split, ref["chr21", split], next(b for b in "CGT" if b != ref["chr21", split])))
+    recs.append(("chr21", split_indel, ref["chr21", split_indel], ref["chr21", split_indel] + "TT"))
+    dropped = set(special) | {("chr21", split), ("chr21", split_indel)}
     vcf = write_gz(tmp_path / "sites.vcf.gz", synth.sites_vcf(recs))
     cov, snp = tumor2cnv(str(pile), MULTI_BED, str(vcf), gc=SGC, genmap=SGENMAP)
     assert all(p % HET_EVERY == 0 for p in cand["Pos"])  # in-band tumor candidates are the het positions
-    sites = {(c, p) for c, p, *_ in recs} - set(special)
+    sites = {(c, p) for c, p, *_ in recs} - dropped
     exp = cand.loc[[k in sites for k in zip(cand["Chr"], cand["Pos"].astype(int))]]
     got = snp[SNP_COLS].astype({"Pos": int, "ExonPos": int, "Depth1": int, "VAF1": float})
     assert_frames_close(got, exp.reset_index(drop=True), rtol=1e-5)
@@ -98,8 +105,8 @@ def test_tumor_only_het_snps_are_the_sites_within_band_and_depth(tmp_path, tumor
     assert len(hom) == 5 and not hom & keys(snp)
     ref_like = {k for k in in_pileup if k[1] % 101 and k[1] % HET_EVERY}  # tumor VAF < 0.1
     assert len(ref_like) > 10 and not ref_like & keys(snp)
-    assert ("chr21", multi) not in keys(snp) and ("chr21", indel) not in keys(snp)
-    assert int((snp["Pos"] == dup).sum()) == 1
+    assert not dropped & keys(snp)
+    assert int(((snp["Chr"] == "chr21") & (snp["Pos"] == dup)).sum()) == 1
     # the depth rule
     _, deep = tumor2cnv(str(pile), MULTI_BED, str(vcf), gc=SGC, genmap=SGENMAP, min_depth=60)
     exp60 = expected_het_snps(st, normal_vaf=BAND, min_depth=60)
@@ -121,13 +128,16 @@ def test_tumor_only_coverage_bins_are_the_pairs(tumor):
 
 
 def test_sites_formats_give_the_same_snps(tmp_path, tumor):
-    """VCF plain/gzipped and a Chr Pos TSV with or without a header (or a # header) select the same sites."""
+    """VCF plain/gzipped (also without the ##fileformat line) and a Chr Pos TSV with or without a header (`Chr Pos`,
+    or a # header such as the `#CHROM POS` of `grep -v '^##' sites.vcf | cut -f1,2`) select the same sites."""
     _, pile, _, records, vcf = tumor
     plain = tmp_path / "sites.vcf"
     plain.write_text(synth.sites_vcf(records))
+    bare = tmp_path / "bare.vcf"  # only the #CHROM POS ID REF ALT ... column header
+    bare.write_text("".join(line for line in synth.sites_vcf(records).splitlines(True) if not line.startswith("##")))
     body = "".join(f"{c}\t{p}\n" for c, p, *_ in records)
-    files = [vcf, plain]
-    for name, head in [("h.tsv", "Chr\tPos\n"), ("n.tsv", ""), ("c.tsv", "#Chr\tPos\n")]:
+    files = [vcf, plain, bare]
+    for name, head in [("h.tsv", "Chr\tPos\n"), ("n.tsv", ""), ("c.tsv", "#Chr\tPos\n"), ("v.tsv", "#CHROM\tPOS\n")]:
         (tmp_path / name).write_text(head + body)
         files.append(tmp_path / name)
     files.append(write_gz(tmp_path / "h.tsv.gz", "Chr\tPos\n" + body))
@@ -138,6 +148,69 @@ def test_sites_formats_give_the_same_snps(tmp_path, tumor):
             ref = snp
         pd.testing.assert_frame_equal(snp, ref)
     assert len(ref) >= 20
+
+
+def test_sites_header_and_record_rules(tmp_path):
+    """Only a first line whose Pos has no digit is a TSV header; other lines are data (a bad Pos is an error, never a
+    silently skipped site). Multi-allelic sites are dropped as one record or split; identical records count once."""
+    cand = pd.DataFrame({"Chr": ["chr7"] * 3, "Pos": [100, 200, 300]})
+
+    def kept(name, text):
+        path = tmp_path / name
+        path.write_text(text)
+        return sorted(sites_at(str(path), cand)[0].itertuples(index=False, name=None))
+
+    assert kept("plus.tsv", "chr7\t+100\nchr7\t200\n") == [("chr7", 100), ("chr7", 200)]  # "+100" is data
+    assert kept("hdr.tsv", "#CHROM\tPOS\nchr7\t100\n") == kept("h.tsv", "Chr\tPos\nchr7\t100\n") == [("chr7", 100)]
+    with pytest.raises(ValueError, match="'10x' is not a 1-based integer"):
+        kept("x.tsv", "chr7\t10x\nchr7\t200\n")
+    with pytest.raises(ValueError, match="'Pos' is not a 1-based integer"):  # only the first line can be the header
+        kept("hh.tsv", "Chr\tPos\nChr\tPos\nchr7\t100\n")
+    head = "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\n"
+    vcf = {"joined": "chr7\t100\t.\tG\tA,T\n", "split": "chr7\t100\t.\tG\tA\nchr7\t100\t.\tG\tT\n",
+           "snv+indel": "chr7\t100\t.\tG\tA\nchr7\t100\t.\tG\tGTT\n",
+           "snv+star": "chr7\t100\t.\tG\tA\nchr7\t100\t.\tG\t*\n",
+           "same twice": "chr7\t100\t.\tG\tA\nchr7\t100\t.\tg\ta\n"}
+    for name, rows in vcf.items():
+        exp = [("chr7", 100)] if name == "same twice" else []
+        assert kept(f"{name}.vcf", head + rows + "chr7\t200\t.\tC\tT\n") == exp + [("chr7", 200)], name
+    # a split site at a candidate position is counted in the stats; non-candidate positions are not looked at
+    path = tmp_path / "m.vcf"
+    path.write_text(head + vcf["split"] + "chr7\t999\t.\tG\tA\nchr7\t999\t.\tG\tC\n")
+    assert sites_at(str(path), cand)[1]["multiallelic"] == 1
+    # a VCF record that is not kept may have POS 0 (telomere); a kept one may not
+    assert kept("tel.vcf", head + "chr7\t0\t.\tN\t<TEL>\nchr7\t200\t.\tC\tT\n") == [("chr7", 200)]
+    with pytest.raises(ValueError, match="'0' is not a 1-based integer"):
+        kept("zero.vcf", head + "chr7\t0\t.\tC\tT\n")
+
+
+def test_check_sites(tmp_path):
+    """Checked before the pileup pass: missing, not a regular file (read more than once), no record, a BED."""
+    for name, text in [("e.tsv", ""), ("h.tsv", "Chr\tPos\n"), ("c.tsv", "#CHROM\tPOS\n"),
+                       ("h.vcf", "##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\n")]:
+        (tmp_path / name).write_text(text)
+        with pytest.raises(ValueError, match="has no records .empty or header only."):
+            check_sites(str(tmp_path / name))
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        check_sites(str(tmp_path / "none.vcf"))
+    os.mkfifo(tmp_path / "fifo")
+    for path in [tmp_path, tmp_path / "fifo"]:
+        with pytest.raises(ValueError, match="is not a regular file"):
+            check_sites(str(path))
+    (tmp_path / "s.bed").write_text("chr7\t99\t100\n")
+    with pytest.raises(ValueError, match="2 columns Chr Pos"):
+        check_sites(str(tmp_path / "s.bed"))
+    (tmp_path / "ok.tsv").write_text("Chr\tPos\nchr7\t100\n")
+    assert check_sites(str(tmp_path / "ok.tsv")) == "tsv"
+
+
+def test_header_only_sites_fail_before_the_pileup_pass(tmp_path, tumor, caplog):
+    _, pile, _, _, _ = tumor
+    sites = tmp_path / "h.tsv"
+    sites.write_text("Chr\tPos\n")
+    with caplog.at_level(logging.INFO, logger="mycnv"), pytest.raises(ValueError, match=f"--snp-sites {sites} has no"):
+        tumor2cnv(str(pile), MULTI_BED, str(sites), gc=SGC, genmap=SGENMAP)
+    assert "Coverage and het SNPs" not in caplog.text
 
 
 def test_a_split_chromosome_without_sites_is_not_an_error(tmp_path, tumor, caplog):
@@ -181,6 +254,41 @@ def test_pileup_samples(tmp_path):
         pileup_samples(f"{SYNTH}/raw.mpileup")
     with pytest.raises(ValueError, match="without --raw-pileup"):
         pileup_samples(MULTI_PILE, clean=False)
+
+
+def test_streamed_pileups(tmp_path, tumor):
+    """A pileup on a pipe (/dev/stdin) is read once, by the pass: a pair gives the same files as from a regular file
+    (as before the sample-count check), a tumor-only sample too; the sample count and the layout are checked on the
+    stream header, each error one line with exit 2 (no traceback)."""
+    _, pile, text, _, vcf = tumor
+    with open(MULTI_PILE) as fh:
+        pair = fh.read()
+    with open(f"{SYNTH}/raw.mpileup") as fh:
+        raw = fh.read()
+    common = ["--bed", MULTI_BED, *TRACKS]
+
+    def tn2cnv_cli(name, pileup, *extra, stdin=None):
+        return subprocess.run([*MYCNV, "tn2cnv", "--pileup", str(pileup), *map(str, extra), *common, "--out-cov",
+                               str(tmp_path / f"{name}.cov"), "--out-snp", str(tmp_path / f"{name}.snp")],
+                              input=stdin, capture_output=True, text=True)
+
+    sites = ["--tumor-only", "--snp-sites", vcf]
+    for name, pileup, stdin, extra in [("pair", MULTI_PILE, pair, []), ("tumor", pile, text, sites)]:
+        assert tn2cnv_cli(f"{name}_file", pileup, *extra).returncode == 0
+        res = tn2cnv_cli(f"{name}_pipe", "/dev/stdin", *extra, stdin=stdin)
+        assert res.returncode == 0, res.stderr
+        for ext in ["cov", "snp"]:
+            with open(tmp_path / f"{name}_file.{ext}", "rb") as a, open(tmp_path / f"{name}_pipe.{ext}", "rb") as b:
+                assert a.read() == b.read(), f"{name}.{ext}"
+    for stdin, extra, message in [
+        (text, [], "/dev/stdin has 1 sample; a pair needs NORMAL TUMOR (2): a one-sample tumor pileup needs"),
+        (pair, sites, "--tumor-only needs a one-sample (TUMOR) pileup; /dev/stdin has 2 samples"),
+        (raw, [], "/dev/stdin does not start with the `cleanpileup -d` header"),
+        ("", [], "the pileup /dev/stdin is empty"),
+    ]:
+        res = tn2cnv_cli("x", "/dev/stdin", *extra, stdin=stdin)
+        assert res.returncode == 2 and message in res.stderr and "Traceback" not in res.stderr, res.stderr
+        assert not (tmp_path / "x.cov").exists()
 
 
 def test_tumor2cnv_rejects_wrong_inputs(tmp_path, tumor):
@@ -495,7 +603,11 @@ def test_sample_rejects_the_other_pileup_layout(tmp_path, tumor, multi_pon):
     res = run("sample", "--tumor-only", "--snp-sites", tmp_path / "none.vcf.gz", "--pileup", pile, "-o",
               tmp_path / "d", *common, check=False)
     assert res.returncode == 2 and "does not exist" in res.stderr
-    assert not any((tmp_path / x).exists() for x in "abcd")
+    (tmp_path / "h.tsv").write_text("Chr\tPos\n")
+    res = run("sample", "--tumor-only", "--snp-sites", tmp_path / "h.tsv", "--pileup", pile, "-o", tmp_path / "e",
+              *common, check=False)
+    assert res.returncode == 2 and f"--snp-sites {tmp_path / 'h.tsv'} has no records" in res.stderr
+    assert not any((tmp_path / x).exists() for x in "abcde")
     # --tumor-vaf reaches the band
     run("tn2cnv", "--tumor-only", "--snp-sites", vcf, "--pileup", pile, "--bed", MULTI_BED, *TRACKS, "--out-cov",
         tmp_path / "n.cov", "--out-snp", tmp_path / "n.snp", "--tumor-vaf", 0.4, 0.6)

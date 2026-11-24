@@ -57,9 +57,12 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
   `tn2cnv --tumor-only --snp-sites`, `combine`/`rolling`/`sex`/`ascat-input --tumor-only` for the step-by-step path).
   main had no tumor-only CNV path.
   - Input: the one-sample pileup of `ebscore pileup --tumor` (`Chr Start Ref Depth1 Read1`, tumor = sample 1) and a
-    sites file: VCF/VCF.gz (CHROM POS REF ALT; biallelic SNVs kept, multi-allelic records, indels and symbolic alleles
-    dropped, a repeated position counted once) or a 2-column `Chr Pos` TSV (1-based; a BED is rejected), detected from
-    the content, read in chunks of 500,000 rows and only kept at candidate positions (`mycnv.sites`).
+    sites file: VCF/VCF.gz (CHROM POS REF ALT; biallelic SNVs kept; indels and symbolic alleles dropped; a multi-allelic
+    site dropped both as one record and split into biallelic records at one position, an identical record counted
+    once) or a 2-column `Chr Pos` TSV (1-based; `#` lines are comments, a first line whose Pos has no digit is the
+    header, a bad Pos is an error; a BED is rejected). VCF = a `##fileformat=VCF` line or a `#CHROM POS ID REF ALT`
+    header. Read in chunks of 500,000 rows and only kept at candidate positions (`mycnv.sites`). The file is checked
+    before the pileup pass (exists, regular file, at least one record).
   - Coverage bins: the same `filterBed | pile2CNV` pass and `bed.bin_exon_pos` as a pair (`raw._pile2cnv`, shared by
     `tn2cnv` and the new `tumor2cnv`): on the tumor columns of a pair the bins are identical, `Cov1` = the pair's
     `Cov2`.
@@ -119,7 +122,7 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 | plots | `plt.cm.get_cmap`, `Series[-1]`, 23 rectangles vs fewer colours; crash on a one-SNP track | `matplotlib.colormaps`, `.iloc`, one rectangle per present chromosome; empty tracks skipped; tick guard; written after the ASCAT input | — |
 | missing / mistyped GC or genmap track | NameError | error (`--gc` required; `--genmap` required for samples); contigs outside chr1–22/X only warn; NaN-map SNPs are counted in the log | — |
 | empty pileup, no bin in the BED | header-only outputs | error | — |
-| pileup layout | not checked: a one-sample pileup ran as a "pair" (all downstream steps on one column) and a raw mpileup read as a clean one gave garbage | the first line is checked: a clean pileup needs the `cleanpileup -d` header, a raw one (`--raw-pileup`) 3 + 3 per sample columns; a pair needs 2 samples, `--tumor-only` 1; the error names the flag. A missing pileup is now exit 2 (data problem) instead of 1 (failing `cat`) | — (valid pairs: unchanged outputs) |
+| pileup layout | not checked: a one-sample pileup ran as a "pair" (all downstream steps on one column) and a raw mpileup read as a clean one gave garbage | the first line is checked: a clean pileup needs the `cleanpileup -d` header, a raw one (`--raw-pileup`) 3 + 3 per sample columns; a pair needs 2 samples, `--tumor-only` 1; the error names the flag. A regular file is checked before the pass; a pipe or FIFO (`/dev/stdin`), which can be read only once, on the pile2CNV stream header after it (same errors, exit 2; a clean pileup on a pipe with `--raw-pileup` is not detected). A missing pileup is now exit 2 (data problem) instead of 1 (failing `cat`) | — (valid pairs, also streamed: unchanged outputs) |
 | sample tables of `combine`/`rolling` | any number of sample columns | a pair needs `Cov1`/`Cov2` (and `VAF1`/`VAF2`, `log2ratio1`/`log2ratio2` where present); `--tumor-only` exactly `*1` | — |
 
 ### Known differences that are not code changes
