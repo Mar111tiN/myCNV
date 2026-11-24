@@ -7,7 +7,8 @@ installed (a changed solver result never fails the build; missing names are logg
 loads at runtime: pytest and its helpers, tk (no tkinter use), cairo with its X11 and font packages (myCNV: only the
 optional cairo build of harfbuzz needs them; matplotlib links raqm/harfbuzz/glib, which stay).
 
-Removed: test suites of the packages and of the stdlib (site-packages/**/tests, lib/python3.*/test), idlelib,
+Removed: the package cache pkgs/ (hardlinked with the env; not needed at runtime), test suites of the packages and of
+the stdlib (site-packages/**/tests, lib/python3.*/test), idlelib,
 turtledemo, tkinter, ensurepip, C headers (include/), static libraries (*.a), docs/man/info, translations
 (share/locale), *.js.map, and __pycache__ (unless --keep-pycache; the image then sets PYTHONDONTWRITEBYTECODE=1:
 about 1 s more per Python start, measured on the workbench). Every ELF file gets `strip --strip-unneeded`, which
@@ -25,12 +26,18 @@ import sys
 
 
 def tree_size(path: str) -> int:
-    total = 0
+    """Bytes under path, every inode once (micromamba hardlinks the env files with its package cache pkgs/)."""
+    total, seen = 0, set()
     for root, _, files in os.walk(path):
         for name in files:
             p = os.path.join(root, name)
-            if not os.path.islink(p):
-                total += os.path.getsize(p)
+            if os.path.islink(p):
+                continue
+            st = os.lstat(p)
+            if (st.st_dev, st.st_ino) in seen:
+                continue
+            seen.add((st.st_dev, st.st_ino))
+            total += st.st_size
     return total
 
 
@@ -67,7 +74,9 @@ def main(argv=None) -> int:
     site = os.path.join(py, "site-packages")
     before = tree_size(p)
 
-    dirs = [os.path.join(p, "include"), os.path.join(p, "man")]
+    # pkgs/ = micromamba's package cache, hardlinked with the env files. Without deleting it, every stripped or
+    # deleted env file stays behind there as a second copy (CI 2026-11-24: mycnv image 873 MB -> 1.02 GB).
+    dirs = [os.path.join(p, "pkgs"), os.path.join(p, "include"), os.path.join(p, "man")]
     dirs += [os.path.join(p, "share", d) for d in ("doc", "man", "info", "gtk-doc", "locale")]
     dirs += [os.path.join(py, d) for d in ("test", "idlelib", "turtledemo", "tkinter", "ensurepip")]
     for root, subdirs, _ in os.walk(site):
