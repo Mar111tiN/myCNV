@@ -155,8 +155,8 @@ LEGACY_DOUBLING = "legacy: normalised chrX mean < 75, per table, all chrX bins"
 XY_DOUBLING = "XY call, chrX non-PAR bins"
 PON_CALL = ("log2ratio vs the per-bin mean of the other PON columns with the chrX non-PAR of the XY columns doubled; "
             "the XY set starts from the split of the sorted log2 coverage ratios whose lower part, doubled, leaves the "
-            "PON tightest (one group, i.e. one sex: the coverage ratio cut at (xy_max + xx_min) / 2) and is iterated "
-            "until stable")
+            "PON tightest, among the splits whose group medians are split_gap_log2 apart with split_step_log2 free "
+            "between them (pon_start split; none: one sex, the coverage ratio cut at (xy_max + xx_min) / 2, pon_start cut) and is iterated until stable")
 
 
 def pon_sex_calls(cov_mean: pd.DataFrame, sex_cfg: dict | None = None) -> list[dict]:

@@ -164,16 +164,20 @@ One coverage-based call (`mycnv.sex`) is used for the PON and for the samples (p
 any doubling) against the per-bin mean of the *other* normals, in which the XY normals have their chrX doubled. The XY
 set is recomputed until it no longer changes (usually one round). It starts from the plain coverage ratios. The kit's
 chrX target mix scales all of them alike, and the XY normals of a mixed PON sit a factor 2 below the rest. So the start
-is the split of the sorted log2 ratios whose lower part, doubled, leaves the PON tightest. This works for any kit and
-any XX/XY mix. If no split beats doubling none, the PON is all one sex: the ratios alone cannot tell XX from XY, and the
-start is the plain ratio cut at `(xy_max + xx_min) / 2` (with a warning). That cut assumes a chrX/autosome mix
-near 1. On a kit whose plain XY ratio is above 0.75, an all-XY PON is called XX and not doubled; a single XX normal
-among the XY ones avoids that. The chrX **non-PAR** bins of the XY normals are doubled (in the GC and the mean table),
+is the split of the sorted log2 ratios whose lower part, doubled, leaves the PON tightest, among the splits whose two
+groups really are a factor 2 apart (group medians 0.75–1.25 apart in log2, no normal within 0.4 of the split;
+`sex.SPLIT_GAP`, `sex.SPLIT_STEP`). This works for any kit and any mix of XX and XY normals, also with a 47,XXX normal
+in it. If no split qualifies, the PON is all one sex: the ratios alone cannot tell XX from XY, and the start is the
+plain ratio cut at `(xy_max + xx_min) / 2` (with a warning; `pon.json` `sex_thresholds.pon_start` is then `cut`). That
+cut assumes a chrX/autosome mix near 1. Two documented limits: on a kit whose plain XY ratio is above 0.75, an all-XY
+PON is called XX and not doubled; on a kit whose plain XX ratio is below 0.75, an all-XX PON is called XY and fully
+doubled. A single normal of the other sex in the PON avoids both. Check a `cut` PON against the sheet sex. The chrX **non-PAR** bins of the XY normals are doubled (in the GC and the mean table),
 so the PON is effectively female; the PAR is left as is (an XY normal has two PAR copies). XX, ambiguous and unknown
 normals are not doubled: one warning per ambiguous or unknown normal, a summary warning when any is ambiguous, and a
 warning when main's rule (normalised chrX mean < 75) would double other normals. `CNV/pon.json` records the calls:
 `"sex": [{"column": "Cov1", "name": <PON_list.txt entry or null>, "chrx_ratio": 1.0571, "call": "XX", "doubled": false},
-…]` and `"sex_thresholds"` (thresholds, PARs, `pon_call` and `doubling` rules). `name` comes from
+…]` and `"sex_thresholds"` (thresholds, PARs, `pon_call` and `doubling` rules, `pon_start` `split` or `cut`,
+`split_gap_log2`, `split_step_log2`). `name` comes from
 `<--ponmatrix>/PON_list.txt` when it exists and has one entry per column. `--legacy-stats` keeps main's rule
 (normalised chrX mean < 75, all chrX bins) and only records the calls. Check the calls and warnings of a new kit or PON
 before using it.

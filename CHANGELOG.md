@@ -42,10 +42,12 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
   - `pon-combine`: every PON normal is called on its mean-normalised coverage (before doubling) as a log2ratio vs the
     per-bin mean of the other normals with the XY normals' chrX doubled. The XY set is recomputed until it is stable.
     It starts from the split of the sorted log2 plain coverage ratios whose lower part, doubled, leaves the PON
-    tightest (least sum of squares), which does not depend on the kit's chrX mix. A PON of one sex (no split beats
-    doubling none) starts from the plain ratio cut at `(xy_max + xx_min) / 2`, with a warning. `CNV/pon.json` gains
-    `sex` (per PON column: `column`, `name` from `PON_list.txt` if it matches the columns, `chrx_ratio`, `call`,
-    `doubled`) and `sex_thresholds` (thresholds, PARs, `pon_call`, `doubling`).
+    tightest (least sum of squares), among the splits whose groups are a factor 2 apart (group medians 0.75–1.25
+    apart in log2, no normal within 0.4 of the split), which does not depend on the kit's chrX mix. A PON of one sex
+    (no split qualifies) starts from the plain ratio cut at `(xy_max + xx_min) / 2`, with a warning. `CNV/pon.json`
+    gains `sex` (per PON column: `column`, `name` from `PON_list.txt` if it matches the columns, `chrx_ratio`,
+    `call`, `doubled`) and `sex_thresholds` (thresholds, PARs, `pon_call`, `doubling`, `pon_start` = `split`/`cut`,
+    `split_gap_log2`, `split_step_log2`).
   - `sample` and `combine` write `sex.tsv` (`sample role column chrx_ratio log2_diff n_chrx_bins n_auto_bins call
     ascat_gender`) from the raw coverage table; `ascat_gender` is the normal's call (ambiguous/unknown → XX, with a
     warning) and is the gender the pipeline's ASCAT step uses (D-Q3). `combine` writes it into the `--out-cov` folder
@@ -207,6 +209,16 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
       point with no ambiguous normal, so every normal would be doubled.
     - Synthetic PONs (28 / 15, 100 / 50, 28 / 6, 8 / 2, 8 / 4, 28 / 1, 28 / 27, chrX mix 0.8–1.8, also with one normal
       at 75 % chrX): the split start gives the true XY set every time.
-    - The remaining limit is a PON of one sex: all XY on a kit with a plain XY ratio above 0.75 is called XX.
+    - Factor-2 check on the split (second review 2026-11-24). Any split that left the PON tighter was accepted, so in
+      a PON of one sex one normal more than ~1.41x away from the others (log2 > 0.5) made "raise everyone else" the
+      tightest split: a 47,XXX normal (1.5x) in an all-XX PON started, and ended, with every XX normal called XY and
+      doubled (every sample's chrX then ~1 log2 too low, females called XY); an all-XY PON with one normal at 0.33x
+      ended with 27 XX. Now a split needs group medians 0.75–1.25 apart in log2 and an empty stretch of 0.4 between
+      the groups (HAEv7: 0.97 and 0.76). Sweep of 810 synthetic PONs (8/28/100 normals, chrX mix 0.8–1.8, 0–90 % XY,
+      column spread ±8 %, with and without one XXX or 75 % normal): the true XY set everywhere outside the one-sex
+      limits; the only misses are 7 XY + 1 XXX or 75 % normal of 8 on a kit with mix ≥ 1.5 (one-sex regime).
+    - The remaining limits are PONs of one sex: all XY on a kit with a plain XY ratio above 0.75 is called XX, and all
+      XX on a kit with a plain XX ratio below 0.75 is called XY and fully doubled. `pon.json` records
+      `pon_start: cut` for such PONs.
     - HAEv7: the split start already is the final XY set, and the calls on both subsets are the same as from the cut.
       The restricted `pon_mini` is all unknown (no non-PAR chrX bins), as before.

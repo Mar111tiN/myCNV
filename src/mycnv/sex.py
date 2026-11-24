@@ -35,6 +35,12 @@ from .tools import log
 # GRCh38 pseudo-autosomal regions on chrX, 1-based inclusive (XY: two copies, like an autosome)
 PAR = {"chrX": ((10_001, 2_781_479), (155_701_383, 156_030_895))}
 DEFAULTS = {"xy_max": 0.65, "xx_min": 0.85, "min_bins": 100}
+# A "split" start of the PON calls needs two groups a factor 2 apart: the log2 distance of the group medians within
+# SPLIT_GAP (XY one copy of chrX below XX: 1; HAEv7 PON ~0.97; 47,XXX vs XX 0.585 is outside) and an empty stretch of
+# at least SPLIT_STEP between the two groups (HAEv7: XY <= 0.68, XX >= 1.15, i.e. 0.76), so that one outlier and a
+# few normals of the main group never pass as the lower group.
+SPLIT_GAP = (0.75, 1.25)
+SPLIT_STEP = 0.4
 CALLS = ("XX", "XY", "ambiguous", "unknown")
 SEX_COLUMNS = ["sample", "role", "column", "chrx_ratio", "log2_diff", "n_chrx_bins", "n_auto_bins", "call",
                "ascat_gender"]
@@ -58,11 +64,17 @@ def thresholds(cfg: dict | None = None) -> dict:
     return t
 
 
-def thresholds_record(t: dict, doubling: str | None = None, pon_call: str | None = None) -> dict:
-    """The thresholds as written to CNV/pon.json (with the PARs and, for the PON, the call and the doubling rule)."""
+def thresholds_record(t: dict, doubling: str | None = None, pon_call: str | None = None,
+                      pon_start: str | None = None) -> dict:
+    """The thresholds as written to CNV/pon.json (with the PARs and, for the PON, the call, how its XY set started
+    and the doubling rule). pon_start "cut" means the PON looked like one sex (see `pon_start`): check the calls."""
     out = dict(t, par_grch38={c: [list(r) for r in regions] for c, regions in PAR.items()})
     if pon_call:
         out["pon_call"] = pon_call
+        out["split_gap_log2"] = list(SPLIT_GAP)
+        out["split_step_log2"] = SPLIT_STEP
+    if pon_start:
+        out["pon_start"] = pon_start
     if doubling:
         out["doubling"] = doubling
     return out
@@ -135,12 +147,18 @@ def pon_start(plain: dict, t: dict) -> tuple[set, str]:
 
     The kit's chrX target mix scales the plain ratio of every column alike; what sets the XY normals of a mixed PON
     apart is that they sit a factor 2 below the others. So the start is the split of the sorted log2 plain ratios whose
-    lower part, raised by 1 (doubled), leaves the PON tightest (least sum of squares around the mean): "split". A start
-    from the midpoint cut alone fails on a kit with a high chrX mix: an XY ratio >= 0.75 seeds nothing, and against the
-    undoubled mixed reference a balanced PON's XY normals land in the ambiguous band (0.5 / 0.75 ~ 0.67), a fixed point.
-    When no split is tighter than doubling none (= doubling all), the callable normals form one group: the ratios alone
-    cannot tell an all-XX from an all-XY PON, and the start is the plain ratio cut at (xy_max + xx_min) / 2, which
-    assumes a chrX/autosome mix near 1 ("cut", with a warning). Unknown columns never start as XY.
+    lower part, raised by 1 (doubled), leaves the PON tightest (least sum of squares around the mean): "split". Only
+    splits whose two groups really are a factor 2 apart count: the medians of their log2 plain ratios must differ by
+    SPLIT_GAP (0.75-1.25), and no normal may lie within SPLIT_STEP (0.4) of the split. Without that check one normal
+    far enough from the others makes "raise everyone else" the tightest split: a 47,XXX normal (1.5x, log2 0.585) in
+    an all-XX PON would start, and end, with every XX normal called XY and doubled. A start from the midpoint cut alone fails on a kit with a high chrX mix: an XY ratio >= 0.75
+    seeds nothing, and against the undoubled mixed reference a balanced PON's XY normals land in the ambiguous band
+    (0.5 / 0.75 ~ 0.67), a fixed point.
+    When no split qualifies, the callable normals form one group: the ratios alone cannot tell an all-XX from an all-XY
+    PON, and the start is the plain ratio cut at (xy_max + xx_min) / 2, which assumes a chrX/autosome mix near 1 ("cut",
+    with a warning). This is right for an all-XX PON on a kit whose plain XX ratio is above the cut and for an all-XY
+    PON on a kit whose plain XY ratio is below it; otherwise every normal gets the other sex (documented limit; one
+    normal of the other sex in the PON avoids it). Unknown columns never start as XY.
     """
     use = sorted((r["chrx_ratio"], c) for c, r in plain.items()
                  if r["call"] != "unknown" and math.isfinite(r["chrx_ratio"]) and r["chrx_ratio"] > 0)
@@ -149,14 +167,18 @@ def pon_start(plain: dict, t: dict) -> tuple[set, str]:
         lg = np.log2([ratio for ratio, _ in use])
         shifted = lg + (np.arange(n)[None, :] < np.arange(n + 1)[:, None])  # row j: the j lowest raised by 1
         ss = ((shifted - shifted.mean(axis=1, keepdims=True)) ** 2).sum(axis=1)
-        j = int(np.argmin(ss[1:n])) + 1
-        if ss[j] < min(ss[0], ss[n]) * (1 - 1e-9):
-            return {c for _, c in use[:j]}, "split"
+        gap = np.array([np.median(lg[j:]) - np.median(lg[:j]) for j in range(1, n)])
+        ok = (gap >= SPLIT_GAP[0]) & (gap <= SPLIT_GAP[1]) & (np.diff(lg) >= SPLIT_STEP)
+        if ok.any():
+            j = int(np.argmin(np.where(ok, ss[1:n], np.inf))) + 1
+            if ss[j] < min(ss[0], ss[n]) * (1 - 1e-9):
+                return {c for _, c in use[:j]}, "split"
     mid = (t["xy_max"] + t["xx_min"]) / 2
     if n:
-        log.warning("PON sex calls: the %d callable normals form one group (plain coverage ratio %.3f-%.3f), i.e. one "
-                    "sex: XX or XY is decided by the plain ratio cut at %.3f, which depends on the kit's chrX target "
-                    "mix; check the calls", n, use[0][0], use[-1][0], mid)
+        log.warning("PON sex calls: the %d callable normals form one group (plain coverage ratio %.3f-%.3f; no split "
+                    "into two groups a factor 2 apart), i.e. one sex: XX or XY is decided by the plain ratio cut at "
+                    "%.3f, which depends on the kit's chrX target mix; check the calls against the sheet sex", n,
+                    use[0][0], use[-1][0], mid)
     return {c for ratio, c in use if ratio < mid}, "cut"
 
 
@@ -168,8 +190,8 @@ def pon_calls(df: pd.DataFrame, columns, t: dict, max_rounds: int = 10, start=No
     samples). Leaving the column out keeps its call independent of its own doubling. The XY set starts from `start`
     (default: `pon_start`) and is updated until it does not change (at most `max_rounds`). Zero-coverage values enter
     neither the reference nor the column's log2ratio.
-    Returns [{column, chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins, call, coverage_ratio}]; coverage_ratio is the
-    plain ratio (for the log).
+    Returns [{column, chrx_ratio, log2_diff, n_chrx_bins, n_auto_bins, call, coverage_ratio, start}]; coverage_ratio
+    is the plain ratio (for the log), start how the XY set started ("split", "cut" or "given"; the same in every row).
     """
     columns = list(columns)
     x_mask, auto_mask = region_masks(df)
@@ -197,7 +219,7 @@ def pon_calls(df: pd.DataFrame, columns, t: dict, max_rounds: int = 10, start=No
             lr[ok] = np.log2(v[ok] / ref[ok])
             r = column_ratio(lr, x_mask, auto_mask, log2=True)
             calls.append({"column": col, **r, "call": call_sex(r["chrx_ratio"], r["n_chrx_bins"], r["n_auto_bins"], t),
-                          "coverage_ratio": plain[col]["chrx_ratio"]})
+                          "coverage_ratio": plain[col]["chrx_ratio"], "start": how})
         new = {c["column"] for c in calls if c["call"] == "XY"}
         if new == xy:
             log.info("PON sex calls stable after %d round(s): %d XY", rounds, len(xy))

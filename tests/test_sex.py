@@ -263,19 +263,60 @@ def test_pon_calls_one_ambiguous_normal_doubles_nothing_else(n_cols, xy, x_offse
 
 def test_pon_calls_one_sex_pon(caplog):
     """A PON of one sex: the self-reference cannot tell XX from XY, so the start is the midpoint cut on the plain
-    ratio (kit-dependent, with a warning). Right for all XX on any kit and for all XY on a kit with a chrX mix near 1;
-    an all-XY PON on a kit with a high chrX mix (plain XY ratio > 0.75) is called XX (documented limit). One XX normal
-    among 27 XY makes it a mixed PON again: the split finds the 27 on that kit as well."""
+    ratio (kit-dependent, with a warning). Right for all XX on a kit whose plain XX ratio is above the cut (0.75) and
+    for all XY on a kit whose plain XY ratio is below it. Documented limits: an all-XY PON on a kit with a high chrX
+    mix (plain XY ratio > 0.75) is called XX, an all-XX PON on a kit with a low one (plain XX ratio < 0.75) XY and
+    fully doubled. One XX normal among 27 XY makes it a mixed PON again: the split finds the 27 on that kit as well."""
     cols = covs(28)
     with caplog.at_level(logging.WARNING, logger="mycnv"):
-        assert {c["call"] for c in sex.pon_calls(pon_table(1.7, xy=(), n_cols=28), cols, T)} == {"XX"}
+        calls = sex.pon_calls(pon_table(1.7, xy=(), n_cols=28), cols, T)
+    assert {c["call"] for c in calls} == {"XX"} and {c["start"] for c in calls} == {"cut"}
     assert "the 28 callable normals form one group" in caplog.text and "cut at 0.750" in caplog.text
     assert xy_set(sex.pon_calls(pon_table(1.0, xy=cols, n_cols=28), cols, T)) == set(cols)
-    assert xy_set(sex.pon_calls(pon_table(1.7, xy=cols, n_cols=28), cols, T)) == set()  # the documented limit
+    assert xy_set(sex.pon_calls(pon_table(1.7, xy=cols, n_cols=28), cols, T)) == set()  # limit: all XY called XX
+    assert xy_set(sex.pon_calls(pon_table(0.6, xy=(), n_cols=28), cols, T)) == set(cols)  # limit: all XX called XY
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="mycnv"):
         assert xy_set(sex.pon_calls(pon_table(1.7, xy=covs(27), n_cols=28), cols, T)) == set(covs(27))
     assert "one group" not in caplog.text
+
+
+@pytest.mark.parametrize("n_cols", [28, 100])
+@pytest.mark.parametrize("x_offset", [1.0, 1.25, 1.7])
+@pytest.mark.parametrize("odd_level", [1.45, 1.5])
+def test_pon_calls_one_sex_pon_with_an_outlier(n_cols, x_offset, odd_level):
+    """One normal well above the others (a 47,XXX normal at 1.5x chrX in an all-XX PON, log2 0.585) is no reason to
+    split: without the factor-2 check on the split (SPLIT_GAP) "raise everyone else" was the tightest split, and every
+    XX normal ended XY and doubled (review of e8000b4). The groups must be a factor 2 apart."""
+    cols, odd = covs(n_cols), f"Cov{n_cols}"
+    df = pon_table(x_offset, xy=(), n_cols=n_cols, x_level={odd: odd_level})
+    plain = {r["column"]: r for r in sex.call_columns(df, cols, T)}
+    assert sex.pon_start(plain, T) == (set(), "cut")
+    calls = {c["column"]: c for c in sex.pon_calls(df, cols, T)}
+    assert {r["call"] for r in calls.values()} == {"XX"} and abs(calls[odd]["chrx_ratio"] - odd_level) < 0.1
+
+
+@pytest.mark.parametrize("x_offset", [1.0, 1.25])
+def test_pon_calls_all_xy_pon_with_a_low_outlier(x_offset):
+    """The mirror case: an all-XY PON with one normal at a third of the XY level (gap log2 1.58 > SPLIT_GAP) stays
+    XY (the split would have made the other 27 XX). The outlier plus one XY normal (median gap ~0.8) is no lower
+    group either: no free stretch (SPLIT_STEP) between that XY normal and the others."""
+    cols = covs(28)
+    df = pon_table(x_offset, xy=cols, n_cols=28, x_level={"Cov28": 0.5 / 3})
+    plain = {r["column"]: r for r in sex.call_columns(df, cols, T)}
+    assert sex.pon_start(plain, T) == (set(cols), "cut")
+    assert xy_set(sex.pon_calls(df, cols, T)) == set(cols)
+
+
+@pytest.mark.parametrize("x_offset", [0.8, 1.25, 1.7])
+def test_pon_calls_mixed_pon_with_an_xxx_normal(x_offset):
+    """A mixed PON with one 47,XXX normal: the split (XY vs the rest, gap ~1) is still found."""
+    cols, xy = covs(28), set(covs(6))
+    df = pon_table(x_offset, xy=xy, n_cols=28, x_level={"Cov28": 1.5})
+    plain = {r["column"]: r for r in sex.call_columns(df, cols, T)}
+    assert sex.pon_start(plain, T) == (xy, "split")
+    calls = {c["column"]: c for c in sex.pon_calls(df, cols, T)}
+    assert xy_set(calls.values()) == xy and calls["Cov28"]["call"] == "XX"
 
 
 def test_pon_calls_double_the_same_columns_as_main():
@@ -326,6 +367,8 @@ def test_pon_json_records_the_calls(tmp_path):
     th = meta["sex_thresholds"]
     assert {k: th[k] for k in ("xy_max", "xx_min", "min_bins")} == sex.DEFAULTS
     assert th["doubling"] == XY_DOUBLING == "XY call, chrX non-PAR bins" and th["pon_call"] == PON_CALL
+    assert th["pon_start"] == "split" and th["split_gap_log2"] == list(sex.SPLIT_GAP) == [0.75, 1.25]
+    assert th["split_step_log2"] == sex.SPLIT_STEP == 0.4
     assert th["par_grch38"] == {"chrX": [[10_001, 2_781_479], [155_701_383, 156_030_895]]}
     pon_combine(str(pon), str(tmp_path / "legacy"), chroms=CHROMS, legacy=True)
     th = json.loads((tmp_path / "legacy" / "CNV" / "pon.json").read_text())["sex_thresholds"]

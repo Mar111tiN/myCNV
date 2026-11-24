@@ -93,7 +93,7 @@ def pon_combine(pon_dir: str, out_dir: str, std_factor: float = 2, chroms=PRIMAR
     doubled = [c["column"] for c in calls if c["doubled"]]
     log.info("PON chrX doubled for %d of %d columns (%s)", len(doubled), len(calls), ", ".join(doubled) or "none")
     t = sex.thresholds_record(sex.thresholds(sex_cfg), cmb.LEGACY_DOUBLING if legacy else cmb.XY_DOUBLING,
-                              pon_call=cmb.PON_CALL)
+                              pon_call=cmb.PON_CALL, pon_start=calls[0].get("start") if calls else None)
     files.append(write_pon_meta(out_dir, meta, used, std_factor, legacy,
                                 sex=sex_entries(calls, read_pon_list(pon_dir)), sex_thresholds=t))
     return files
