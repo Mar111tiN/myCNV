@@ -9,6 +9,8 @@
   PON-combine, combine, rolling and ASCAT parity tests (legacy outputs: tests/legacy_outputs.py)
 - a synthetic T/N sample in the coordinate system of tests/data/restricted/pon_mini (combine step; restricted,
   because it is derived from real PON members' coverage)
+- tumor-only inputs, made at test time from the committed files (nothing extra is committed): a one-sample tumor
+  pileup from a T/N pileup (`make_tumor_pileup`) and a common-SNP sites file for it (`make_snp_sites`, `sites_vcf`)
 Usage: python tests/synth.py   (writes tests/data/synth/, committed; and restricted/sample_mini/, not committed)
 """
 
@@ -68,6 +70,45 @@ def make_pileup(regions, seed=1, flank=3, het_every=17):
                 a2 = int(rng.random() < 0.02)
             letter = "ACGTID"[pos % 6]
             lines.append(f"{chrom}\t{pos}\tG\t{d1}\t{_reads(rng, d1, a1, letter)}\t{d2}\t{_reads(rng, d2, a2, letter)}")
+    return "\n".join(lines) + "\n"
+
+
+def make_tumor_pileup(pair_text):
+    """One-sample (tumor) clean pileup from a clean T/N pileup: Chr Start Ref + the tumor's Depth2 Read2 as Depth1 Read1
+    (the layout of `ebscore pileup --tumor`, tumor = sample 1)."""
+    out = []
+    for i, line in enumerate(pair_text.splitlines()):
+        f = line.split("\t")
+        out.append("\t".join(f[:3] + (["Depth1", "Read1"] if i == 0 else f[5:7])))
+    return "\n".join(out) + "\n"
+
+
+def make_snp_sites(tumor_text, het_every=17, seed=17):
+    """Synthetic common-SNP sites [(chrom, pos, ref, alt)] for a one-sample pileup made by make_pileup: every het
+    position (pos % het_every == 0), every homozygous one (pos % 101 == 0, tumor VAF 0.95), 1 in 10 of the other
+    positions (tumor VAF < 0.1) and sites the pileup does not have (past each chromosome's last position, chr22)."""
+    rng = np.random.default_rng(seed)
+    sites, last = [], {}
+    for line in tumor_text.splitlines()[1:]:
+        chrom, pos, ref = line.split("\t")[:3]
+        pos = int(pos)
+        last[chrom] = max(last.get(chrom, 0), pos)
+        if pos % het_every == 0 or pos % 101 == 0 or rng.random() < 0.1:
+            sites.append((chrom, pos, ref, "A"))
+    for chrom, end in last.items():
+        sites += [(chrom, end + 500 + 37 * k, "C", "T") for k in range(3)]
+    sites += [("chr22", 1000 + 11 * k, "C", "T") for k in range(3)]
+    return sites
+
+
+def sites_vcf(records):
+    """VCF text of site records (chrom, pos, ref, alt[, info]); one record has quotes in INFO (QUOTE_NONE)."""
+    lines = ["##fileformat=VCFv4.2", '##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency, "a" quoted">']
+    lines += [f"##contig=<ID={c}>" for c in dict.fromkeys(r[0] for r in records)]
+    lines.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
+    for k, r in enumerate(records):
+        info = r[4] if len(r) > 4 else ('AF=0.2;NOTE="two words' if k == 1 else f"AF=0.{k % 9 + 1}")
+        lines.append(f"{r[0]}\t{r[1]}\trs{k}\t{r[2]}\t{r[3]}\t.\tPASS\t{info}")
     return "\n".join(lines) + "\n"
 
 

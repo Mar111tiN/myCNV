@@ -4,9 +4,13 @@
 # and ignored. Not here: the pileup filters (MAPQ 20, Q 25: `ebscore pileup --min-mapq/--min-baseq`) and the ASCAT
 # parameters (penalties 25/75, gamma 1: the ASCAT step of the pipeline; its gender is `ascat_gender` of sex.tsv).
 # `sex` is new (no legacy key): the coverage sex call of the PON normals and the samples (mycnv.sex).
+# `hetSNP.tumorOnlyVAF` is new (no legacy key): the tumor VAF range of the tumor-only het-SNP candidates.
 CNV:
     hetSNP:
         normalVAF: [0.2, 0.8]
+        # new (no legacy key; plan D27/N-Q3, owner-tunable): tumor-only samples (--tumor-only) have no normal, so their
+        # het-SNP candidates are the --snp-sites positions with a tumor VAF in this range (inclusive); minDepth applies
+        tumorOnlyVAF: [0.1, 0.9]
         minDepth: 15
     coverage:
         minCov: 0

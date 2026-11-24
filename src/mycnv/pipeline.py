@@ -20,7 +20,7 @@ from . import sex
 from .bed import read_bed, region_digest
 from .convert import resolve_names, write_ascat
 from .ponmeta import combine_cov_meta, read_pon_list, sex_entries, write_cov_meta, write_pon_meta
-from .raw import pon2cnv, tn2cnv
+from .raw import pon2cnv, tn2cnv, tumor2cnv
 from .rolling_cov import rolling_coverage
 from .rolling_snp import remerge_cnv, rolling_snp
 from .tools import PRIMARY_CHROMS, chrom_key, log, read_tsv, setup_logging, write_tsv
@@ -107,19 +107,28 @@ def _agg_backend() -> None:
     matplotlib.use("Agg")
 
 
-def raw_plots(cov_df, snp_df, sample: str, tumor: str, normal: str, plot_dir: str) -> list[str]:
+def _plot_samples(tumor: str, normal: str | None) -> list[tuple[str, int]]:
+    """[(label, sample column number)], tumor first: a pair has normal = 1, tumor = 2; tumor-only (normal None) has
+    tumor = 1."""
+    return [(tumor, 1)] if normal is None else [(tumor, 2), (normal, 1)]
+
+
+def raw_plots(cov_df, snp_df, sample: str, tumor: str, normal: str | None, plot_dir: str) -> list[str]:
+    """Raw BAF and log2ratio plots per sample (normal None: tumor-only, one sample column)."""
     _agg_backend()
     from .plot import plot_cov, plot_snp
     from .plot_params import covfig_params, log1, log2, snpfig_params, vaf1, vaf2
 
+    vaf, lr = {1: vaf1, 2: vaf2}, {1: log1, 2: log2}
+    samples = _plot_samples(tumor, normal)
     os.makedirs(plot_dir, exist_ok=True)
     base = os.path.join(plot_dir, sample)
     files = []
-    for name, plots in [(tumor, [vaf2]), (normal, [vaf1])] if not snp_df.empty else []:
+    for name, plots in [(n, [vaf[k]]) for n, k in samples] if not snp_df.empty else []:
         fig, *_ = plot_snp(snp_df, plots=plots, chroms="all", region="", **snpfig_params)
         files.append(f"{base}_{name}.snp.raw.jpg")
         fig.savefig(files[-1])
-    for name, plots in [(tumor, [log2]), (normal, [log1])] if not cov_df.empty else []:
+    for name, plots in [(n, [lr[k]]) for n, k in samples] if not cov_df.empty else []:
         fig, *_ = plot_cov(cov_df, plots=plots, chroms="all", region="", **covfig_params)
         files.append(f"{base}_{name}.cov.raw.jpg")
         fig.savefig(files[-1])
@@ -127,11 +136,14 @@ def raw_plots(cov_df, snp_df, sample: str, tumor: str, normal: str, plot_dir: st
     return files
 
 
-def cnv_plots(snp_df, cnv_df, sample: str, tumor: str, normal: str, plot_dir: str) -> list[str]:
+def cnv_plots(snp_df, cnv_df, sample: str, tumor: str, normal: str | None, plot_dir: str) -> list[str]:
+    """CNV plots (rolled log2ratio + BAF) per sample (normal None: tumor-only, one sample column)."""
     _agg_backend()
     from .plot import plot_CNV
     from .plot_params import L2Rmean1, L2Rmean2, cnvfig_params, log1, log2, vaf1, vaf2
 
+    panels = {1: ([log1, L2Rmean1], [vaf1]), 2: ([log2, L2Rmean2], [vaf2])}
+    samples = _plot_samples(tumor, normal)
     os.makedirs(plot_dir, exist_ok=True)
     base = os.path.join(plot_dir, sample)
     files = []
@@ -139,7 +151,7 @@ def cnv_plots(snp_df, cnv_df, sample: str, tumor: str, normal: str, plot_dir: st
         if df.empty:
             log.warning("No rows for the %s plots of %s (e.g. no SNP passed the filter): skipped", suffix, sample)
             continue
-        for name, cov_plots, snp_plots in [(tumor, [log2, L2Rmean2], [vaf2]), (normal, [log1, L2Rmean1], [vaf1])]:
+        for name, cov_plots, snp_plots in [(n, *panels[k]) for n, k in samples]:
             fig, *_ = plot_CNV(df, cov_plots=cov_plots, snp_plots=snp_plots, chroms="all", region="", **cnvfig_params)
             files.append(f"{base}_{name}.{suffix}.jpg")
             fig.savefig(files[-1])
@@ -160,12 +172,35 @@ def combine_step(cov_df, snp_df, pon_dir: str, config: dict, legacy_coords: bool
                               allow_missing_chroms=allow_missing_chroms, bed_md5=bed_md5)
 
 
-def sex_step(cov_df: pd.DataFrame, tumor: str, normal: str, config: dict, path: str | None = None) -> pd.DataFrame:
-    """raw coverage table (log2ratio1/2 vs the PON) -> sex.tsv rows (normal, tumor); written to `path` if given."""
-    sex_df = sex.pair_sex_table(cov_df, tumor, normal, config.get("sex"))
+def sex_step(cov_df: pd.DataFrame, tumor: str, normal: str | None, config: dict, path: str | None = None
+             ) -> pd.DataFrame:
+    """raw coverage table (log2ratio1/2 vs the PON) -> sex.tsv rows (normal, tumor); written to `path` if given.
+
+    normal None: a tumor-only table (log2ratio1 = tumor), one row whose call is the ASCAT gender.
+    """
+    if normal is None:
+        sex_df = sex.tumor_sex_table(cov_df, tumor, config.get("sex"))
+    else:
+        sex_df = sex.pair_sex_table(cov_df, tumor, normal, config.get("sex"))
     if path:
         write_tsv(sex_df, path)
     return sex_df
+
+
+def check_sample_columns(tumor_only: bool, *dfs: pd.DataFrame, prefixes=("Cov", "VAF", "log2ratio")) -> None:
+    """The sample tables of a pair have the columns <prefix>1 and <prefix>2, those of a tumor-only sample only
+    <prefix>1 (for every prefix present); ValueError otherwise, naming --tumor-only."""
+    want = 1 if tumor_only else 2
+    for df in dfs:
+        for prefix in prefixes:
+            cols = [c for c in df.columns if re.fullmatch(rf"{prefix}[0-9]+", c)]
+            if not cols or len(cols) == want:
+                continue
+            if tumor_only:
+                raise ValueError(f"--tumor-only needs one-sample tables ({prefix}1), got {', '.join(cols)}"
+                                 + (" (a T/N pair: run without --tumor-only)" if len(cols) == 2 else ""))
+            raise ValueError(f"a T/N pair has the columns {prefix}1 and {prefix}2, got {', '.join(cols)}"
+                             + (" (a tumor-only sample: use --tumor-only)" if len(cols) == 1 else ""))
 
 
 def rolling_step(cov_df: pd.DataFrame, snp_df: pd.DataFrame, config: dict):
@@ -189,22 +224,50 @@ def sample_paths(out_dir: str, sample: str) -> dict[str, str]:
     }
 
 
+def sample_names(sample: str, tumor: str | None, normal: str | None, tumor_only: bool = False
+                 ) -> tuple[str, str | None]:
+    """(tumor, normal) labels: a pair's from the names or the legacy sample ID; tumor-only: (tumor or sample, None)."""
+    if not tumor_only:
+        return resolve_names(sample, tumor, normal)
+    if normal is not None:
+        raise ValueError("a tumor-only sample has no normal: --normal-name does not apply")
+    return tumor or sample, None
+
+
 def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, config: dict, gc=None, genmap=None,
                tumor=None, normal=None, clean=True, legacy_coords=False, plots=False, mock_germline=True,
-               min_pon_match: float = 0.9, allow_empty: bool = False, tmp_dir=None) -> dict[str, str]:
+               min_pon_match: float = 0.9, allow_empty: bool = False, tmp_dir=None, tumor_only: bool = False,
+               snp_sites: str | None = None) -> dict[str, str]:
     """Whole per-sample chain: tn2cnv -> combine (+ sex.tsv) -> rolling -> ASCAT input (one task per sample, D16).
 
     Always the whole sample: GC normalisation and the log2ratio levels need every chromosome (a per-chromosome
     split stops after tn2cnv; `combine` then takes all its outputs). sex.tsv: the coverage sex call of the normal and
     the tumor; its ascat_gender is the gender for ASCAT (D-Q3).
+    tumor_only (plan D27): a one-sample tumor pileup; the het-SNP candidates are the `snp_sites` positions with a tumor
+    VAF in hetSNP.tumorOnlyVAF (`raw.tumor2cnv`), every table has one sample column (the tumor), sex.tsv one row (the
+    tumor's call = the ASCAT gender), and pre/ the tumor and the mock germline tables (ASCAT mode B, D-Q3). The tumor
+    label defaults to `sample`.
     """
-    tumor, normal = resolve_names(sample, tumor, normal)
+    if tumor_only and not snp_sites:
+        raise ValueError("a tumor-only sample needs the het-SNP candidate sites (--snp-sites)")
+    if snp_sites and not tumor_only:
+        raise ValueError("--snp-sites is for tumor-only samples (--tumor-only); a pair's het SNPs come from the normal")
+    tumor, normal = sample_names(sample, tumor, normal, tumor_only)
     p = sample_paths(out_dir, sample)
     sc, cc = config["hetSNP"], config["coverage"]
-    cov_df, snp_df = tn2cnv(
-        pileup, bed, gc=gc, genmap=genmap, normal_vaf=sc["normalVAF"], min_depth=sc["minDepth"],
-        min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords, tmp_dir=tmp_dir,
-    )
+    if tumor_only:
+        if not mock_germline:
+            raise ValueError("a tumor-only ASCAT input is the tumor and the mock germline (ASCAT mode B, D-Q3): "
+                             "--no-mock-germline does not apply")
+        cov_df, snp_df = tumor2cnv(
+            pileup, bed, snp_sites, gc=gc, genmap=genmap, tumor_vaf=sc["tumorOnlyVAF"], min_depth=sc["minDepth"],
+            min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords, tmp_dir=tmp_dir,
+        )
+    else:
+        cov_df, snp_df = tn2cnv(
+            pileup, bed, gc=gc, genmap=genmap, normal_vaf=sc["normalVAF"], min_depth=sc["minDepth"],
+            min_cov=cc["minCov"], clean=clean, legacy_coords=legacy_coords, tmp_dir=tmp_dir,
+        )
     regions = read_bed(bed, merge=not legacy_coords)
     bed_md5 = {c: region_digest(regions, c) for c in regions}
     cov_df, snp_df = combine_step(cov_df, snp_df, pon_dir, config, legacy_coords=legacy_coords,
@@ -220,7 +283,7 @@ def run_sample(pileup: str, bed: str, pon_dir: str, sample: str, out_dir: str, c
     write_tsv(cnv_df, p["cnv"], compression="gzip")
     # ASCAT input before the optional plots, so a plot problem cannot cost the main output
     write_ascat(roll_snp, sample, p["pre"], tumor=tumor, normal=normal, mock_germline=mock_germline,
-                allow_empty=allow_empty)
+                allow_empty=allow_empty, tumor_only=tumor_only)
     if plots:
         cnv_plots(roll_snp, cnv_df, sample, tumor, normal, p["plots"])
     return p

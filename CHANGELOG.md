@@ -53,6 +53,33 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
     An empty raw table, or one without a finite autosomal log2ratio, exits 2. The call is made before any output is
     written. The existing `raw/`, `data/`, `pre/` outputs are unchanged (byte-identical on the synthetic
     multi-chromosome kit, the synthetic CNV PON + sample and tier A).
+- Tumor-only samples (design item M1, plan D27, N-Q3, D-Q3 mode B): `sample --tumor-only --snp-sites SITES` (and
+  `tn2cnv --tumor-only --snp-sites`, `combine`/`rolling`/`sex`/`ascat-input --tumor-only` for the step-by-step path).
+  main had no tumor-only CNV path.
+  - Input: the one-sample pileup of `ebscore pileup --tumor` (`Chr Start Ref Depth1 Read1`, tumor = sample 1) and a
+    sites file: VCF/VCF.gz (CHROM POS REF ALT; biallelic SNVs kept, multi-allelic records, indels and symbolic alleles
+    dropped, a repeated position counted once) or a 2-column `Chr Pos` TSV (1-based; a BED is rejected), detected from
+    the content, read in chunks of 500,000 rows and only kept at candidate positions (`mycnv.sites`).
+  - Coverage bins: the same `filterBed | pile2CNV` pass and `bed.bin_exon_pos` as a pair (`raw._pile2cnv`, shared by
+    `tn2cnv` and the new `tumor2cnv`): on the tumor columns of a pair the bins are identical, `Cov1` = the pair's
+    `Cov2`.
+  - Het-SNP candidates: the sites where the tumor has depth ≥ `hetSNP.minDepth` and a VAF within the new config key
+    `hetSNP.tumorOnlyVAF` (default `[0.1, 0.9]`, inclusive; `--tumor-vaf`; owner-tunable, no legacy value), with
+    pile2CNV's alt reads (A/C/G/T, D/d, I/i). `maxPONVAF`, mappability and density filters apply downstream as for
+    pairs.
+  - Downstream with one sample column (`Cov1`, `VAF1`, `log2ratio1` = tumor): combine, rolling and the ASCAT tables
+    work per column, so a tumor-only run on a pair's tumor columns gives the pair's tumor values exactly (synthetic CNV
+    PON + sample: raw, rolled and ASCAT tables identical). `write_ascat(tumor_only=True)` writes
+    `pre/<S>_<T>_{baf,logr}.tsv` + the mock germline `pre/<S>_germline_{baf,logr}.tsv` (BAF 0.5, logR 0), no normal
+    tables; the tumor label defaults to `--sample`. `sex.tsv` has one row (role `tumor`, `log2ratio1`) and
+    `ascat_gender` = the tumor's call; an XY tumor-only call logs a warning (a female tumor with a chrX loss looks XY).
+    Plots are written for the tumor only.
+  - CLI rules (exit 2): `--tumor-only` needs `--snp-sites`; `--snp-sites`/`--tumor-vaf` need `--tumor-only`;
+    `--normal-name`, `--normal-vaf` and `--no-mock-germline` are rejected with `--tumor-only` (D-Q3: one mock-germline
+    path). A two-sample pileup with `--tumor-only` and tables of a pair in the tumor-only commands fail, and vice
+    versa (see the table below); a sites file sharing no chromosome with the BED fails (naming).
+  - The paired path is unchanged: its outputs are byte-identical on the synthetic multi-chromosome kit and the
+    synthetic CNV PON + sample (parity tests) and on tier A (`raw/ data/ pre/` content-identical to `expected/`).
 - Test fixtures: the synthetic CNV PON (`tests/data/synth/pon`, and the sample on its bins) had all chrX bins at
   100–110 kb, inside PAR1, where an XY normal has two copies; the PAR-aware call found 0 non-PAR bins there. Its chrX
   now starts at 3.0 Mb (`tests/synth.py` `SYN_START`; same random draws). The `main` outputs made from it
@@ -92,6 +119,8 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
 | plots | `plt.cm.get_cmap`, `Series[-1]`, 23 rectangles vs fewer colours; crash on a one-SNP track | `matplotlib.colormaps`, `.iloc`, one rectangle per present chromosome; empty tracks skipped; tick guard; written after the ASCAT input | — |
 | missing / mistyped GC or genmap track | NameError | error (`--gc` required; `--genmap` required for samples); contigs outside chr1–22/X only warn; NaN-map SNPs are counted in the log | — |
 | empty pileup, no bin in the BED | header-only outputs | error | — |
+| pileup layout | not checked: a one-sample pileup ran as a "pair" (all downstream steps on one column) and a raw mpileup read as a clean one gave garbage | the first line is checked: a clean pileup needs the `cleanpileup -d` header, a raw one (`--raw-pileup`) 3 + 3 per sample columns; a pair needs 2 samples, `--tumor-only` 1; the error names the flag. A missing pileup is now exit 2 (data problem) instead of 1 (failing `cat`) | — (valid pairs: unchanged outputs) |
+| sample tables of `combine`/`rolling` | any number of sample columns | a pair needs `Cov1`/`Cov2` (and `VAF1`/`VAF2`, `log2ratio1`/`log2ratio2` where present); `--tumor-only` exactly `*1` | — |
 
 ### Known differences that are not code changes
 - **genmap track**: the studies used a kit-specific split (`HAEv7split`) that is not available. The generic

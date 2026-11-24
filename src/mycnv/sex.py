@@ -2,7 +2,8 @@
 
 One detection for the PON columns and for the samples:
 - `sample` (and `combine`, `sex`) call the normal and the tumor on their log2ratio vs the (effectively female) PON and
-  write `sex.tsv`, whose `ascat_gender` is the gender ASCAT uses.
+  write `sex.tsv`, whose `ascat_gender` is the gender ASCAT uses. A tumor-only sample (`--tumor-only`) has one row,
+  the tumor's, and its call is the ASCAT gender (lower confidence: a chrX loss of a female tumor looks XY).
 - `pon-combine` calls every PON normal the same way (`pon_calls`): the log2ratio of its mean-normalised coverage
   (before any doubling) vs the per-bin mean of the other normals, with the XY normals' chrX doubled. The call decides
   which normals get their chrX non-PAR doubled (XY -> XX level, so the PON is effectively female) and is written to
@@ -251,7 +252,26 @@ def sex_table(cov_df: pd.DataFrame, samples, cfg: dict | None = None) -> pd.Data
 
 def pair_sex_table(cov_df: pd.DataFrame, tumor: str, normal: str, cfg: dict | None = None) -> pd.DataFrame:
     """sex.tsv of a T/N pair: normal = sample 1 (log2ratio1), tumor = sample 2 (log2ratio2)."""
+    if "log2ratio1" in cov_df.columns and "log2ratio2" not in cov_df.columns:
+        raise ValueError("the coverage table has no log2ratio2 column: one sample column (a tumor-only table? use "
+                         "--tumor-only)")
     return sex_table(cov_df, [(normal, "normal", "log2ratio1"), (tumor, "tumor", "log2ratio2")], cfg)
+
+
+def tumor_sex_table(cov_df: pd.DataFrame, tumor: str, cfg: dict | None = None) -> pd.DataFrame:
+    """sex.tsv of a tumor-only sample: one row, tumor = sample 1 (log2ratio1); ascat_gender is the tumor's call.
+
+    Lower confidence than a pair's (the normal's call): a female tumor that lost one X has the chrX level of an XY
+    sample and is called XY (a warning says so; the pipeline cross-checks the sheet sex).
+    """
+    if "log2ratio2" in cov_df.columns:
+        raise ValueError("the coverage table has log2ratio1 and log2ratio2 (a T/N pair): tumor-only needs a one-sample "
+                         "table (run without --tumor-only)")
+    df = sex_table(cov_df, [(tumor, "tumor", "log2ratio1")], cfg)
+    if df["call"].iloc[0] == "XY":
+        log.warning("Tumor-only sex call XY for %s: a female tumor that lost one X looks the same (lower confidence "
+                    "than a normal's call); cross-check with the sheet sex", tumor)
+    return df
 
 
 def json_float(value: float, digits: int = 4):

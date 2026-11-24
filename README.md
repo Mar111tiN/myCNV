@@ -1,6 +1,7 @@
 # mycnv
 
-PON-based copy-number profiles from a paired (normal, tumor) pileup: 10 bp coverage bins as log2ratio vs a Panel of
+PON-based copy-number profiles from a paired (normal, tumor) pileup, or from a tumor alone (`--tumor-only`, het SNPs
+at given common-SNP sites): 10 bp coverage bins as log2ratio vs a Panel of
 Normals, het-SNP B-allele frequencies, GC/mappability filters, rolling windows, and ASCAT input. This is the CNV core of
 the somVarWES pipeline, packaged for the kumo-variant-calling-nf port (branch `kumodev`; `main` is the legacy code).
 
@@ -22,7 +23,10 @@ that includes the OS packages.
 ## Inputs
 
 - **Paired pileup** (normal = sample 1): `samtools mpileup -f ref.fa -q 20 -Q 25 -l <padded BED> NORMAL TUMOR |
-  cleanpileup -d` (as written by `ebscore pileup`), plain or gzipped. `--raw-pileup` accepts raw mpileup text.
+  cleanpileup -d` (as written by `ebscore pileup`), plain or gzipped. `--raw-pileup` accepts raw mpileup text. The
+  first line is checked: a pair needs 2 samples; a one-sample (tumor) pileup needs `--tumor-only` (next section).
+- **Tumor-only** (`--tumor-only`): the one-sample pileup of `ebscore pileup --tumor T` (`Chr Start Ref Depth1 Read1`,
+  tumor = sample 1) and a common-SNP sites file (`--snp-sites`), see "Tumor-only samples".
 - **PONmatrix** folder (`--ponmatrix`): `matrix/{chrom}.pon.gz` (`Chr Start Ref A G C T I D Depth`, cells
   `s1|…|sN=s1|…|sN`) from `ebscore pon-matrix`, shared with ebscore. mycnv adds `cov/`, `snp/` and `CNV/`, each in a
   folder you name with `-o/--outdir` (it never writes into an input folder).
@@ -77,6 +81,20 @@ mycnv sex      --cov raw.cov.gz -o sex.tsv [--tumor-name T --normal-name N | --s
 mycnv rolling  --cov raw.cov.gz --snp raw.snp --out-snp data.cnv.snp.gz --out-cnv data.cnv.gz
 mycnv ascat-input --cnv data.cnv.snp.gz --sample P1_T-N -o pre/
 mycnv config   # print the effective parameters (defaults = the somVarWES study config)
+
+# tumor-only sample (no normal): one-sample pileup + common-SNP sites; the tumor label defaults to --sample
+mycnv sample --tumor-only --snp-sites kit.snp_sites.vcf.gz --pileup T1.pileup.gz --bed kit.padded.bed --gc gc100-10/ \
+    --genmap genmap/split/ --ponmatrix ponmatrix_cnv --sample T1 -o CNV/T1 [--tumor-name T] [--plots]
+# -> CNV/T1/raw/T1.{cov.gz,snp}  sex.tsv (one row)  data/T1.{cnv.snp.gz,cnv.gz}
+#    pre/T1_T1_{baf,logr}.tsv + pre/T1_germline_{baf,logr}.tsv (mock germline)  [plots/]
+# step by step: every per-sample command takes --tumor-only (tn2cnv also --snp-sites)
+mycnv tn2cnv --tumor-only --snp-sites kit.snp_sites.vcf.gz --pileup T1.pileup.gz --bed … --gc … --genmap … \
+    --out-cov t.cov.gz --out-snp t.snp [--chrom chr7 ...]
+mycnv combine --tumor-only --cov t*.cov.gz --snp t*.snp --ponmatrix ponmatrix_cnv --out-cov raw.cov.gz --out-snp raw.snp \
+    --sample T1
+mycnv rolling --tumor-only --cov raw.cov.gz --snp raw.snp --out-snp data.cnv.snp.gz --out-cnv data.cnv.gz
+mycnv ascat-input --tumor-only --cnv data.cnv.snp.gz --sample T1 -o pre/
+mycnv sex --tumor-only --cov raw.cov.gz -o sex.tsv --sample T1
 ```
 Every command takes `--config my.yaml` (structure of `mycnv config`; unknown keys are reported and ignored),
 `-t/--threads` (parallel only in `pon-coverage`), `-v/--verbose` (prints the shell pipelines) and `--quiet`. Commands
@@ -86,6 +104,36 @@ and can be repeated. Logs go to stderr.
 Option names follow ebscore: `--ponmatrix`, `-o/--outdir`, `--chrom`, `--bed`, `--pileup`, `-t`, `--tmpdir`, `--quiet`.
 `--tumor-name/--normal-name` are labels for file names (ebscore's `--tumor/--normal` are BAM paths). Without them the
 labels come from a legacy sample ID `<patient>_<tumor>-<normal>`; sarek pair IDs (`*_vs_*`) need explicit names.
+
+## Tumor-only samples (`--tumor-only`, plan D27)
+
+A sample without a normal runs through the same steps with one sample column, the tumor (`Cov1`, `VAF1`,
+`log2ratio1`), against the same CNV PON. Only the het-SNP selection differs, because no normal says which positions
+are germline het SNPs (N-Q3):
+- **Coverage bins** come from the same `filterBed | pile2CNV` pass as a pair's (the tumor's `Cov1` equals a pair's
+  `Cov2` on the same reads), with the same BED-derived ExonPos. The tumor logR is the log2ratio vs the PON mean
+  (D-Q3).
+- **Het-SNP candidates** are the positions of `--snp-sites` where the tumor has depth ≥ `hetSNP.minDepth` (15) and a
+  VAF within `hetSNP.tumorOnlyVAF` (default `[0.1, 0.9]`, inclusive; `--tumor-vaf MIN MAX` or `--config`). Alt reads
+  are counted as for pairs (A/C/G/T, D/d, I/i). The band is a new, owner-tunable parameter: a wider band keeps more
+  LOH-shifted sites and more artefacts. The PON artefact filter (`filter.snp.maxPONVAF` on `CNV/pon.snp.gz`), the
+  mappability and the SNP-density filters apply downstream as for pairs.
+- **`--snp-sites`**: a VCF or VCF.gz (bgzip is fine; only CHROM, POS, REF, ALT are read; biallelic SNVs are kept,
+  multi-allelic records, indels and symbolic alleles are dropped, a position listed twice counts once), or a TSV with
+  the two columns `Chr Pos` (1-based, header line optional; a BED is rejected). The format is detected from the
+  content. Chromosome names must be written as in the pileup and the BED (no `chr` prefix is added); a sites file
+  that shares no chromosome with the BED fails. The pipeline's file is the kit's `<kit>.snp_sites.vcf.gz`: common
+  sites of gnomAD and dbSNP (or the one available), cut to the kit's padded BED (design K1). The file is read in
+  chunks, so a large one is fine.
+- **Outputs**: `pre/<S>_<T>_{baf,logr}.tsv` and the mock germline `pre/<S>_germline_{baf,logr}.tsv` (BAF 0.5, logR 0:
+  ASCAT mode B, D-Q3), no normal tables; `<T>` is `--tumor-name`, default `--sample`. `sex.tsv` has one row (role
+  `tumor`, column `log2ratio1`), and its `ascat_gender` is the tumor's own call. That call has a lower confidence than a
+  pair's: a female tumor that lost one X has the chrX level of an XY sample and is called XY (logged as a warning; the
+  pipeline cross-checks the sheet sex). Plots (`--plots`) are written for the tumor only.
+- **Checks** (exit 2): `--tumor-only` needs `--snp-sites`, and `--snp-sites`/`--tumor-vaf` need `--tumor-only`;
+  `--normal-name`, `--normal-vaf` and `--no-mock-germline` are rejected with `--tumor-only`. A two-sample pileup with
+  `--tumor-only`, a one-sample pileup without it, and tables of the other layout in `combine`/`rolling`/`sex`/
+  `ascat-input` fail with a message that names the flag.
 
 ## Sex calls (chrX of the PON normals and the samples)
 
@@ -120,14 +168,14 @@ warning when main's rule (normalised chrX mean < 75) would double other normals.
 before using it.
 
 **Samples** (`sample`, `combine`, `sex`): `sex.tsv` from the raw coverage table, i.e. the log2ratio of the normal and
-the tumor against the (effectively female) PON, one row per sample column. An empty table, or one without a finite
-autosomal log2ratio, fails (exit 2); a table without chrX bins gives `unknown`:
+the tumor against the (effectively female) PON, one row per sample column (tumor-only: one row, the tumor's). An empty
+table, or one without a finite autosomal log2ratio, fails (exit 2); a table without chrX bins gives `unknown`:
 
 | column | content |
 |---|---|
-| `sample` | label: `--normal-name`/`--tumor-name` (or from the legacy sample ID; `sex` without names: `normal`/`tumor`) |
+| `sample` | label: `--normal-name`/`--tumor-name` (or from the legacy sample ID; `sex` without names: `normal`/`tumor`; tumor-only: `--tumor-name`, else `--sample`, else `tumor`) |
 | `role` | `normal` or `tumor` |
-| `column` | `log2ratio1` (normal = sample 1) or `log2ratio2` (tumor) |
+| `column` | `log2ratio1` (normal = sample 1) or `log2ratio2` (tumor); tumor-only: `log2ratio1` (the tumor) |
 | `chrx_ratio`, `log2_diff` | `2 ** log2_diff` and median(chrX non-PAR) − median(autosomes), 4 decimals (empty if undefined) |
 | `n_chrx_bins`, `n_auto_bins` | finite values used |
 | `call` | `XX`, `XY`, `ambiguous` or `unknown` |
@@ -142,7 +190,8 @@ on its own row, but a pair keeps the normal's gender.
 
 A task that cannot produce a meaningful result exits non-zero (2 for data problems, 1 for a failing shell pipeline)
 with one log line that names the cause. Examples: a missing or mistyped `--gc`/`--genmap`, a track without data for a
-chromosome of the sample, an empty pileup, a BED that is unsorted or does not match the pileup, a sample binned with
+chromosome of the sample, an empty pileup, a pileup with another number of samples than the mode needs (2 for a pair,
+1 with `--tumor-only`), a BED that is unsorted or does not match the pileup, a sample binned with
 another BED or coordinate mode than the CNV PON (checked with `CNV/pon.json` and on the bins themselves), fewer than
 90 % of the sample bins found in the PON (`--min-pon-match`), PON chromosomes missing from the sample (a partial
 `combine`; `--allow-missing-chroms`), or no SNP left for ASCAT (`--allow-empty` writes header-only tables instead).
@@ -159,7 +208,7 @@ another BED or coordinate mode than the CNV PON (checked with `CNV/pon.json` and
 
 ## Layout
 
-`src/mycnv/`: `raw` (tn2cnv/pon2cnv), `bed` (BED reading, bin ExonPos), `tracks` (GC/genmap reading), `trackgen` (GC/genmap building), `combine` (PON and
+`src/mycnv/`: `raw` (tn2cnv/tumor2cnv/pon2cnv), `sites` (tumor-only SNP sites), `bed` (BED reading, bin ExonPos), `tracks` (GC/genmap reading), `trackgen` (GC/genmap building), `combine` (PON and
 sample combine), `ponmeta` (PON provenance), `sex` (coverage sex calls), `rolling`, `rolling_cov`, `rolling_snp`, `convert` (ASCAT input),
 `pipeline` (steps used by the CLI), `cli`, `plot*`, `cluster` (GMM-caller groundwork; needs scikit-learn), `mawk/`.
 Notebooks in `nb/` are the development history and still use the legacy `code/` imports (plan 2.3 moves them to

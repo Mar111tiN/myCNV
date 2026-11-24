@@ -47,6 +47,24 @@ def _sample_opts(p: argparse.ArgumentParser) -> None:
     p.add_argument("--raw-pileup", action="store_true", help="input is raw samtools mpileup text (cleanpileup -d is added)")
 
 
+PILEUP_HELP = ("NORMAL TUMOR pileup after `cleanpileup -d` (plain or .gz); with --tumor-only the one-sample TUMOR "
+               "pileup (`ebscore pileup --tumor`)")
+
+
+def _tumor_only(p: argparse.ArgumentParser, sites: bool = False) -> None:
+    """--tumor-only (plan D27): one sample column, the tumor; with `sites` also --snp-sites and --tumor-vaf."""
+    p.add_argument("--tumor-only", action="store_true",
+                   help="tumor-only sample: one sample column (the tumor); no normal, no --normal-name"
+                        + ("; needs --snp-sites" if sites else ""))
+    if sites:
+        p.add_argument("--snp-sites", metavar="SITES",
+                       help="--tumor-only: het-SNP candidate sites, VCF/VCF.gz (biallelic SNVs; CHROM POS REF ALT read) "
+                            "or a 2-column TSV Chr Pos (1-based), e.g. the kit's <kit>.snp_sites.vcf.gz (common sites "
+                            "of gnomAD/dbSNP cut to the padded BED)")
+        p.add_argument("--tumor-vaf", nargs=2, type=float, metavar=("MIN", "MAX"),
+                       help="--tumor-only: het-SNP tumor VAF range at the sites (hetSNP.tumorOnlyVAF: 0.1 0.9)")
+
+
 def _pon_match(p: argparse.ArgumentParser) -> None:
     p.add_argument("--min-pon-match", type=float, default=0.9, metavar="FRACTION",
                    help="fail if fewer sample bins have a PON bin (default 0.9)")
@@ -120,10 +138,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "rule (normalised chrX mean < 75) instead of the coverage sex call")
     _common(p)
 
-    p = add("tn2cnv", "paired pileup -> coverage bins + het SNPs (whole sample by default)")
-    p.add_argument("--pileup", required=True, help="NORMAL TUMOR pileup after `cleanpileup -d` (plain or .gz)")
+    p = add("tn2cnv", "paired pileup -> coverage bins + het SNPs (whole sample by default); --tumor-only: a tumor "
+                      "pileup, het SNPs at --snp-sites")
+    p.add_argument("--pileup", required=True, help=PILEUP_HELP)
     _tracks(p)
     _sample_opts(p)
+    _tumor_only(p, sites=True)
     _chrom(p, "only these chromosomes (optional split; all outputs then go into one `combine`)")
     p.add_argument("--out-cov", required=True, help="coverage bins (.gz for gzip)")
     p.add_argument("--out-snp", required=True, help="het SNPs")
@@ -143,16 +163,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="do not fail when PON chromosomes have no sample bins (partial sample: wrong normalisation)")
     p.add_argument("--out-sex", help="sex calls + ASCAT gender (sex.tsv, as `sample` and `sex` write it; default: "
                                      "sex.tsv in the --out-cov folder); labels from --tumor-name/--normal-name or "
-                                     "--sample, else tumor/normal")
+                                     "--sample, else tumor/normal (--tumor-only: --tumor-name, else --sample, else "
+                                     "tumor)")
+    _tumor_only(p)
     _plot_opts(p)
     _common(p)
 
     p = add("sex", "raw/{s}.cov.gz (log2ratio vs PON) -> sex.tsv: coverage sex call of normal and tumor, ASCAT gender")
     p.add_argument("--cov", required=True, help="raw/{s}.cov.gz (from `combine` or `sample`)")
     p.add_argument("-o", "--output", required=True, help="sex.tsv")
-    p.add_argument("--sample", help="legacy sample ID <patient>_<tumor>-<normal> for the labels")
+    p.add_argument("--sample", help="legacy sample ID <patient>_<tumor>-<normal> for the labels (--tumor-only: the "
+                                    "sample ID, the default tumor label)")
     p.add_argument("--tumor-name", help="tumor label (default: from --sample, else 'tumor')")
     p.add_argument("--normal-name", help="normal label (default: from --sample, else 'normal')")
+    _tumor_only(p)
     _common(p)
 
     p = add("rolling", "raw tables -> data/{s}.cnv.snp.gz + data/{s}.cnv.gz (filter + rolling windows)")
@@ -160,6 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--snp", required=True, help="raw/{s}.snp")
     p.add_argument("--out-snp", required=True, help="data/{s}.cnv.snp.gz")
     p.add_argument("--out-cnv", required=True, help="data/{s}.cnv.gz")
+    _tumor_only(p)
     _plot_opts(p)
     _common(p)
 
@@ -170,20 +195,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-o", "--outdir", required=True)
     p.add_argument("--no-mock-germline", action="store_true")
     p.add_argument("--allow-empty", action="store_true", help="write the tables even if there is no SNP or logR")
+    _tumor_only(p)
     _common(p)
 
     p = add("sample", "whole per-sample chain: tn2cnv -> combine (+ sex.tsv) -> rolling -> ascat-input (always the "
-                      "whole sample)")
-    p.add_argument("--pileup", required=True, help="NORMAL TUMOR pileup after `cleanpileup -d` (plain or .gz)")
+                      "whole sample); --tumor-only: a tumor pileup, het SNPs at --snp-sites, mock germline")
+    p.add_argument("--pileup", required=True, help=PILEUP_HELP)
     p.add_argument("--ponmatrix", required=True, help="CNV PON folder (reads CNV/)")
-    p.add_argument("--sample", required=True, help="sample ID used in file names")
+    p.add_argument("--sample", required=True, help="sample ID used in file names (--tumor-only: also the default tumor "
+                                                   "label)")
     _names(p)
     p.add_argument("-o", "--outdir", required=True,
                    help="writes raw/, sex.tsv (sex calls, ASCAT gender), data/, pre/ (and plots/) here")
     _tracks(p)
     _sample_opts(p)
+    _tumor_only(p, sites=True)
     p.add_argument("--no-gc-normalize", action="store_true", help="mean-normalise instead of GC-normalise")
-    p.add_argument("--no-mock-germline", action="store_true")
+    p.add_argument("--no-mock-germline", action="store_true", help="no mock germline tables (pairs only)")
     _pon_match(p)
     p.add_argument("--plots", action="store_true", help="write the legacy JPG plots into plots/")
     p.add_argument("--allow-empty", action="store_true",
@@ -205,6 +233,7 @@ def _config(args) -> dict:
 
     if args.cmd in ("tn2cnv", "sample"):
         put(("hetSNP", "normalVAF"), args.normal_vaf)
+        put(("hetSNP", "tumorOnlyVAF"), args.tumor_vaf)
         put(("hetSNP", "minDepth"), args.min_depth)
         put(("coverage", "minCov"), args.min_cov)
     if args.cmd == "pon-coverage":
@@ -228,8 +257,24 @@ def _check(parser: argparse.ArgumentParser, args) -> None:
         args.chrom = unique(normalize_chrom(c) for c in args.chrom)
     if getattr(args, "plots_dir", None) and not args.sample:
         parser.error("--plots-dir needs --sample")
-    if (getattr(args, "tumor_name", None) is None) != (getattr(args, "normal_name", None) is None):
+    tumor_only = getattr(args, "tumor_only", False)
+    if tumor_only:
+        if getattr(args, "normal_name", None) is not None:
+            parser.error("--normal-name does not go with --tumor-only (a tumor-only sample has no normal)")
+        if getattr(args, "no_mock_germline", False):
+            parser.error("--no-mock-germline does not go with --tumor-only (ASCAT mode B: the tumor and the mock "
+                         "germline, D-Q3)")
+    elif (getattr(args, "tumor_name", None) is None) != (getattr(args, "normal_name", None) is None):
         parser.error("give both --tumor-name and --normal-name, or neither")
+    if hasattr(args, "snp_sites"):
+        if tumor_only and not args.snp_sites:
+            parser.error("--tumor-only needs --snp-sites (the het-SNP candidate sites; there is no normal)")
+        if args.snp_sites and not tumor_only:
+            parser.error("--snp-sites goes with --tumor-only (a pair's het SNPs come from the normal)")
+        if tumor_only and args.normal_vaf:
+            parser.error("--normal-vaf does not apply to --tumor-only (use --tumor-vaf)")
+        if args.tumor_vaf and not tumor_only:
+            parser.error("--tumor-vaf goes with --tumor-only (a pair uses --normal-vaf)")
     if args.threads < 1:
         parser.error("--threads must be >= 1")
     if hasattr(args, "min_pon_match") and not 0 <= args.min_pon_match <= 1:
@@ -237,13 +282,17 @@ def _check(parser: argparse.ArgumentParser, args) -> None:
 
 
 def _plot_names(args):
-    from .convert import resolve_names
+    """(tumor, normal) labels; tumor-only: (--tumor-name or --sample, None)."""
+    from .pipeline import sample_names
 
-    return resolve_names(args.sample, args.tumor_name, args.normal_name)
+    return sample_names(args.sample, args.tumor_name, args.normal_name, getattr(args, "tumor_only", False))
 
 
-def _sex_labels(args) -> tuple[str, str]:
-    """(tumor, normal) labels for sex.tsv: the names, else from --sample, else tumor/normal."""
+def _sex_labels(args) -> tuple[str, str | None]:
+    """(tumor, normal) labels for sex.tsv: the names, else from --sample, else tumor/normal (tumor-only: --tumor-name,
+    else --sample, else tumor; normal None)."""
+    if getattr(args, "tumor_only", False):
+        return args.tumor_name or args.sample or "tumor", None
     if args.tumor_name is not None or args.sample:
         return _plot_names(args)
     return "tumor", "normal"
@@ -284,14 +333,15 @@ def _run(args, cfg) -> None:
         pl.pon_combine(args.ponmatrix, args.outdir, std_factor=cfg["PONcoverage"]["stdFactor"],
                        chroms=args.chrom or PRIMARY_CHROMS, legacy=args.legacy_stats, sex_cfg=cfg["sex"])
     elif args.cmd == "tn2cnv":
-        from .raw import tn2cnv
+        from .raw import tn2cnv, tumor2cnv
 
         sc, cc = cfg["hetSNP"], cfg["coverage"]
-        cov_df, snp_df = tn2cnv(
-            args.pileup, args.bed, gc=args.gc, genmap=args.genmap, chrom=args.chrom, normal_vaf=sc["normalVAF"],
-            min_depth=sc["minDepth"], min_cov=cc["minCov"], clean=not args.raw_pileup, legacy_coords=args.legacy_coords,
-            tmp_dir=args.tmpdir,
-        )
+        kw = dict(gc=args.gc, genmap=args.genmap, chrom=args.chrom, min_depth=sc["minDepth"], min_cov=cc["minCov"],
+                  clean=not args.raw_pileup, legacy_coords=args.legacy_coords, tmp_dir=args.tmpdir)
+        if args.tumor_only:
+            cov_df, snp_df = tumor2cnv(args.pileup, args.bed, args.snp_sites, tumor_vaf=sc["tumorOnlyVAF"], **kw)
+        else:
+            cov_df, snp_df = tn2cnv(args.pileup, args.bed, normal_vaf=sc["normalVAF"], **kw)
         write_tsv(cov_df, args.out_cov)
         write_tsv(snp_df, args.out_snp)
     elif args.cmd == "combine":
@@ -299,7 +349,9 @@ def _run(args, cfg) -> None:
 
         names = _plot_names(args) if args.plots_dir else None
         out_sex = args.out_sex or os.path.join(os.path.dirname(args.out_cov), "sex.tsv")
-        cov_df, snp_df = pl.combine_step(concat_tables(args.cov), concat_tables(args.snp), args.ponmatrix, cfg,
+        cov_in, snp_in = concat_tables(args.cov), concat_tables(args.snp)
+        pl.check_sample_columns(args.tumor_only, cov_in, snp_in)
+        cov_df, snp_df = pl.combine_step(cov_in, snp_in, args.ponmatrix, cfg,
                                          legacy_coords=args.legacy_coords, min_pon_match=args.min_pon_match,
                                          allow_missing_chroms=args.allow_missing_chroms)
         sex_df = pl.sex_step(cov_df, *_sex_labels(args), cfg)  # before any write: no partial outputs
@@ -312,7 +364,9 @@ def _run(args, cfg) -> None:
         pl.sex_step(read_tsv(args.cov), *_sex_labels(args), cfg, args.output)
     elif args.cmd == "rolling":
         names = _plot_names(args) if args.plots_dir else None
-        roll_snp, cnv_df, _ = pl.rolling_step(read_tsv(args.cov), read_tsv(args.snp), cfg)
+        cov_in, snp_in = read_tsv(args.cov), read_tsv(args.snp)
+        pl.check_sample_columns(args.tumor_only, cov_in, snp_in)
+        roll_snp, cnv_df, _ = pl.rolling_step(cov_in, snp_in, cfg)
         write_tsv(roll_snp, args.out_snp)
         write_tsv(cnv_df, args.out_cnv)
         if args.plots_dir:
@@ -321,13 +375,14 @@ def _run(args, cfg) -> None:
         from .convert import write_ascat
 
         write_ascat(read_tsv(args.cnv), args.sample, args.outdir, tumor=args.tumor_name, normal=args.normal_name,
-                    mock_germline=not args.no_mock_germline, allow_empty=args.allow_empty)
+                    mock_germline=not args.no_mock_germline, allow_empty=args.allow_empty, tumor_only=args.tumor_only)
     elif args.cmd == "sample":
         pl.run_sample(
             args.pileup, args.bed, args.ponmatrix, args.sample, args.outdir, cfg, gc=args.gc, genmap=args.genmap,
             tumor=args.tumor_name, normal=args.normal_name, clean=not args.raw_pileup,
             legacy_coords=args.legacy_coords, plots=args.plots, mock_germline=not args.no_mock_germline,
             min_pon_match=args.min_pon_match, allow_empty=args.allow_empty, tmp_dir=args.tmpdir,
+            tumor_only=args.tumor_only, snp_sites=args.snp_sites,
         )
 
 

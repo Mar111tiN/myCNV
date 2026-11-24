@@ -3,6 +3,7 @@
 Files (tab-separated, pandas index as unnamed first column, which ASCAT reads as row names):
   {outdir}/{sample}_{normal}_baf.tsv   {sample}_{tumor}_baf.tsv   {sample}_germline_baf.tsv
   {outdir}/{sample}_{normal}_logr.tsv  {sample}_{tumor}_logr.tsv  {sample}_germline_logr.tsv
+Tumor-only (one sample column, the tumor): the same without the normal tables.
 Columns: chrs (without "chr"), pos, <sample>. BAF = centred VAF<N>; logR = log2ratio<N>_mean (rolling-smoothed).
 """
 
@@ -49,26 +50,45 @@ def resolve_names(sample: str | None, tumor: str | None, normal: str | None) -> 
 
 
 def write_ascat(cnv_df: pd.DataFrame, sample: str, outdir: str, tumor: str | None = None, normal: str | None = None,
-                mock_germline: bool = True, allow_empty: bool = False) -> list[str]:
+                mock_germline: bool = True, allow_empty: bool = False, tumor_only: bool = False) -> list[str]:
     """Write the ASCAT BAF/logR tables; normal = sample 1 (VAF1, log2ratio1_mean), tumor = sample 2.
 
+    tumor_only: one sample column, the tumor (VAF1, log2ratio1_mean; label `tumor`, default `sample`). Writes
+    {sample}_{tumor}_{baf,logr}.tsv and the mock germline {sample}_germline_{baf,logr}.tsv (BAF 0.5, logR 0: ASCAT
+    mode B, D-Q3), no normal tables; the mock germline cannot be turned off and there is no normal name.
     Raises ValueError when there is no SNP row or when a logR column has no value (ASCAT cannot segment that; main
     wrote such tables and ASCAT failed later), unless allow_empty is set.
     """
-    tumor, normal = resolve_names(sample, tumor, normal)
-    if tumor == normal or (mock_germline and "germline" in (tumor, normal)):
-        raise ValueError(f"tumor and normal names {tumor!r}/{normal!r} would give clashing ASCAT file names")
+    if tumor_only:
+        if normal is not None:
+            raise ValueError("a tumor-only ASCAT input has no normal: no --normal-name")
+        if not mock_germline:
+            raise ValueError("a tumor-only ASCAT input is the tumor and the mock germline (ASCAT mode B, D-Q3): "
+                             "--no-mock-germline does not apply")
+        tumor = tumor or sample
+        samples = [(tumor, 0)]  # (label, index of its VAF / logR column)
+    else:
+        tumor, normal = resolve_names(sample, tumor, normal)
+        samples = [(normal, 0), (tumor, 1)]
+    labels = [label for label, _ in samples]
+    if len(set(labels)) < len(labels) or (mock_germline and "germline" in labels):
+        raise ValueError(f"{'tumor name' if tumor_only else 'tumor and normal names'} "
+                         f"{'/'.join(repr(x) for x in labels[::-1])} would give clashing ASCAT file names")
     base = os.path.join(outdir, sample)
     df = cnv_df.copy()
     df["Chr"] = df["Chr"].astype(str).str.replace("chr", "")
     vaf_cols = [c for c in df.columns if c.startswith("VAF")]
     log_cols = [c for c in df.columns if LOG_MEAN_PAT.match(c)]
-    if len(vaf_cols) < 2 or len(log_cols) < 2:
-        raise ValueError(f"need VAF1/VAF2 and log2ratio1_mean/log2ratio2_mean, got {vaf_cols} {log_cols}")
+    if tumor_only and (len(vaf_cols) != 1 or len(log_cols) != 1):
+        raise ValueError(f"tumor-only needs one sample column (VAF1, log2ratio1_mean), got {vaf_cols} {log_cols}"
+                         + (" (a T/N pair: run without --tumor-only)" if len(vaf_cols) >= 2 else ""))
+    if not tumor_only and (len(vaf_cols) < 2 or len(log_cols) < 2):
+        raise ValueError(f"need VAF1/VAF2 and log2ratio1_mean/log2ratio2_mean, got {vaf_cols} {log_cols}"
+                         + (" (one sample column: a tumor-only table? use --tumor-only)" if len(vaf_cols) == 1 else ""))
     problems = []
     if df.empty:
         problems.append("no SNP passed the SNP filter")
-    for col in log_cols[:2]:
+    for col in log_cols[: len(samples)]:
         n_nan = int(df[col].isna().sum())
         if len(df) and n_nan == len(df):
             problems.append(f"{col} (logR) has no value")
@@ -88,16 +108,10 @@ def write_ascat(cnv_df: pd.DataFrame, sample: str, outdir: str, tumor: str | Non
         out.to_csv(path, sep="\t")
         return path
 
-    files = [
-        _write(vaf_cols[0], f"{base}_{normal}_baf.tsv"),
-        _write(vaf_cols[1], f"{base}_{tumor}_baf.tsv"),
-    ]
+    files = [_write(vaf_cols[i], f"{base}_{label}_baf.tsv") for label, i in samples]
     if mock_germline:
         files.append(_write(vaf_cols[0], f"{base}_germline_baf.tsv", values=0.5))
-    files += [
-        _write(log_cols[0], f"{base}_{normal}_logr.tsv"),
-        _write(log_cols[1], f"{base}_{tumor}_logr.tsv"),
-    ]
+    files += [_write(log_cols[i], f"{base}_{label}_logr.tsv") for label, i in samples]
     if mock_germline:
         files.append(_write(log_cols[0], f"{base}_germline_logr.tsv", values=0))
     log.info("ASCAT input written to %s_*", base)
