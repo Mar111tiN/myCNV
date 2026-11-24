@@ -30,17 +30,40 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER tests /tmp/mycnv/tests
 WORKDIR /tmp/mycnv
 RUN /opt/conda/bin/python -m pytest -q -p no:cacheprovider tests
 
+# ---- slim: the tested env minus what nothing runs (plan 3b, 2026-11-24; about half the size) ----
+# docker/slim_env.py: force-removes the listed packages that are installed (pytest and its helpers; tk; cairo with its
+# X11 libs and the conda fonts: only harfbuzz's optional cairo build uses them, while matplotlib's raqm/harfbuzz/glib
+# stay and matplotlib renders with its bundled DejaVu fonts), deletes test suites, headers, static libs, docs,
+# translations and __pycache__, and strips the ELF files (--strip-unneeded keeps the dynamic symbols). Checked on a
+# copy of the env: full test suite (incl. plots) and tier-A smoke unchanged.
+FROM build AS slim
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends binutils \
+ && rm -rf /var/lib/apt/lists/*
+USER $MAMBA_USER
+COPY --chown=$MAMBA_USER:$MAMBA_USER docker/slim_env.py /tmp/slim_env.py
+RUN /opt/conda/bin/python -I /tmp/slim_env.py /opt/conda --remove pytest pygments pluggy colorama exceptiongroup \
+        typing_extensions tomli iniconfig tk pip cairo pixman fontconfig xorg-libx11 xorg-libxext xorg-libxrender \
+        xorg-libsm xorg-libice font-ttf-ubuntu font-ttf-source-code-pro font-ttf-dejavu-sans-mono font-ttf-inconsolata \
+        fonts-conda-forge fonts-conda-ecosystem \
+ && micromamba env export -n base > /opt/conda/env.lock.yml \
+ && micromamba clean -a -y \
+ && /opt/conda/bin/mycnv --version
+
 # ---- runtime: the shipped image (must stay the last stage) ----
 FROM debian:13.7-slim AS runtime
 RUN apt-get update \
  && apt-get install -y --no-install-recommends bash procps gzip \
  && rm -rf /var/lib/apt/lists/*
-COPY --from=build /opt/conda /opt/conda
+COPY --from=slim /opt/conda /opt/conda
 # MPLCONFIGDIR: Nextflow runs tasks as `-u uid:gid` with a HOME that is not writable; matplotlib then warns and
-# rebuilds its cache in a random temp dir on every plot task
+# rebuilds its cache in a random temp dir on every plot task. PYTHONDONTWRITEBYTECODE: the slim stage removed
+# __pycache__ and /opt/conda is not writable for the task user, so Python must not try to write .pyc files.
 ENV PATH=/opt/conda/bin:$PATH \
     MPLBACKEND=Agg \
-    MPLCONFIGDIR=/tmp/mycnv-matplotlib
+    MPLCONFIGDIR=/tmp/mycnv-matplotlib \
+    PYTHONDONTWRITEBYTECODE=1
 ### Create image user
 RUN useradd -m mycnv_user
 USER mycnv_user

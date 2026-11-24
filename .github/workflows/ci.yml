@@ -68,6 +68,8 @@ jobs:
             mycnv:ci bash /smoke/smoke_mycnv.sh /data
           docker run --rm --user 4242:4242 -v "$PWD/tests/data/plumbing:/data:ro" -v "$PWD/tests/smoke:/smoke:ro" \
             mycnv:ci bash /smoke/smoke_mycnv.sh /data
+      - name: Image size (runtime image, uncompressed)
+        run: docker image ls mycnv:ci --format '{{.Repository}}:{{.Tag}} {{.Size}}'
       # Trivy 0.69.3 (the kumo-docker-scientific CI version) as a container; the vuln DB is cached in a volume for
       # the three scans of this job. Gate = library packages, fixed vulns only, HIGH/CRITICAL. Accepted findings go
       # into .trivyignore with a reason (plan 3b/D24).
