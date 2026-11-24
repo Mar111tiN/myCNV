@@ -42,7 +42,7 @@ conda run -n somvar-legacy python tests/legacy_outputs.py <scratch>/myCNV-main  
 ## CLI contract (plan C1)
 
 The kumo-variant-calling-nf modules call `mycnv` with fixed flags (design §3 process table: `MYCNV_PONCOVERAGE` →
-`pon-coverage`, `MYCNV_PONCOMBINE` → `pon-combine`, `MYCNV_SAMPLE` → `sample`, paired and `--tumor-only`), so
+`pon-coverage`, `MYCNV_PONCOMBINE` → `pon-combine`, `MYCNV_SAMPLE` → `sample`, paired and, after M1, `--tumor-only`), so
 `test_cli_contract.py` compares `mycnv.cli.build_parser()` with the snapshot `data/cli_contract.json` (schema
 `mycnv-cli-contract/1`, the same layout as ebscore's). For every subcommand, the nested `tracks gc` and `tracks genmap`
 included, it holds the sorted option strings, and per option the flags, required, the action kind (`store`,
@@ -50,9 +50,13 @@ included, it holds the sorted option strings, and per option the flags, required
 mutually exclusive groups (`pon-coverage`: `--ponmatrix` | `--matrix`, required), positionals, and the `--version`
 output format with the version masked (`mycnv <version>`; versions.yml parses it). Help texts and metavars are not part
 of it (argparse formats `--help` differently between Python versions; the snapshot is the same on Python 3.9 and 3.15).
-The comparison is type-exact (a default `1` → `1.0` or `0` → `false` is a change). The test also parses the design §3
-module command lines with prefix matching off and runs the CLI's cross-option checks on them (e.g. `--tumor-only`
-needs `--snp-sites`), and checks that no (sub)command parser allows prefix matching.
+The comparison is type-exact (a default `1` → `1.0` or `0` → `false` is a change). The test also parses the module
+command lines with prefix matching off and runs the CLI's cross-option checks on them (e.g. `--tumor-only` needs
+`--snp-sites`), and checks that no (sub)command parser allows prefix matching. The `pon-coverage`, `pon-combine` and
+paired `sample` lines are the design §3 ones. The `sample --tumor-only` line is not in §3. It is the form expected after
+M1: the paired line plus `--tumor-only --snp-sites`, without `--normal-name` or `--no-mock-germline`. §3 only notes
+"one-sample pileup + `--snp-sites $sites`". Read literally on the paired line, with or without `--tumor-only`, that
+note does not parse, and the test checks that it does not.
 
 On a mismatch the message lists each changed entry and the modules of the changed subcommands. After a deliberate CLI
 change:
@@ -62,7 +66,9 @@ python tests/make_cli_contract.py   # rewrites the JSON from this checkout's src
 then review the kumo-variant-calling-nf modules that call the changed flags (design §3) and commit the JSON with the
 change. The message names the `mycnv` the test imported. If it warns about a stale install (another copy than this
 checkout's `src/`, with other code: on the workbench the `somvar` env's editable install points at the `kumodev`
-checkout, so a worktree needs `PYTHONPATH=src`), do not regenerate: set `PYTHONPATH=src` or reinstall.
+checkout, so a worktree needs `PYTHONPATH=src`), do not regenerate: set `PYTHONPATH=src`. Reinstall
+(`pip install -e .`) only in a private env, never in the shared `somvar` env, whose editable install serves the
+`kumodev` checkout and every worktree.
 
 ## Parity scripts (not pytest)
 

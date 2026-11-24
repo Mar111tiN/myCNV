@@ -100,10 +100,15 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
     differ). The message lists each changed entry and the kumo-variant-calling-nf modules that call the changed
     subcommand (`MYCNV_PONCOVERAGE`, `MYCNV_PONCOMBINE`, `MYCNV_SAMPLE`; design §3). It says to rerun
     `python tests/make_cli_contract.py` and review those modules. When the imported `mycnv` is a stale install (another
-    copy than `src/`, with other code), it says that instead.
-  - The test also parses the design §3 command lines (`pon-coverage`, `pon-combine`, `sample` paired and
-    `--tumor-only`) with prefix matching off and runs the CLI's cross-option checks on them. It checks that no
-    (sub)command parser allows prefix matching (plan risk "moving CLIs").
+    copy than `src/`, with other code), it says that instead and tells you to set `PYTHONPATH=src`. It advises a
+    reinstall only in a private env, since in the shared workbench env `somvar` a reinstall would repoint the kumodev
+    checkout's editable install.
+  - The test also parses the module command lines with prefix matching off and runs the CLI's cross-option checks on
+    them. `pon-coverage`, `pon-combine` and the paired `sample` are the design §3 lines. The `sample --tumor-only` line
+    is not in §3; it is the form expected after M1: the paired line plus `--tumor-only --snp-sites`, without
+    `--normal-name`. §3 only notes "one-sample pileup + `--snp-sites $sites`", and the test shows that the literal
+    reading of that note on the paired line does not parse, with or without `--tumor-only`. The test also checks that
+    no (sub)command parser allows prefix matching (plan risk "moving CLIs").
 
 ### Behaviour changes vs `main` (deliberate)
 | Area | `main` | now | effect / how to get `main` |

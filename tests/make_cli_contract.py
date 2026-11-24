@@ -222,7 +222,9 @@ def source_note(module, src_pkg: Path = SRC_PKG) -> list[str]:
         lines += [
             f"WARNING: that is not this checkout's {src_pkg}, and its code differs: a stale install.",
             "The script snapshots src/, so rerunning it does not fix this, and the JSON must not be regenerated for it.",
-            "Reinstall (`pip install -e .`) or set PYTHONPATH=src, then rerun the test.",
+            "Set PYTHONPATH=src, then rerun the test.",
+            "Reinstall (`pip install -e .`) only in a private env, never in a shared one. The workbench env `somvar`",
+            "is shared: its editable install serves the kumodev checkout and every worktree.",
         ]
     return lines
 

@@ -89,9 +89,14 @@ def test_no_prefix_matching_anywhere():
     assert [p.prog for p in iter_parsers(build_parser()) if p.allow_abbrev] == []
 
 
-# The command lines of design section 3 (process table, 2026-11-23; the tumor-only form after M1), with placeholders
-# for the Nextflow variables. The snapshot catches every change; these show directly that the module calls still parse
-# and pass the CLI's cross-option checks (`_check`: e.g. --tumor-only needs --snp-sites).
+# The module command lines, with placeholders for the Nextflow variables. The snapshot catches every change; these show
+# directly that the module calls still parse and pass the CLI's cross-option checks (`_check`: e.g. --tumor-only needs
+# --snp-sites). Sources: design section 3 (process table, 2026-11-23) for pon-coverage, pon-combine and the paired
+# sample. The tumor-only sample line is NOT a section 3 line: it is the form that works after M1 (design 6.3 M1 plus
+# `_check`): the paired line with --tumor-only --snp-sites added and --normal-name dropped (no --no-mock-germline
+# either). Section 3 only notes "one-sample pileup + `--snp-sites $sites`", and that note read literally on the paired
+# line does not parse (SECTION3_TUMOR_ONLY_READINGS below). Write the tumor-only module from this line until section 3
+# spells it out.
 MODULE_CALLS = {
     "MYCNV_PONCOVERAGE": "pon-coverage --matrix chr21.pon.gz --chrom chr21 --bed kit.padded.bed "
                          "--gc chr21.gc100-10.gz -o out -t 1",
@@ -125,6 +130,40 @@ def test_module_call_cross_checks_run():
     with pytest.raises(SystemExit) as exit_:
         parse_module_call(argv)
     assert exit_.value.code == 2
+
+
+def _flags(line: str) -> set[str]:
+    return {t for t in shlex.split(line) if t.startswith("-")}
+
+
+def test_tumor_only_call_is_the_paired_call_in_m1_form():
+    """The tumor-only line is the paired section 3 line with --tumor-only --snp-sites added and --normal-name dropped.
+
+    So the two module forms cannot drift apart unnoticed (a flag added to one only), and the comment on MODULE_CALLS
+    says what the line is.
+    """
+    paired, tumor_only = MODULE_CALLS["MYCNV_SAMPLE paired"], MODULE_CALLS["MYCNV_SAMPLE tumor-only"]
+    assert _flags(tumor_only) == (_flags(paired) - {"--normal-name"}) | {"--tumor-only", "--snp-sites"}
+    assert "--no-mock-germline" not in _flags(tumor_only)
+
+
+# Design section 3's tumor-only note ("one-sample pileup + `--snp-sites $sites`") read literally on the paired line:
+# neither reading parses, so a module written from section 3 alone fails. The tumor-only line in MODULE_CALLS is the
+# working form instead (test above).
+SECTION3_TUMOR_ONLY_READINGS = {
+    "paired + --snp-sites": ("--snp-sites kit.snp_sites.vcf.gz", "--snp-sites goes with --tumor-only"),
+    "paired + --tumor-only --snp-sites": ("--tumor-only --snp-sites kit.snp_sites.vcf.gz",
+                                          "--normal-name does not go with --tumor-only"),
+}
+
+
+@pytest.mark.parametrize("reading", SECTION3_TUMOR_ONLY_READINGS)
+def test_section3_tumor_only_literal_readings_fail(reading, capsys):
+    extra, error = SECTION3_TUMOR_ONLY_READINGS[reading]
+    with pytest.raises(SystemExit) as exit_:
+        parse_module_call(shlex.split(f"{MODULE_CALLS['MYCNV_SAMPLE paired']} {extra}"))
+    assert exit_.value.code == 2
+    assert error in capsys.readouterr().err
 
 
 def test_version_output_matches_contract(capsys):
@@ -250,6 +289,10 @@ def test_stale_install_is_named(tmp_path):
     message = mismatch_message(expected, expected, module=installed)
     assert f"(mycnv 0.9 from {copy_.resolve()})" in message
     assert "stale install" in message and "PYTHONPATH=src" in message
+    # PYTHONPATH first; a reinstall only in a private env: in the shared workbench env it repoints the editable install
+    # of the kumodev checkout for every agent and worktree
+    assert message.index("PYTHONPATH=src") < message.index("pip install -e .")
+    assert "only in a private env, never in a shared one" in message
     assert "rerun `python tests/make_cli_contract.py`" not in message
     message = mismatch_message(expected, expected, module=checkout)
     assert f"(mycnv 1.0 from {SRC_PKG.resolve()})" in message
