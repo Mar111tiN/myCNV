@@ -3,7 +3,8 @@
 Source: the dev-space test data T = genome-bundle-testdata/kumo_pipelines/kumo-variant-calling-nf/somvar/,
 synced to a local cache with the same layout (default /home/GOFQR/tools/somvar-dev/data):
   studies/NHL/CNV/NHL1/{raw,data}/NHL1_A-B.*                     (old study outputs, legacy coordinates)
-  genome_resources/.../SS_HAEv7/PON/somvar_HAEv7_NovaSeq_v1/      (cov/, snp/; matrix/chr7.pon.gz head)
+  toolrefs/PONmatrix/SS_HAEv7/somvar_HAEv7_NovaSeq_v1/           (legacy/cov/, legacy/snp/: the 2021 legacy-tool
+                                                                   files; matrix/chr7.pon.gz head)
   static/hg38/{gc100-10/chr7.gc100-10.gz, genmap/split/hg38_genmap.chr7.txt.gz, bed_files/SureSelect/hg38/SS_HAEv7_*}
 
 Usage: python tests/make_fixtures.py [DATA_CACHE]
@@ -16,7 +17,8 @@ import sys
 import pandas as pd
 
 T = sys.argv[1] if len(sys.argv) > 1 else "/home/GOFQR/tools/somvar-dev/data"
-PON = os.path.join(T, "genome_resources/Homo_sapiens/GRCh38.GATK/DNAseq/SS_HAEv7/PON/somvar_HAEv7_NovaSeq_v1")
+PON = os.path.join(T, "toolrefs/PONmatrix/SS_HAEv7/somvar_HAEv7_NovaSeq_v1")
+LEGACY = os.path.join(PON, "legacy")  # the 2021 cov/ snp/ (byte-identical to the former DNAseq/SS_HAEv7/PON/ copy)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 RESTRICTED = os.path.join(OUT, "restricted")  # patient-derived: git-ignored, never committed (plan D14)
 MATRIX_ROWS = 4000      # PONmatrix rows of chr7 (positions 35213..~300k)
@@ -43,8 +45,8 @@ def main() -> None:
     os.makedirs(os.path.join(RESTRICTED, "nhl1"), exist_ok=True)
 
     # 1. PONmatrix head (chr7) + BED slices covering it
-    matrix = os.path.join(PON, "matrix_head", "chr7.pon.head300k.tsv")
-    with open(matrix) as fh, gzip.open(os.path.join(RESTRICTED, "chr7.pon.gz"), "wt") as out:
+    matrix = os.path.join(PON, "matrix", "chr7.pon.gz")
+    with gzip.open(matrix, "rt") as fh, gzip.open(os.path.join(RESTRICTED, "chr7.pon.gz"), "wt") as out:
         for i, line in enumerate(fh):
             if i > MATRIX_ROWS:
                 break
@@ -67,10 +69,10 @@ def main() -> None:
 
     # 3. mini PON: first rows of cov/ and snp/ for chr7, chr21, chrX
     for chrom in ["chr7", "chr21", "chrX"]:
-        cov = pd.read_csv(os.path.join(PON, "cov", f"{chrom}.cov.gz"), sep="\t", nrows=PON_ROWS)
+        cov = pd.read_csv(os.path.join(LEGACY, "cov", f"{chrom}.cov.gz"), sep="\t", nrows=PON_ROWS)
         cov.to_csv(os.path.join(RESTRICTED, "pon_mini", "cov", f"{chrom}.cov.gz"), sep="\t", index=False, compression="gzip")
         end = cov["Pos"].max()
-        snp = pd.read_csv(os.path.join(PON, "snp", f"{chrom}.snp.gz"), sep="\t")
+        snp = pd.read_csv(os.path.join(LEGACY, "snp", f"{chrom}.snp.gz"), sep="\t")
         snp = snp.loc[snp["Pos"] <= end]
         snp.to_csv(os.path.join(RESTRICTED, "pon_mini", "snp", f"{chrom}.snp.gz"), sep="\t", index=False, compression="gzip")
 

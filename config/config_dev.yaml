@@ -20,8 +20,9 @@ paths:
     # the NHL/AMLMono7 HAEv7 PON (PONmatrix: matrix/ from 2021, cov/ snp/ CNV/ rebuilt with mycnv 2.0, plan D21);
     # only notebooks 0A/0B read it. Dev space: …/somvar/toolrefs/PONmatrix/SS_HAEv7/somvar_HAEv7_NovaSeq_v1/
     pon_dir: "{data_root}/toolrefs/PONmatrix/SS_HAEv7/somvar_HAEv7_NovaSeq_v1"
-    # one BED flavour everywhere: the kit's padded BED (plan D20), the file the D21 PON rebuild used
-    bed: "{data_root}/genome_resources/Homo_sapiens/GRCh38.GATK/DNAseq/SS_HAEv7/kit/SS_HAEv7.padded.bed"
+    # one BED flavour everywhere: the kit's padded BED (plan D20) in the canonical DNAseq kit layer, the file the
+    # D21 PON rebuild used (md5 6f5d70920d1b2997abc15a65a93d8b4b)
+    bed: "{data_root}/genome_resources/Homo_sapiens/GRCh38.GATK/DNAseq/SS_HAEv7/SS_HAEv7.padded.bed"
     gc: "{static}/gc100-10"           # {chrom}.gc100-10.gz (Start GC/AT)
     genmap: "{static}/genmap/split"   # hg38_genmap.{chrom}.txt.gz (Chr Pos 30_0 50_0 75_1 100_2)
 
