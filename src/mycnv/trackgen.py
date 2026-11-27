@@ -12,11 +12,13 @@ GC track `{chrom}.gc100-10.gz` (columns `Start  GC/AT`):
 
 Mappability track `hg38_genmap.{chrom}.txt.gz` (columns `Chr  Pos  <k>_<e> ...`, e.g. 30_0 50_0 75_1 100_2):
     genmap (`genmap map -K k -E e`, default reverse-complement counting) mappability = 1 / number of occurrences of
-    the k-mer starting at Pos with up to e errors, rounded to 3 decimals. Rows are dense over the selection (BED),
-    and a cell is left empty when its value equals the value of the previous row (the encoding of the old static
-    track; `load_genmap` restores it with forward-fill). The index must be built on the whole genome the reads are
+    the k-mer starting at Pos with up to e errors, rounded to 3 decimals (0 = 2,000 or more occurrences). Rows are
+    dense over the selection (BED), and a cell is left empty when its value equals the value of the previous row (the
+    encoding of the old static track; `load_genmap` restores it with forward-fill). Positions genmap gives no value
+    (N bases; k-mers that reach an N, at e = 0, or run past the contig end) are written as 0, never left empty: an
+    empty cell would read back as a neighbour's value. The index must be built on the whole genome the reads are
     aligned to (cross-chromosome repeats), which needs ~6 bytes per base of RAM: run a genome-wide build as a kumo
-    job or alone on a >= 64 GB host, never next to other work (skill `somvar-port` -> references/genome-tracks.md).
+    job or alone on a >= 64 GB host, never next to other work (kumodev Programs `info/somvar/genome-tracks.md`).
 """
 
 from __future__ import annotations
@@ -194,12 +196,18 @@ def _values_at(bg: pd.DataFrame, positions1: np.ndarray) -> np.ndarray:
 
 
 def encode_change_points(values: np.ndarray) -> np.ndarray:
-    """Object array: the value where it differs from the previous row, '' where it repeats (the first row is filled)."""
+    """Object array: the value where it differs from the previous row, '' where it repeats (the first row is filled).
+    Only values[0] may be NaN (the 'no previous row' sentinel of make_genmap_track, written as ''): any other NaN
+    raises, because its empty cell would read back as a neighbour's value."""
     out = np.empty(len(values), dtype=object)
     if not len(values):
         return out
+    n_nan = int(np.isnan(values[1:]).sum())
+    if n_nan:
+        raise ValueError(f"{n_nan} NaN values to encode: write positions without a value explicitly (as 0); an "
+                         "empty cell repeats the row above")
     same = np.zeros(len(values), dtype=bool)
-    same[1:] = (values[1:] == values[:-1]) | (np.isnan(values[1:]) & np.isnan(values[:-1]))
+    same[1:] = values[1:] == values[:-1]
     out[:] = ""
     show = ~same & ~np.isnan(values)
     out[np.flatnonzero(show)] = values[show].tolist()  # Python floats: written as 1.0, 0.5, 0.333
@@ -217,6 +225,7 @@ def make_genmap_track(
     tmp_dir: str | None = None,
     pattern: str = GENMAP_PATTERN,
     chunk: int = 5_000_000,
+    no_value: dict | None = None,
 ) -> list[str]:
     """Write `<out_dir>/hg38_genmap.{chrom}.txt.gz` for each chromosome (default: every FASTA sequence).
 
@@ -225,6 +234,8 @@ def make_genmap_track(
     index: an existing genmap index of the whole genome (`build_genmap_index`); if None, one is built from `fasta`
            into a temp folder and removed afterwards. A genome-wide build needs ~6 bytes per base of RAM.
     threads: genmap -T (genmap's own default is 32).
+    no_value: a dict to receive {chrom: {mode: positions without a genmap value}}. Those positions (N bases, k-mers
+              that reach an N at e = 0 or run past the contig end) are written as 0; the counts are also logged.
     """
     chroms = list(chroms) if chroms else fasta_chroms(fasta)
     mode_list = parse_modes(modes)
@@ -253,19 +264,26 @@ def make_genmap_track(
             part = out + ".part"
             bgs = {n: g[g["chrom"] == chrom].sort_values("start") for n, g in graphs.items()}
             prev = {n: np.array([np.nan]) for n in names}  # NaN before the first row: it carries every value
+            missing = dict.fromkeys(names, 0)
             with gzip.open(part, "wt") as fh:
                 fh.write("\t".join(["Chr", "Pos", *names]) + "\n")
                 for pos in _position_chunks(regions, chunk):
                     cols = []
                     for n in names:
                         v = np.round(_values_at(bgs[n], pos), GENMAP_DECIMALS)
+                        gap = np.isnan(v)  # no genmap value: write 0 (left empty, the reader would fill a neighbour in)
+                        missing[n] += int(gap.sum())
+                        v[gap] = 0.0
                         cols.append(encode_change_points(np.concatenate([prev[n], v]))[1:])
                         prev[n] = v[-1:]
                     df = pd.DataFrame({"Chr": chrom, "Pos": pos, **dict(zip(names, cols))})
                     df.to_csv(fh, sep="\t", header=False, index=False)
             os.replace(part, out)
             written.append(out)
-            log.info("mappability track %s written", os.path.basename(out))
+            if no_value is not None:
+                no_value[chrom] = missing
+            log.info("mappability track %s written; positions without a genmap value (written as 0): %s",
+                     os.path.basename(out), ", ".join(f"{n} {c}" for n, c in missing.items()))
     return written
 
 

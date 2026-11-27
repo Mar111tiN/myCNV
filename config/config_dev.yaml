@@ -24,7 +24,7 @@ paths:
     # D21 PON rebuild used (md5 6f5d70920d1b2997abc15a65a93d8b4b)
     bed: "{data_root}/genome_resources/Homo_sapiens/GRCh38.GATK/DNAseq/SS_HAEv7/SS_HAEv7.padded.bed"
     gc: "{static}/gc100-10"           # {chrom}.gc100-10.gz (Start GC/AT)
-    genmap: "{static}/genmap/split"   # hg38_genmap.{chrom}.txt.gz (Chr Pos 30_0 50_0 75_1 100_2)
+    genmap: "{static}/genmap/split"   # hg38_genmap.{chrom}.txt.gz (Chr Pos + 18 modes 30_0 … 150_4; mycnv reads 30_0 50_0 75_1 100_2)
 
 # where notebooks 5 and visualize read the rolled tables from:
 #   run   = the outputs of notebooks 3 + 4 in <out_root>/<sample key>/data/

@@ -22,7 +22,8 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
   Provenance of the old generic genmap track (chr21-only index; a genome-wide check is not allowed on the
   workbench): 66–76 % of positions equal per mode, and 97.6 % agree where the old track says unique. This is
   consistent with genmap defaults on an exome-wide selection, but on a genome-wide index of a FASTA other than the
-  GATK bundle (the bundle masks ~2 Mb of chr21 that the old GC track has values for).
+  GATK bundle (the bundle masks ~2 Mb of chr21 that the old GC track has values for). Superseded by the comparison
+  with the genome-wide genmap 1.3.0 tracks (2026-11-27): kumodev Programs `info/somvar/genome-tracks.md`.
 - Per-sample steps run on the whole sample. `tn2cnv --chrom` (repeatable) is the optional split; its outputs all go
   into one `combine`. `sample` has no `--chrom`: GC normalisation and the log2ratio levels need the whole sample.
   `pon-coverage` runs one job per chromosome (`--threads` in parallel) (plan D16).
@@ -111,6 +112,14 @@ restricted ones on patient-derived slices in the git-ignored `tests/data/restric
     `--normal-name`. §3 only notes "one-sample pileup + `--snp-sites $sites`", and the test shows that the literal
     reading of that note on the paired line does not parse, with or without `--tumor-only`. The test also checks that
     no (sub)command parser allows prefix matching (plan risk "moving CLIs").
+- `tracks genmap`: positions without a genmap value are written as 0 (review F1, 2026-11-27). genmap gives no value
+  at N bases and, at e = 0, at k-mers that reach an N or run past the contig end. `make_genmap_track` left those
+  cells empty, which in this encoding repeats the row above, so `load_genmap` read a neighbour's value: on the
+  GRCh38.GATK chrY the N-masked PAR1 read 1.0 (back-filled) and PAR2 the value before it, which depended on the
+  selection. Now they are an explicit 0 (no mappable occurrence; the default SNP filter drops them through
+  `map50_0 >= 0.3`). Their count per chromosome and mode is logged and returned through the new
+  `make_genmap_track(no_value={})`. `encode_change_points` raises on a NaN after its first value (the sentinel), so
+  a gap can no longer be written as an empty cell. Tracks built earlier differ only at such positions.
 
 ### Behaviour changes vs `main` (deliberate)
 | Area | `main` | now | effect / how to get `main` |

@@ -100,11 +100,44 @@ def test_parse_modes():
 
 
 def test_change_point_encoding_round_trips():
-    v = np.array([1.0, 1.0, 0.5, 0.5, np.nan, np.nan, 1.0, 0.333])
+    v = np.array([1.0, 1.0, 0.5, 0.5, 0.0, 0.0, 1.0, 0.333])
     enc = trackgen.encode_change_points(v)
-    assert enc.tolist() == [1.0, "", 0.5, "", "", "", 1.0, 0.333]
+    assert enc.tolist() == [1.0, "", 0.5, "", 0.0, "", 1.0, 0.333]
     dec = pd.Series([np.nan if x == "" else x for x in enc], dtype=float).ffill()
-    assert dec.iloc[[0, 1, 2, 3, 6, 7]].tolist() == [1.0, 1.0, 0.5, 0.5, 1.0, 0.333]
+    assert dec.tolist() == v.tolist()
+    # make_genmap_track starts every chromosome with a NaN sentinel, so its first row always carries the value
+    assert trackgen.encode_change_points(np.array([np.nan, 0.5, 0.5])).tolist() == ["", 0.5, ""]
+    # any other NaN would be written as '' and read back as a neighbour's value (review F1, 2026-11-27)
+    with pytest.raises(ValueError, match="NaN"):
+        trackgen.encode_change_points(np.array([np.nan, 1.0, np.nan, 1.0]))
+
+
+def test_genmap_positions_without_a_value_are_written_as_0(tmp_path, monkeypatch):
+    """genmap leaves no bedgraph interval at N bases and k-mers that reach an N or the contig end. Such positions at
+    the start, inside and at the end of the selection read 0 after load_genmap (not a neighbour's value), also across
+    chunk borders, and are counted per chromosome and mode."""
+    bedgraph = "chrA\t10\t40\t1\nchrA\t40\t60\t0.5\nchrA\t70\t90\t1\n"  # 0-based: no value at 0-9, 60-69, 90-99
+
+    def fake_genmap(*args):
+        assert args[0] == "map"
+        prefix = args[args.index("-O") + 1]
+        with open(prefix + ".bedgraph", "w") as fh:
+            fh.write(bedgraph)
+
+    monkeypatch.setattr(trackgen, "_genmap", fake_genmap)
+    (tmp_path / "sel.bed").write_text("chrA\t0\t100\n")
+    out = tmp_path / "map"
+    no_value = {}
+    trackgen.make_genmap_track("unused.fa", str(out), chroms=["chrA"], bed=str(tmp_path / "sel.bed"),
+                               modes="30_0", index="unused_index", tmp_dir=str(tmp_path), chunk=7,
+                               no_value=no_value)
+    assert no_value == {"chrA": {"30_0": 30}}
+    with gzip.open(out / "hg38_genmap.chrA.txt.gz", "rt") as fh:
+        fh.readline()
+        assert fh.readline() == "chrA\t1\t0.0\n"  # the first row is written, as 0
+    got = load_genmap(str(out), "chrA", modes=["30_0"]).set_index("Pos")["map30_0"]
+    exp = [0.0] * 10 + [1.0] * 30 + [0.5] * 20 + [0.0] * 10 + [1.0] * 20 + [0.0] * 10
+    assert got.tolist() == exp
 
 
 def kmer_mappability(seqs: dict, k: int) -> dict:
@@ -168,6 +201,38 @@ def test_genmap_track_values_layout_and_reader(repeat_genome, tmp_path):
     assert (dec.loc[1001:1080, "map30_0"] == 0.5).all()  # inside the duplicated 120 bp
     b = load_genmap(str(out), "chrB", modes=["30_0"]).set_index("Pos")
     assert (b.loc[501:560, "map30_0"] == 0.5).all()  # reverse-complement copy of chrA 201-290
+
+
+@needs_genmap
+def test_genmap_track_n_runs_and_contig_end_read_0(tmp_path):
+    """A selected interval that starts and ends inside N runs, and one that reaches the contig end: positions whose
+    k-mer holds an N or runs past the end read 0 (e = 0: genmap gives them no value), the rest the exact mappability."""
+    rng = np.random.default_rng(4)
+    rand = lambda n: "".join(rng.choice(list("ACGT"), n))  # noqa: E731
+    s = rand(400) + "N" * 50 + rand(400) + "N" * 30 + rand(200)  # N at 401-450 and 851-880 (1-based), length 1080
+    seqs = {"chrN": s}
+    fa = write_fasta(tmp_path / "n.fa", seqs)
+    bed = tmp_path / "sel.bed"
+    bed.write_text("chrN\t420\t860\nchrN\t1000\t1080\n")  # 1-based 421-860 (N at both ends), 1001-1080 (contig end)
+    idx = str(tmp_path / "idx")
+    trackgen.build_genmap_index(fa, idx)
+    out = tmp_path / "map"
+    no_value = {}
+    trackgen.make_genmap_track(fa, str(out), bed=str(bed), modes="30_0,50_0", index=idx, threads=2,
+                               tmp_dir=str(tmp_path), no_value=no_value)
+    with gzip.open(out / "hg38_genmap.chrN.txt.gz", "rt") as fh:
+        fh.readline()
+        assert fh.readline() == "chrN\t421\t0.0\t0.0\n"  # an N base: explicit 0, not back-filled
+    dec = load_genmap(str(out), "chrN", modes=["30_0", "50_0"]).set_index("Pos")
+    sel = [*range(421, 861), *range(1001, 1081)]
+    assert dec.index.tolist() == sel
+    for k, col in ((30, "map30_0"), (50, "map50_0")):
+        truth = kmer_mappability(seqs, k)
+        undefined = [p for p in sel if p + k - 1 > len(s) or "N" in s[p - 1 : p - 1 + k]]
+        exp = [0.0 if p in undefined else truth[("chrN", p)] for p in sel]
+        assert dec[col].tolist() == exp, col
+        assert no_value["chrN"][f"{k}_0"] == len(undefined)
+        assert (dec.loc[851:860, col] == 0).all() and (dec.loc[1081 - k + 1 : 1080, col] == 0).all()
 
 
 @needs_genmap

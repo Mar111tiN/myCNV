@@ -53,9 +53,11 @@ mycnv tracks genmap --fasta genome.fa -o genmap/ --bed kit.padded.bed [--modes 3
   rows). ~12 bytes per base peak per process (chr21 8.6 s / 0.57 GB), so it is safe genome-wide.
 - **Mappability** (`hg38_genmap.{chrom}.txt.gz`): genmap mappability (1 / occurrences on both strands, ≤ e errors)
   of the k-mer starting at each position, 3 decimals, dense over `--bed`, a cell left empty when it repeats the
-  previous row (the old encoding). The index must cover the **whole genome** the reads are aligned to (cross-chromosome
-  repeats) and needs ~6 bytes per base of RAM: build it once with `--index DIR` (kept and reused). A whole-genome
-  index is a job for a kumo job or a host where nothing else runs with ≥ 64 GB; never next to other work.
+  previous row (the old encoding). Positions without a genmap value (N bases; k-mers that reach an N at e = 0 or run
+  past the contig end) are written as 0; their count per chromosome and mode is logged. The index must cover the
+  **whole genome** the reads are aligned to (cross-chromosome repeats) and needs ~6 bytes per base of RAM: build it
+  once with `--index DIR` (kept and reused). A whole-genome index is a job for a kumo job or a host where nothing else
+  runs with ≥ 64 GB; never next to other work.
 - Python: `mycnv.trackgen.make_gc_track`, `make_genmap_track`, `build_genmap_index`, `gc_table`.
 
 ## Commands
