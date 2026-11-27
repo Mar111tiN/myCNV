@@ -14,7 +14,7 @@ paths:
     # local cache, same relative layout as the dev test-data folder
     # s3://…/genome-bundle-testdata/kumo_pipelines/kumo-variant-calling-nf/somvar/ (README.md there)
     data_root: /home/GOFQR/tools/somvar-dev/data
-    out_root: /home/GOFQR/tools/somvar-dev/nb_runs/nb-port
+    out_root: /home/GOFQR/kumodev/Programs/nb/myCNV/nb-port
     studies: "{data_root}/studies"
     static: "{data_root}/static/hg38"
     # the NHL/AMLMono7 HAEv7 PON (PONmatrix: matrix/ from 2021, cov/ snp/ CNV/ rebuilt with mycnv 2.0, plan D21);
